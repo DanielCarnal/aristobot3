@@ -8,11 +8,11 @@ User = get_user_model()
 class DevModeBackend(BaseBackend):
     """
     Backend d'authentification pour le mode développement.
-    Connecte automatiquement l'utilisateur 'dev' si DEBUG=True
+    Connecte automatiquement l'utilisateur 'dev' si DEBUG_ARISTOBOT=True
     """
     def authenticate(self, request, username=None, password=None, **kwargs):
-        if settings.DEBUG and not username:
-            # En mode DEBUG, retourner automatiquement l'user dev
+        if settings.DEBUG_ARISTOBOT and not username:
+            # En mode DEBUG_ARISTOBOT, retourner automatiquement l'user dev
             try:
                 return User.objects.get(username='dev')
             except User.DoesNotExist:

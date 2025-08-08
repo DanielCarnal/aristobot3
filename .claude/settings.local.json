@@ -12,7 +12,9 @@
       "Bash(rd:*)",
       "Bash(rm:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

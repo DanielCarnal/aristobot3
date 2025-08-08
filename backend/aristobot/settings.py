@@ -13,6 +13,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me-in-production')
 # Configuration DEBUG
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
+# Configuration DEBUG Aristobot (mode dev auto-login)
+DEBUG_ARISTOBOT = os.getenv('DEBUG_ARISTOBOT', 'False') == 'True'
+
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -124,14 +127,18 @@ REST_FRAMEWORK = {
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vue dev server
+    "http://localhost:5173",  # Vue dev server  
+    "http://127.0.0.1:5173",  # Vue dev server alternative
 ]
 
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
-# Configuration spécifique au mode DEBUG
-if DEBUG:
+# Ne pas utiliser CORS_ALLOW_ALL_ORIGINS avec withCredentials
+# if DEBUG:
+#     CORS_ALLOW_ALL_ORIGINS = True
+
+# Configuration spécifique au mode DEBUG_ARISTOBOT
+if DEBUG_ARISTOBOT:
     # Auto-login pour user "dev"
     AUTHENTICATION_BACKENDS = [
         'apps.accounts.backends.DevModeBackend',  # Notre backend custom

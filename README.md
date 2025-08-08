@@ -2,6 +2,10 @@
 
 Bot de trading crypto personnel développé avec Django et Vue.js selon les spécifications du fichier `SPECIFICATIONS.md`.
 
+**!!!! Fichier utilisé 1x pour pour démarrer le développement de  l'application !!!!**
+**!!!! Se référer à Aristobt3.md qui est tenu à jours !!!!**
+**!!!! N'est plus nécessaire pour la suite du développement, ne pas lire par un Agent IA !!!!**
+
 ## 🎯 Philosophie
 
 **Fun > Perfection** - Projet personnel pragmatique pour 5 utilisateurs max avec 20 stratégies maximum.

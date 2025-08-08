@@ -6,28 +6,28 @@
     
     <nav class="nav-menu">
       <router-link to="/heartbeat" class="nav-item">
-        <span>📡</span> Heartbeat
+        <span>-</span> Heartbeat
       </router-link>
       <router-link to="/trading-manual" class="nav-item">
-        <span>📈</span> Trading Manuel
+        <span>-</span> Trading Manuel
       </router-link>
       <router-link to="/trading-bot" class="nav-item">
-        <span>🤖</span> Trading BOT
+        <span>-</span> Trading BOT
       </router-link>
       <router-link to="/strategies" class="nav-item">
-        <span>⚡</span> Stratégies
+        <span>-</span> Strategies
       </router-link>
       <router-link to="/backtest" class="nav-item">
-        <span>🔄</span> Backtest
+        <span>-</span> Backtest
       </router-link>
       <router-link to="/webhooks" class="nav-item">
-        <span>🔗</span> Webhooks
+        <span>-</span> Webhooks
       </router-link>
       <router-link to="/stats" class="nav-item">
-        <span>📊</span> Statistiques
+        <span>-</span> Statistiques
       </router-link>
       <router-link to="/account" class="nav-item">
-        <span>👤</span> Mon compte
+        <span>-</span> Mon compte
       </router-link>
     </nav>
   </div>

@@ -50,7 +50,7 @@
       </div>
       
       <div v-if="preferences.ai_provider === 'openrouter'" class="form-group">
-        <label>Clé API OpenRouter :</label>
+        <label>Cle API OpenRouter :</label>
         <input 
           type="password" 
           v-model="preferences.ai_api_key"
@@ -68,13 +68,13 @@
       </div>
     </div>
     
-    <!-- Préférences d'affichage -->
+    <!-- Preferences d'affichage -->
     <div class="section">
       <h2>Affichage</h2>
       <div class="form-group">
-        <label>Thème :</label>
+        <label>Theme :</label>
         <select v-model="preferences.theme">
-          <option value="dark">Sombre (avec couleurs néon)</option>
+          <option value="dark">Sombre (avec couleurs neon)</option>
           <option value="light">Clair</option>
         </select>
       </div>
@@ -100,8 +100,8 @@
             <tr>
               <th>Exchange</th>
               <th>Description</th>
-              <th>Clé API</th>
-              <th>Défaut</th>
+              <th>Cle API</th>
+              <th>Defaut</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -113,7 +113,7 @@
                 <span v-if="broker.last_connection_success" class="status-dot success"></span>
                 <span v-else-if="broker.last_connection_test" class="status-dot error"></span>
                 <span v-else class="status-dot unknown"></span>
-                {{ broker.api_key ? '••••••••••' : 'Non configuré' }}
+                {{ broker.api_key ? '••••••••••' : 'Non configure' }}
               </td>
               <td>
                 <span v-if="broker.is_default" class="badge success">✓</span>
@@ -152,7 +152,7 @@
         </div>
         
         <div class="form-group">
-          <label>Nom personnalisé :</label>
+          <label>Nom personnalise :</label>
           <input 
             type="text" 
             v-model="brokerForm.name"
@@ -169,11 +169,11 @@
         </div>
         
         <div class="form-group">
-          <label>Clé API :</label>
+          <label>Cle API :</label>
           <input 
             type="text" 
             v-model="brokerForm.api_key"
-            placeholder="Votre clé API"
+            placeholder="Votre cle API"
           >
         </div>
         
@@ -217,7 +217,7 @@
     <!-- Bouton sauvegarder -->
     <div class="actions">
       <button @click="savePreferences" class="btn btn-primary">
-        Sauvegarder les préférences
+        Sauvegarder les preferences
       </button>
     </div>
   </div>
@@ -225,8 +225,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
-import axios from 'axios'
+import { useAuthStore } from '../stores/auth'
+import api from '../api'
 
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
@@ -241,7 +241,7 @@ const preferences = ref({
   display_timezone: 'local'
 })
 
-// Détecter le fuseau horaire local
+// Detecter le fuseau horaire local
 const localTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
 const brokers = ref([])
@@ -272,7 +272,7 @@ const brokerForm = ref({
 const connectionTest = ref(null)
 
 onMounted(async () => {
-  // Charger les préférences utilisateur
+  // Charger les preferences utilisateur
   if (user.value) {
     preferences.value = {
       ai_provider: user.value.ai_provider || 'none',
@@ -283,7 +283,7 @@ onMounted(async () => {
       display_timezone: user.value.display_timezone || 'local'
     }
     
-    // Appliquer le thème
+    // Appliquer le theme
     document.documentElement.setAttribute('data-theme', preferences.value.theme)
   }
   
@@ -293,7 +293,7 @@ onMounted(async () => {
 
 async function loadBrokers() {
   try {
-    const response = await axios.get('/api/brokers/')
+    const response = await api.get('/api/brokers/')
     brokers.value = response.data.results || response.data
   } catch (error) {
     console.error('Erreur chargement brokers:', error)
@@ -303,7 +303,7 @@ async function loadBrokers() {
 async function savePreferences() {
   try {
     await authStore.updatePreferences(preferences.value)
-    alert('Préférences sauvegardées')
+    alert('Preferences sauvegardees')
   } catch (error) {
     alert('Erreur lors de la sauvegarde')
   }
@@ -315,7 +315,7 @@ function editBroker(broker) {
     exchange: broker.exchange,
     name: broker.name,
     description: broker.description || '',
-    api_key: '',  // Ne pas afficher la clé existante pour sécurité
+    api_key: '',  // Ne pas afficher la cle existante pour securite
     api_secret: '',  // Ne pas afficher le secret existant
     api_password: broker.api_password ? '••••••••' : '',
     subaccount_name: broker.subaccount_name || '',
@@ -327,7 +327,7 @@ function editBroker(broker) {
 async function deleteBroker(broker) {
   if (confirm(`Supprimer ${broker.name} ?`)) {
     try {
-      await axios.delete(`/api/brokers/${broker.id}/`)
+      await api.delete(`/api/brokers/${broker.id}/`)
       await loadBrokers()
     } catch (error) {
       alert('Erreur lors de la suppression')
@@ -337,21 +337,21 @@ async function deleteBroker(broker) {
 
 async function updateSymbols(broker) {
   try {
-    const response = await axios.post(`/api/brokers/${broker.id}/update_symbols/`)
+    const response = await api.post(`/api/brokers/${broker.id}/update_symbols/`)
     alert(response.data.message)
   } catch (error) {
-    alert('Erreur lors de la mise à jour des symboles')
+    alert('Erreur lors de la mise a jour des symboles')
   }
 }
 
 async function testConnection() {
   connectionTest.value = null
   
-  // Validation temps réel des clés
+  // Validation temps reel des cles
   if (!brokerForm.value.api_key || !brokerForm.value.api_secret) {
     connectionTest.value = {
       success: false,
-      message: 'Veuillez entrer les clés API'
+      message: 'Veuillez entrer les cles API'
     }
     return
   }
@@ -361,19 +361,19 @@ async function testConnection() {
   
   if (!brokerId) {
     try {
-      const response = await axios.post('/api/brokers/', brokerForm.value)
+      const response = await api.post('/api/brokers/', brokerForm.value)
       brokerId = response.data.id
     } catch (error) {
       connectionTest.value = {
         success: false,
-        message: 'Erreur lors de la création du broker'
+        message: 'Erreur lors de la creation du broker'
       }
       return
     }
   }
   
   try {
-    const response = await axios.post(`/api/brokers/${brokerId}/test_connection/`)
+    const response = await api.post(`/api/brokers/${brokerId}/test_connection/`)
     connectionTest.value = response.data
   } catch (error) {
     connectionTest.value = {
@@ -385,17 +385,17 @@ async function testConnection() {
 
 async function saveBroker() {
   try {
-    // Ne pas envoyer les champs vides ou masqués lors de l'édition
+    // Ne pas envoyer les champs vides ou masques lors de l'edition
     const dataToSend = { ...brokerForm.value }
     if (editingBroker.value) {
-      // En mode édition, ne pas envoyer les clés si elles sont masquées
+      // En mode edition, ne pas envoyer les cles si elles sont masquees
       if (dataToSend.api_key === '') delete dataToSend.api_key
       if (dataToSend.api_secret === '') delete dataToSend.api_secret
       if (dataToSend.api_password === '••••••••') delete dataToSend.api_password
       
-      await axios.patch(`/api/brokers/${editingBroker.value.id}/`, dataToSend)
+      await api.patch(`/api/brokers/${editingBroker.value.id}/`, dataToSend)
     } else {
-      await axios.post('/api/brokers/', dataToSend)
+      await api.post('/api/brokers/', dataToSend)
     }
     await loadBrokers()
     closeBrokerModal()
@@ -406,11 +406,11 @@ async function saveBroker() {
 
 function toggleAI(provider) {
   if (preferences.value.ai_provider === provider && preferences.value.ai_enabled) {
-    // Désactiver
+    // Desactiver
     preferences.value.ai_enabled = false
     preferences.value.ai_provider = 'none'
   } else {
-    // Activer ce provider et désactiver l'autre
+    // Activer ce provider et desactiver l'autre
     preferences.value.ai_enabled = true
     preferences.value.ai_provider = provider
   }
@@ -438,7 +438,7 @@ function resetBrokerForm() {
 </script>
 
 <style scoped>
-/* Styles adaptés au thème dark avec couleurs néon */
+/* Styles adaptes au theme dark avec couleurs neon */
 .account-view {
   padding: 2rem;
 }

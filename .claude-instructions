@@ -27,16 +27,36 @@ Approche pragmatique : shipping > perfection.
 - Pas de MongoDB
 - Pas d'over-engineering
 
-## TRAVAUX EN COURS -Avencement du projet
-- Suivre les étpes décrites dans le fichier `README.md`
-- [X] Étape 1
-- [X] Étape 2
-- [X] Étape 3
-- [X] Étape 4
-- [X] Étape 5
-- [X] Terminal 1 : Serveur web + WebSocket
-- [X] Terminal 2 : Service Heartbeat (lecture Binance)
-- [X] Terminal 3 : Service Trading Engine (exécution stratégies)
-- [X] Terminal 4: Frontend Vue.js
-**Toutes les étapes du fichier `README.md` sont réalisées et fonctionelles**
-EOF < /dev/null
+## CONTRAINTES TECHNIQUES CRITIQUES (ajout basé sur debugging)
+### Encodage Windows
+- # -*- coding: utf-8 -*- obligatoire première ligne Python
+- Caractères ASCII : é→e, è→e, à→a (pas d'émojis/accents)
+
+### Frontend Vite/Vue
+- index.html à la racine frontend/ (pas dans public/)
+- vite.config.js : vue runtime complet + feature flags
+- CORS withCredentials + backend CORS_ALLOW_CREDENTIALS
+
+### Django Auth/Migrations  
+- Migrations : accounts app TOUJOURS en premier
+- Backend auth : spécifier backend= dans login() calls
+- Reset migrations si conflicts : DROP DB + delete migrations/
+
+### Multi-tenant
+- TOUJOURS filtrer par user_id dans ViewSets
+- API keys chiffrées Fernet + SECRET_KEY
+- CCXT enableRateLimit: true
+
+### Variables d'environnement
+- .env à la racine projet (DEBUG='True' développement)
+- SECRET_KEY unique, REDIS_HOST pour Channels
+
+### API REST & Permissions  
+- DRF SessionAuthentication par défaut
+- Filtrage request.user OBLIGATOIRE dans ViewSets
+- @permission_classes([AllowAny]) seulement endpoints auth
+
+### Commandes de base
+- python manage.py init_aristobot (user dev)
+- Ports : Django 8000, Vue.js 5173
+- Test après chaque migration/reset DB

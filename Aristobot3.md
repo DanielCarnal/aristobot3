@@ -228,7 +228,7 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
     * **Paramètres d'Affichage** :
         * **Thème** : Un sélecteur pour basculer entre le mode sombre (obligatoirement avec des couleurs néon) et un mode clair.
         * **Fuseau Horaire** : Un sélecteur pour afficher toutes les dates et heures de l'application soit en **UTC**, soit dans le **fuseau horaire local** du navigateur. Le choix est stocké dans le profil utilisateur.
-    * **Mode de Développement** : Lorsque la variable d'environnement `DEBUG=True` est active, l'application **contourne l'écran de connexion** et connecte automatiquement un utilisateur "dev" qui existe en base de données. Cet utilisateur a un accès inconditionnel à toutes les données de tous les utilisateurs pour faciliter le développement et les tests par une IA. Si un utilisateur se déconnecte manuellement en mode DEBUG, il est automatiquement reconnecté en tant que "dev".
+    * **Mode de Développement** : Lorsque la variable d'environnement `DEBUG_ARISTOBOT=True` est active, l'application **contourne l'écran de connexion** et connecte automatiquement un utilisateur "dev" qui existe en base de données. Cet utilisateur a un accès inconditionnel à toutes les données de tous les utilisateurs pour faciliter le développement et les tests par une IA. Si un utilisateur se déconnecte manuellement en mode `DEBUG_ARISTOBOT=True`, il est automatiquement reconnecté en tant que "dev".
 
 * **Backend** : Gère l'authentification (login/logout), l'enregistrement de nouveaux utilisateurs (CRUD), et le stockage des préférences.
 

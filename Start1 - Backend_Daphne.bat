@@ -1,5 +1,4 @@
 @echo off
-:RESTART
 
 REM -- Activer conda et l'environnement --
 call C:\ProgramData\anaconda3\Scripts\activate.bat
@@ -12,7 +11,7 @@ echo Dossier backend ouvert
 
 REM -- Afficher le contenu du dossier --
 dir
-
+:RESTART
 REM -- Lancer Daphne --
 echo 🚀 Lancement de Daphne...
 daphne aristobot.asgi:application

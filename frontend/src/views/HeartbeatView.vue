@@ -4,7 +4,7 @@
     
     <div class="stream-container">
       <div class="stream-section">
-        <h2>Stream Temps Réel</h2>
+        <h2>Stream Temps Reel</h2>
         <div class="stream-list">
           <div 
             v-for="item in streamData" 

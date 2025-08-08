@@ -11,8 +11,28 @@
 </template>
 
 <script setup>
+console.log('DEBUG: App.vue - Script setup demarre')
+
+import { onMounted } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
+import { useAuthStore } from './stores/auth'
+
+console.log('DEBUG: App.vue - Imports termines')
+
+const authStore = useAuthStore()
+console.log('DEBUG: App.vue - AuthStore cree')
+
+onMounted(async () => {
+  console.log('DEBUG: App.vue - onMounted execute')
+  // Verifier l'authentification au demarrage
+  try {
+    await authStore.checkAuth()
+    console.log('DEBUG: App.vue - Auth check termine')
+  } catch (error) {
+    console.error('DEBUG: App.vue - Erreur auth check:', error)
+  }
+})
 </script>
 
 <style>

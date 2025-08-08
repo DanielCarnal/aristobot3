@@ -12,11 +12,12 @@ User = get_user_model()
 @permission_classes([AllowAny])
 def login_view(request):
     """Endpoint de connexion"""
-    # En mode DEBUG, connexion automatique avec user dev
-    if settings.DEBUG and not request.data.get('username'):
+    # En mode DEBUG_ARISTOBOT, connexion automatique avec user dev
+    if settings.DEBUG_ARISTOBOT and not request.data.get('username'):
         try:
             user = User.objects.get(username='dev')
-            login(request, user)
+            # Utiliser le paramètre backend directement dans login()
+            login(request, user, backend='apps.accounts.backends.DevModeBackend')
             return Response({
                 'user': {
                     'id': user.id,
@@ -43,6 +44,7 @@ def login_view(request):
     
     user = authenticate(request, username=username, password=password)
     if user:
+        # Le backend est défini automatiquement par authenticate()
         login(request, user)
         return Response({
             'user': {
@@ -63,20 +65,31 @@ def login_view(request):
 def logout_view(request):
     """Endpoint de deconnexion"""
     logout(request)
-    # En mode DEBUG, reconnecter automatiquement avec dev
-    if settings.DEBUG:
+    # En mode DEBUG_ARISTOBOT, reconnecter automatiquement avec dev
+    if settings.DEBUG_ARISTOBOT:
         try:
             user = User.objects.get(username='dev')
-            login(request, user)
+            login(request, user, backend='apps.accounts.backends.DevModeBackend')
             return Response({'message': 'Deconnecte, reconnecte en tant que dev'})
         except User.DoesNotExist:
             pass
     return Response({'message': 'Deconnecte'})
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # Changé temporairement pour DEBUG
 def current_user(request):
     """Retourne l'utilisateur actuellement connecte"""
+    # En mode DEBUG_ARISTOBOT, si pas connecté, connecter automatiquement avec dev
+    if settings.DEBUG_ARISTOBOT and not request.user.is_authenticated:
+        try:
+            user = User.objects.get(username='dev')
+            login(request, user, backend='apps.accounts.backends.DevModeBackend')
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Utilisateur dev non trouve. Lancez "python manage.py init_aristobot"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
     user = request.user
     return Response({
         'id': user.id,
