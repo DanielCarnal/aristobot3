@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
+import api from '../api'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -15,7 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     
     try {
-      const response = await axios.post('/api/auth/login/', {
+      const response = await api.post('/api/auth/login/', {
         username,
         password
       })
@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   async function logout() {
     try {
-      await axios.post('/api/auth/logout/')
+      await api.post('/api/auth/logout/')
       // En mode dev, on sera reconnecté automatiquement
       await checkAuth()
     } catch (err) {
@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   async function checkAuth() {
     try {
-      const response = await axios.get('/api/auth/current/')
+      const response = await api.get('/api/auth/current/')
       user.value = response.data
       return true
     } catch (err) {
@@ -56,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   async function updatePreferences(preferences) {
     try {
-      await axios.put('/api/auth/preferences/', preferences)
+      await api.put('/api/auth/preferences/', preferences)
       // Recharger les infos utilisateur
       await checkAuth()
     } catch (err) {

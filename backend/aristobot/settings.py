@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -75,8 +76,12 @@ ASGI_APPLICATION = 'aristobot.asgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db_temp.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'aristobot3',
+        'USER': 'postgres',
+        'PASSWORD': 'aristobot',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 

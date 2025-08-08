@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import ccxt
 from typing import Dict, Any
 from django.core.cache import cache
