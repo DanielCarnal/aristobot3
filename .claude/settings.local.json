@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(for app in core accounts brokers market_data strategies trading_engine trading_manual backtest webhooks stats)",
+      "Bash(do touch backend/apps/$app/__init__.py)",
+      "Bash(done)",
+      "Bash(do touch backend/apps/$app/models.py backend/apps/$app/views.py backend/apps/$app/urls.py backend/apps/$app/admin.py backend/apps/$app/tests.py)",
+      "Bash(touch:*)",
+      "Bash(find:*)",
+      "Bash(python manage.py:*)",
+      "Bash(rd:*)",
+      "Bash(rm:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

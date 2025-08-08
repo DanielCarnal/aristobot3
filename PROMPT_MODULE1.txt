@@ -1,0 +1,64 @@
+Contexte : Je développe Aristobot3, un bot de trading crypto en Django/Vue.js.
+
+Fichiers de référence :
+- ARISTOBOT3.md : Description complète du projet
+- IMPLEMENTATION_PLAN.md : Plan détaillé avec TOUT le code du Module 1 (c'est là que tu trouveras le code à copier)
+
+Chemin du projet : C:\Users\dac\Documents\Python\Django\Aristobot3
+
+Objectif : Implémenter EXACTEMENT le Module 1 (User Account & Brokers) en suivant le code fourni dans IMPLEMENTATION_PLAN.md
+
+Actions à réaliser dans l'ordre :
+1. Créer les modèles dans :
+   - backend/apps/core/models.py (HeartbeatStatus, Position)
+   - backend/apps/accounts/models.py (User étendu)
+   - backend/apps/brokers/models.py (Broker, ExchangeSymbol)
+2. Créer backend/apps/accounts/backends.py (DevModeBackend)
+3. Créer les services dans backend/apps/core/services/ :
+   - __init__.py
+   - ccxt_service.py
+   - symbol_updater.py
+4. Créer les management commands :
+   - backend/apps/accounts/management/commands/init_aristobot.py
+   - backend/apps/core/management/commands/run_trading_engine.py
+5. Créer les serializers et viewsets :
+   - backend/apps/brokers/serializers.py
+   - backend/apps/brokers/views.py
+6. Créer les views pour accounts :
+   - backend/apps/accounts/views.py
+7. Configurer les URLs :
+   - backend/apps/accounts/urls.py
+   - backend/apps/brokers/urls.py
+   - Modifier backend/aristobot/urls.py
+8. Modifier backend/aristobot/settings.py
+9. Créer/modifier le frontend Vue :
+   - frontend/src/stores/auth.js
+   - frontend/src/views/AccountView.vue
+
+Prérequis à vérifier :
+- PostgreSQL est installé et configuré
+- Redis est installé et lancé
+- Un fichier .env existe avec DEBUG=True
+- Le projet Django de base existe déjà
+- Le projet Vue.js de base existe avec Pinia installé
+
+Dépendances à installer si besoin :
+pip install ccxt cryptography django-cors-headers channels channels-redis djangorestframework python-dotenv
+
+Contraintes importantes :
+- PostgreSQL uniquement (pas de MongoDB)
+- Multi-tenant strict (toujours filtrer par user_id)
+- Chiffrement avec Django SECRET_KEY
+- Mode DEBUG = connexion auto avec user "dev"
+- CCXT avec enableRateLimit: true
+
+Tests après chaque étape :
+1. Vérifier que le serveur démarre : python manage.py runserver
+2. Après tous les modèles, faire les migrations :
+   python manage.py makemigrations accounts brokers core
+   python manage.py migrate
+3. Après tout, lancer : python manage.py init_aristobot
+4. Tester le Trading Engine : python manage.py run_trading_engine --test
+
+IMPORTANT : Le code détaillé pour chaque fichier est dans IMPLEMENTATION_PLAN.md, section "MODULE 1". 
+Utilise CE code exact, ne réinvente pas. Le code commence à "ÉTAPE 1.1" et va jusqu'à "ÉTAPE 1.7".

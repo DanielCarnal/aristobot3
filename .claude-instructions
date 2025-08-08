@@ -1,0 +1,42 @@
+# Aristobot3 - Instructions Claude Code
+
+## Contexte
+Bot de trading crypto personnel en Django/Vue.js pour 5 users max.
+Approche pragmatique : shipping > perfection.
+
+## Structure stricte
+- Backend Django dans `/backend/apps/`
+- Frontend Vue.js dans `/frontend/src/`
+- Services auto-démarrés dans `apps/*/management/commands/`
+- WebSocket via Django Channels
+
+## Conventions de code
+- Python : PEP 8, type hints quand utile
+- Vue 3 Composition API uniquement
+- Pas de commentaires inutiles
+- Noms de variables en anglais
+
+## Base de données
+- PostgreSQL uniquement
+- Django ORM (pas de SQL brut)
+- Migrations Django
+
+## À ne PAS faire
+- Pas de microservices
+- Pas de Celery (utiliser asyncio)
+- Pas de MongoDB
+- Pas d'over-engineering
+
+## TRAVAUX EN COURS -Avencement du projet
+- Suivre les étpes décrites dans le fichier `README.md`
+- [X] Étape 1
+- [X] Étape 2
+- [X] Étape 3
+- [X] Étape 4
+- [X] Étape 5
+- [X] Terminal 1 : Serveur web + WebSocket
+- [X] Terminal 2 : Service Heartbeat (lecture Binance)
+- [X] Terminal 3 : Service Trading Engine (exécution stratégies)
+- [X] Terminal 4: Frontend Vue.js
+**Toutes les étapes du fichier `README.md` sont réalisées et fonctionelles**
+EOF < /dev/null
