@@ -16,10 +16,12 @@ import BacktestView from './views/BacktestView.vue'
 import WebhooksView from './views/WebhooksView.vue'
 import StatsView from './views/StatsView.vue'
 import AccountView from './views/AccountView.vue'
+import LoginView from './views/LoginView.vue'
 
 console.log('DEBUG: main.js - Toutes les vues importees')
 
 const routes = [
+  { path: '/login', component: LoginView },
   { path: '/', redirect: '/heartbeat' },
   { path: '/heartbeat', component: HeartbeatView },
   { path: '/trading-manual', component: TradingManualView },

@@ -34,7 +34,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'apps.core',
-    'apps.accounts',
+    'apps.auth_custom',      # Nouvelle app auth
+    'apps.accounts',  # Garder pour les autres fonctions user
     'apps.brokers',
     'apps.market_data',
     'apps.strategies',
@@ -108,15 +109,43 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# Configuration des logs pour debug
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'apps.auth_custom': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apps.accounts': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
+
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Custom SessionAuthentication sans CSRF pour API
+from rest_framework.authentication import SessionAuthentication
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # Ne pas vérifier CSRF pour les API
+
 # Configuration DRF
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+        'aristobot.settings.CsrfExemptSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -125,25 +154,40 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# CORS
+# CORS - Configuration plus permissive pour le développement
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue dev server  
     "http://127.0.0.1:5173",  # Vue dev server alternative
+    "http://localhost:3000",  # Autres ports possibles
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",  # API elle-même (pour les tests)
+    "http://127.0.0.1:8000",  # API elle-même (pour les tests)
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Gardons la sécurité
+
+# Headers CORS pour les cookies
+CORS_ALLOWED_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Ne pas utiliser CORS_ALLOW_ALL_ORIGINS avec withCredentials
 # if DEBUG:
 #     CORS_ALLOW_ALL_ORIGINS = True
 
-# Configuration spécifique au mode DEBUG_ARISTOBOT
-if DEBUG_ARISTOBOT:
-    # Auto-login pour user "dev"
-    AUTHENTICATION_BACKENDS = [
-        'apps.accounts.backends.DevModeBackend',  # Notre backend custom
-        'django.contrib.auth.backends.ModelBackend',  # Backend normal
-    ]
+# Configuration d'authentification standard
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 CHANNEL_LAYERS = {
     'default': {

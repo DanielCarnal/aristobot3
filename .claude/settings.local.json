@@ -14,7 +14,12 @@
       "Bash(git init:*)",
       "Bash(git add:*)",
       "Bash(grep:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(mv:*)",
+      "Bash(dir /s C:UsersdacDocumentsPythonDjangoAristobot3backend*views.py)",
+      "Bash(curl:*)",
+      "WebFetch(domain:ccxtcn.readthedocs.io)"
     ],
     "deny": []
   }

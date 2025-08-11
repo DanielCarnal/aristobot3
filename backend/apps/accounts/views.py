@@ -11,28 +11,7 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-    """Endpoint de connexion"""
-    # En mode DEBUG_ARISTOBOT, connexion automatique avec user dev
-    if settings.DEBUG_ARISTOBOT and not request.data.get('username'):
-        try:
-            user = User.objects.get(username='dev')
-            # Utiliser le paramètre backend directement dans login()
-            login(request, user, backend='apps.accounts.backends.DevModeBackend')
-            return Response({
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'is_dev': True
-                }
-            })
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Utilisateur dev non trouve. Lancez "python manage.py init_aristobot"'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
-    # Connexion normale
+    """Endpoint de connexion standard"""    
     username = request.data.get('username')
     password = request.data.get('password')
     
@@ -44,14 +23,12 @@ def login_view(request):
     
     user = authenticate(request, username=username, password=password)
     if user:
-        # Le backend est défini automatiquement par authenticate()
         login(request, user)
         return Response({
             'user': {
                 'id': user.id,
                 'username': user.username,
-                'email': user.email,
-                'is_dev': False
+                'email': user.email
             }
         })
     
@@ -63,39 +40,27 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
-    """Endpoint de deconnexion"""
+    """Endpoint de deconnexion standard"""
     logout(request)
-    # En mode DEBUG_ARISTOBOT, reconnecter automatiquement avec dev
-    if settings.DEBUG_ARISTOBOT:
-        try:
-            user = User.objects.get(username='dev')
-            login(request, user, backend='apps.accounts.backends.DevModeBackend')
-            return Response({'message': 'Deconnecte, reconnecte en tant que dev'})
-        except User.DoesNotExist:
-            pass
     return Response({'message': 'Deconnecte'})
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Changé temporairement pour DEBUG
+@permission_classes([IsAuthenticated])
 def current_user(request):
     """Retourne l'utilisateur actuellement connecte"""
-    # En mode DEBUG_ARISTOBOT, si pas connecté, connecter automatiquement avec dev
-    if settings.DEBUG_ARISTOBOT and not request.user.is_authenticated:
-        try:
-            user = User.objects.get(username='dev')
-            login(request, user, backend='apps.accounts.backends.DevModeBackend')
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Utilisateur dev non trouve. Lancez "python manage.py init_aristobot"'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
     user = request.user
+    
+    # Vérifier si l'utilisateur est authentifié
+    if not user.is_authenticated:
+        return Response(
+            {'error': 'Non authentifié'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
     return Response({
         'id': user.id,
         'username': user.username,
         'email': user.email,
-        'is_dev': user.username == 'dev',
         'ai_provider': user.ai_provider,
         'ai_enabled': user.ai_enabled,
         'theme': user.theme,
@@ -106,6 +71,15 @@ def current_user(request):
 @permission_classes([IsAuthenticated])
 def update_preferences(request):
     """Met a jour les preferences utilisateur"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"update_preferences - User: {request.user}")
+    logger.info(f"update_preferences - Authenticated: {request.user.is_authenticated}")
+    logger.info(f"update_preferences - Session key: {request.session.session_key}")
+    logger.info(f"update_preferences - Cookies: {dict(request.COOKIES)}")
+    logger.info(f"update_preferences - Headers: {dict(request.headers)}")
+    logger.info(f"update_preferences - Auth classes: {getattr(request, '_authenticators', None)}")
+    
     user = request.user
     
     # Gestion des switches IA - activer l'un desactive l'autre

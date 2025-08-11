@@ -34,7 +34,7 @@
 
 ### Développement
 - **Mode DEBUG** : `DEBUG_ARISTOBOT=True` -> Autorise user "dev" sans login
-- **Mode TESTNET** : Global avec status bar inversée -> 
+- **Mode TESTNET** : Global avec status bar inversée
 - **Historique complet** : Toutes les tentatives de trades
 - **Chiffrement** : Django SECRET_KEY pour API keys
 

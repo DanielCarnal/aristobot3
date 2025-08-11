@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import api from '../api'
+import api from '../api/index.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const isLoading = ref(false)
   const error = ref(null)
+  const debugConfig = ref({ enabled: false, active: false })
   
   const isAuthenticated = computed(() => !!user.value)
-  const isDev = computed(() => user.value?.is_dev || false)
+  const debugEnabled = computed(() => debugConfig.value.enabled)
+  const debugActive = computed(() => debugConfig.value.active)
   
   async function login(username = null, password = null) {
     isLoading.value = true
@@ -32,31 +34,94 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       await api.post('/api/auth/logout/')
-      // En mode dev, on sera reconnecté automatiquement
-      await checkAuth()
+      user.value = null
+      debugConfig.value = { enabled: false, active: false }
     } catch (err) {
       console.error('Erreur de déconnexion:', err)
+      // Forcer la déconnexion côté client même si erreur serveur
+      user.value = null
+      debugConfig.value = { enabled: false, active: false }
     }
   }
   
-  async function checkAuth() {
+  async function checkDebugConfig() {
     try {
-      const response = await api.get('/api/auth/current/')
-      user.value = response.data
+      const response = await api.get('/api/auth/debug-config/')
+      debugConfig.value = response.data
+      return response.data
+    } catch (err) {
+      console.error('Erreur debug config:', err)
+      debugConfig.value = { enabled: false, active: false }
+      return debugConfig.value
+    }
+  }
+  
+  async function toggleDebugMode() {
+    try {
+      const response = await api.post('/api/auth/toggle-debug/')
+      debugConfig.value.active = response.data.active
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data?.error || 'Erreur toggle debug'
+      throw err
+    }
+  }
+  
+  async function debugLogin() {
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const response = await api.post('/api/auth/debug-login/')
+      user.value = response.data.user
       return true
     } catch (err) {
-      // En mode DEBUG, essayer de se connecter automatiquement
-      if (import.meta.env.DEV) {
-        return await login()
-      }
+      error.value = err.response?.data?.error || 'Debug login non disponible'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function checkAuth() {
+    try {
+      const response = await api.get('/api/auth/status/')
+      user.value = response.data.user
+      debugConfig.value = response.data.debug
+      // Retourner true seulement si l'utilisateur est connecté
+      return !!response.data.user
+    } catch (err) {
       user.value = null
+      debugConfig.value = { enabled: false, active: false }
       return false
     }
   }
   
+  async function ensureCsrfToken() {
+    // Récupérer le token CSRF au début de l'application
+    try {
+      await api.get('/api/auth/csrf-token/')
+    } catch (err) {
+      console.error('Erreur récupération CSRF token:', err)
+    }
+  }
+
+  async function ensureAuth() {
+    // S'assurer qu'on a le token CSRF
+    await ensureCsrfToken()
+    
+    // Vérifier d'abord si on est connecté
+    const isAuth = await checkAuth()
+    if (isAuth) return true
+    
+    // Si pas connecté, vérifier la config debug
+    await checkDebugConfig()
+    return false
+  }
+  
   async function updatePreferences(preferences) {
     try {
-      await api.put('/api/auth/preferences/', preferences)
+      await api.put('/api/accounts/preferences/', preferences)
       // Recharger les infos utilisateur
       await checkAuth()
     } catch (err) {
@@ -69,11 +134,18 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isLoading,
     error,
+    debugConfig,
     isAuthenticated,
-    isDev,
+    debugEnabled,
+    debugActive,
     login,
     logout,
     checkAuth,
+    ensureAuth,
+    ensureCsrfToken,
+    checkDebugConfig,
+    toggleDebugMode,
+    debugLogin,
     updatePreferences
   }
 })

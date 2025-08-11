@@ -1,36 +1,81 @@
 <template>
   <div id="app" class="app">
-    <Sidebar />
-    <div class="main-content">
-      <StatusBar />
-      <div class="content">
-        <router-view />
+    <!-- Layout complet pour les pages authentifiées -->
+    <template v-if="showLayout">
+      <Sidebar />
+      <div class="main-content">
+        <StatusBar />
+        <div class="content">
+          <router-view />
+        </div>
       </div>
-    </div>
+    </template>
+    
+    <!-- Vue simple pour la page de login -->
+    <template v-else>
+      <router-view />
+    </template>
   </div>
 </template>
 
 <script setup>
 console.log('DEBUG: App.vue - Script setup demarre')
 
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
 import { useAuthStore } from './stores/auth'
 
 console.log('DEBUG: App.vue - Imports termines')
 
+const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+
 console.log('DEBUG: App.vue - AuthStore cree')
+
+const isLoginPage = computed(() => route.path === '/login')
+const showLayout = computed(() => authStore.isAuthenticated && !isLoginPage.value)
 
 onMounted(async () => {
   console.log('DEBUG: App.vue - onMounted execute')
-  // Verifier l'authentification au demarrage
+  
   try {
-    await authStore.checkAuth()
-    console.log('DEBUG: App.vue - Auth check termine')
+    // D'abord vérifier le mode debug
+    await authStore.checkDebugConfig()
+    
+    // Si mode debug actif, login automatique avec 'dev'
+    if (authStore.debugEnabled && authStore.debugActive) {
+      console.log('DEBUG: App.vue - Mode debug actif, login automatique avec dev')
+      const debugLoginSuccess = await authStore.debugLogin()
+      
+      if (debugLoginSuccess) {
+        // Rediriger vers l'app si on était sur login
+        if (route.path === '/login') {
+          router.push('/')
+        }
+        return
+      }
+    }
+    
+    // Sinon, vérification auth normale
+    const isAuth = await authStore.checkAuth()
+    console.log('DEBUG: App.vue - Auth check termine, authenticated:', isAuth)
+    
+    // Si pas authentifié et pas sur la page login, rediriger
+    if (!isAuth && route.path !== '/login') {
+      router.push('/login')
+    }
+    // Si authentifié et sur la page login, rediriger vers l'app
+    else if (isAuth && route.path === '/login') {
+      router.push('/')
+    }
   } catch (error) {
     console.error('DEBUG: App.vue - Erreur auth check:', error)
+    if (route.path !== '/login') {
+      router.push('/login')
+    }
   }
 })
 </script>
@@ -70,6 +115,7 @@ body {
   --color-primary: #00D4FF;
   --color-success: #00FF88;
   --color-danger: #FF0055;
+  --color-warning: #FFB800;
   --color-background: #0A0A0A;
   --color-surface: #1A1A1A;
   --color-text: #FFFFFF;

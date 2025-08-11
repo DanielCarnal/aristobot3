@@ -1,4 +1,4 @@
-from .ccxt_service import ccxt_service
-from .symbol_updater import SymbolUpdaterService
+# -*- coding: utf-8 -*-
+from .ccxt_manager import CCXTManager
 
-__all__ = ['ccxt_service', 'SymbolUpdaterService']
+__all__ = ['CCXTManager']

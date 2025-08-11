@@ -10,17 +10,17 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         with transaction.atomic():
-            # Creer l'utilisateur dev
+            # Creer l'utilisateur dev (utilisateur normal avec mot de passe)
             if not User.objects.filter(username='dev').exists():
                 User.objects.create_user(
                     username='dev',
                     email='dev@aristobot.local',
-                    password=None,  # Pas de mot de passe en mode dev
+                    password='dev123',  # Mot de passe pour utilisateur normal
                     first_name='Mode',
                     last_name='Developpement',
                 )
                 self.stdout.write(
-                    self.style.SUCCESS('OK Utilisateur "dev" cree')
+                    self.style.SUCCESS('OK Utilisateur "dev" cree avec mot de passe')
                 )
             else:
                 self.stdout.write('Utilisateur "dev" existe deja')
@@ -55,4 +55,14 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.SUCCESS('OK Table HeartbeatStatus initialisee')
+                )
+            
+            # Initialiser la table DebugMode
+            from apps.auth_custom.models import DebugMode
+            if not DebugMode.objects.exists():
+                DebugMode.objects.create(
+                    is_active=False  # Par defaut desactive
+                )
+                self.stdout.write(
+                    self.style.SUCCESS('OK Table DebugMode initialisee')
                 )

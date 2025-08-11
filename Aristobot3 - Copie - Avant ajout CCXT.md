@@ -94,7 +94,6 @@ Aristobot3/
 
   * **Heartbeat Actif/Inactif** : Une pastille visuelle (verte/rouge).
   * **Heartbeat Cohérent/Non Cohérent** : Indicateur de la régularité des données (à développer ultérieurement).
-  * **Nombre d'Exchanges :** Indique le nombre de marchés chargé, et si en cours de chargement, affiche "Chargement 'Exchange X' xxx%". C'est un **élément actif**. Sur pression, il lance la fonction de chargement.
   * **Stratégies Live** : Indique si une ou plusieurs stratégies sont en cours d'exécution.
   * **Mode Testnet** : Affiche un avertissement visuel (couleur inversée, bordure rouge) si le mode Testnet est activé.
 
@@ -104,7 +103,7 @@ Aristobot3/
   
 * **Description** :
     * La création d'un nouveau compte se fait par une fenêtre modale.
-    * L'authentification s'affiche avent que tout autre éléments de l'application. Un simple saisie du user/password permet l'authentification.
+    * L'authentification s'affiche avent que tout autre éléments de l'applications. Un simple saisie du user/password permet l'authentification.
     * Un mode "développement" permet de s'authentifier automatiquement avec un user pré-défini (dev) sans saisie de user/password. Le but est qu'un agent IA puisse se connecter facilement et naviguer (piloter un navigateur) dans l'application à des fin de tests.
       
 * **Backend** : 
@@ -199,25 +198,14 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
 
 Le **Heartbeat** est le service le plus fondamental. Il fonctionne comme le métronome de l'application, captant le rythme du marché et le propageant à l'ensemble du système.
 
-* **Fonctionnement détaillé** :
-    1.**Connexion Directe à Binance** : Au démarrage, le script `run_heartbeat.py` établit une connexion WebSocket **native** avec Binance. Ce choix est stratégique : il garantit la plus faible latence possible et une indépendance totale vis-à-vis de la librairie CCXT pour cette tâche vitale.
-    2. **Signaux Multi-Timeframe** : Le service ingère le flux continu de transactions et les agrège en temps réel pour construire des bougies OHLCV sur les unités de temps suivantes : **1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h**.
-    3. **Double Diffusion via Django Channels** :
+*   **Rôle** : Fournir un flux constant et fiable de signaux.
+*   **Fonctionnement détaillé** :
+    1.  **Connexion Directe à Binance** : Au démarrage, le script `run_heartbeat.py` établit une connexion WebSocket **native** avec Binance. Ce choix est stratégique : il garantit la plus faible latence possible et une indépendance totale vis-à-vis de la librairie CCXT pour cette tâche vitale.
+    2.  **Signaux Multi-Timeframe** : Le service ingère le flux continu de transactions et les agrège en temps réel pour construire des bougies OHLCV sur les unités de temps suivantes : **1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h**.
+    3.  **Double Diffusion via Django Channels** :
         *   **Canal `StreamBrut`** : Chaque message brut reçu de Binance est immédiatement publié sur ce canal. Son seul but est de permettre à l'interface `Heartbeat` d'afficher l'activité du marché en temps réel à l'utilisateur pour un simple but de contôle de fonctionnement.
         *   **Canal `Heartbeat`** : C'est le canal le plus important. Dès qu'une bougie (pour n'importe quelle timeframe) est clôturée, un message structuré (un "signal") est envoyé sur ce canal. C'est ce signal qui déclenchera les actions du Moteur de Trading. Ce signal est simplement "1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h". 
-    4.**Persistance des Données** : Chaque bougie clôturée est systématiquement enregistrée dans la table `candles_Heartbeat` de la base de données PostgreSQL.
-
-* **Rôle** : Fournir un flux constant et fiable de signaux.
- 
-* **Backend** : S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
-    * `StreamBrut` -> Données (brut) transmis au frontend par websocket
-    * `Heartbeat` ->  Le signal (1min, 5min, etc.) et la date, heure et min du moment de l'envoi est transmis par websocket au frontend
-    * Enregistre dans la DB les signaux `Heartbeat` avec la date, heure et min du moment de l'envoi.
-      
-* **Frontend** : Visualiser l'état du service Heartbeat.
-* Affiche le flux de données brutes en temps réel dans une liste en haut de la page. Les bougies de clôture sont affichées en vert. Affiche en temps réel le signal `Heartbeat`  + AA.MM.DD_HH:MM dans des case pour chaque timeframe. Les cases sont des listes scrollable qui affichent les 20 derniers éléments visibles sur 60, le plus réçent en haut.
-
-* **DB** : Lit la table `heartbeat_status` pour afficher l'état de connexion du service.
+    4.  **Persistance des Données** : Chaque bougie clôturée est systématiquement enregistrée dans la table `candles_Heartbeat` de la base de données PostgreSQL.
 
 ### 3.2 Le Cerveau : Le Moteur de Trading (Trading Engine)
 
@@ -227,11 +215,9 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 
 **Workflow détaillé** :
 
-1. **Initialisation au démarrage** : Le Trading Engine précharge toutes les connexions CCXT des brokers actifs via le CCXTManager, garantissant une latence minimale lors de l'exécution des stratégies. `Voir -> 3.3 Architecture CCXT : Le Gestionnaire Singleton` 
+1. **À l'écoute du Cœur** : Le service `run_trading_engine.py` est abonné au canal `Heartbeat` et attend passivement les signaux.
 
-2. **À l'écoute du Cœur** : Le service `run_trading_engine.py` est abonné au canal `Heartbeat` et attend passivement les signaux.
-
-3. **Réaction au Signal** : Le moteur consulte la table `active_strategies` en base de données pour trouver toutes les stratégies qui correspondent aux critères du signal :
+2. **Réaction au Signal** : Le moteur consulte la table `active_strategies` en base de données pour trouver toutes les stratégies qui correspondent aux critères du signal :
 > > > > > > * La stratégie est-elle active (`is_active = True`) ?
 > > > > > > * La date/heure actuelle est-elle dans la plage de validité (entre `start_date` et `end_date`) ?
 > > > > > > * L'unité de temps de la stratégie correspond-elle à celle du signal (ex: `15m`) ?
@@ -246,39 +232,6 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 2. **Interaction avec les Brokers** : Si une stratégie décide d'ouvrir ou de fermer une position, le moteur utilise la librairie **CCXT** pour communiquer avec le broker de l'utilisateur et passer les ordres (y compris les Stop Loss et Take Profit).
 3. **Surveillance Continue** : Indépendamment des signaux, le moteur vérifie également à intervalle régulier (toutes les minutes) l'état des trades ouverts pour s'assurer que les TP/SL n'ont pas été atteints
 4. **Gestion Concurrente** : Grâce à `asyncio`, si un signal déclenche 10 stratégies en même temps, le moteur peut les traiter de manière quasi-simultanée, évitant ainsi tout goulot d'étranglement.
-
-### **3.3 Architecture CCXT : Le Gestionnaire Singleton**
-
-**Le CCXTManager** est le point d'accès unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect des rate limits.
-
-**Principe de fonctionnement :**
-
-* **Une instance par broker** : Le singleton maintient un dictionnaire `{(user_id, broker_id): exchange_instance}` en mémoire
-* **Chargement unique des marchés** : `load_markets()` n'est appelé qu'une fois à la création de l'instance, puis les données restent en cache. 
-* **Réutilisation permanente** : Tous les services (Trading Engine, Trading Manuel, Backtest) utilisent la même instance
-* Les nouveaux brokers ajoutés dans l'application en cours de route depuis "User Account" sont chargés après la vérification du compte.
-
-**Cycle de vie :**
-```python
-# apps/core/services/ccxt_manager.py
-1. get_exchange(broker) → Récupère ou crée l'instance
-2. Si nouvelle : await exchange.load_markets() → Cache permanent
-3. Retourne l'instance pour utilisation
-```
-* **Backend :**
-    * Le Trading Engine précharge au boot de l'application TOUS les brokers éligibles. Pour cela, il compare les Exchanges présents dans la table  `exchange_symbols` avec tous les Exchanges validés de tous les utilisateurs. Seuls les Exchanges manquants sont chargés. 
-    * Le chargement des données se fait en arrière plan, non bloquant pour l'application
-    * Les données sont mises à jours dans la DB. La solution la plus radicale consiste a supprimer tous les anciens enregistrements de l'exchange et d'enregistrer les nouveaux venus.
-    
-    * Aucun rechargement des marchés entre les ordres
-      
-* **Frontend :**
-* Dans la barre de status, le nombre de marché chargés est affiché. Durant la phase de chargement, un status "Chargement 'Exchange X' xxx%" remplace le nombre de marchés chargés
-* C'est un élément utilisable pour déclencher le chargement général. La validation de l'action se dait par une fenêtre modale de confirmation.
-
-* **DB :**
-    * Enregistre dans la table `exchange_symbols` les données 
-
 
 ***Commentaire AI :*** Cette architecture découplée est très robuste. Le Heartbeat se contente de donner le tempo, et le Trading Engine d'y réagir. Si le Trading Engine plante, le Heartbeat continue de collecter les données. Si le Heartbeat se déconnecte, le Trading Engine attend simplement le prochain signal. C'est un excellent design.*
 >
@@ -295,17 +248,20 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 Chaque application Django est un module spécialisé, interagissant avec les autres et la base de données.
 
 #### 4.1. **Heartbeat (`apps/heartbeat`)**
-##### **Heartbeat  a été intégré dans `apps/core` (voir -> 3.1) lors de l'implémentation initiale**
-* **Service** : `apps/core/management/commands/run_heartbeat.py`
-* **Modèles** : `HeartbeatStatus` dans `apps/core/models.py`
-* **Consumer** : WebSocket dans `apps/core/consumers.py`
+* **Rôle** : Visualiser l'état du service Heartbeat.
+* **Backend** : S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
+    * `StreamBrut` -> Données (brut) transmis au frontend par websocket
+    * `Heartbeat` ->  Le signal (1min, 5min, etc.) et la date, heure et min du moment de l'envoi est transmis par websocket au frontend
+    * Enregistre dans la DB les signaux `Heartbeat` avec la date, heure et min du moment de l'envoi.
+* **Frontend** : Affiche le flux de données brutes en temps réel dans une liste en haut de la page. Les bougies de clôture sont affichées en vert. Affiche en temps réel le signal `Heartbeat`  + AA.MM.DD_HH:MM dans des case pour chaque timeframe. Les cases sont des listes scrollable qui affichent les 20 derniers éléments visibles sur 60, le plus réçent en haut.
+* **DB** : Lit la table `heartbeat_status` pour afficher l'état de connexion du service.
 
 #### 4.2. **User Account (`apps/accounts`)**
 **Rôle** : Gérer le compte utilisateur, leurs paramètres de sécurité et leurs configurations personnelles
 **Description** :
-* **Gestion des Brokers** : L'interface permettra un CRUD complet des comptes brokers via une **fenêtre modale**. Lors de l'ajout ou de la modification d'un broker, une **vérification de la validité des clés API** sera effectuée en temps réel en tentant une connexion via CCXT. Si la connexion réussit, le solde du compte peut être affiché pour confirmation avant de sauvegarder.
-* **Mise à jour des Paires de Trading** : Un bouton "[MAJ Paires de trading]" sera disponible pour chaque broker. Au clic, un processus asynchrone en arrière-plan chargera (via CCXT) toutes les paires de trading disponibles pour cet exchange et les stockera dans une table partagée. `-> voir 3.3 Architecture CCXT`. * Les nouveaux brokers ajoutés dans l'application en cours de route depuis "User Account" sont chargés après la vérification du compte.
-    * **Configuration IA** : L'utilisateur peut choisir entre "OpenRouter" (nécessitant une clé API) et "Ollama" (avec une URL suggérée par défaut : `http://localhost:11434`). Des interrupteurs ON/OFF permettent d'activer l'un ou l'autre (activer l'un désactive l'autre). Si les deux sont sur OFF, l'assistant IA dans l'application `Stratégies` sera désactivé. Doit permettre la sélection du modèle
+    * **Gestion des Brokers** : L'interface permettra un CRUD complet des comptes brokers via une **fenêtre modale**. Lors de l'ajout ou de la modification d'un broker, une **vérification de la validité des clés API** sera effectuée en temps réel en tentant une connexion via CCXT. Si la connexion réussit, le solde du compte peut être affiché pour confirmation avant de sauvegarder.
+    * **Mise à jour des Paires de Trading** : Un bouton "[MAJ Paires de trading]" sera disponible pour chaque broker. Au clic, un processus asynchrone en arrière-plan chargera (via CCXT) toutes les paires de trading disponibles pour cet exchange et les stockera dans une table partagée.
+    * **Configuration IA** : L'utilisateur peut choisir entre "OpenRouter" (nécessitant une clé API) et "Ollama" (avec une URL suggérée par défaut : `http://localhost:11434`). Des interrupteurs ON/OFF permettent d'activer l'un ou l'autre (activer l'un désactive l'autre). Si les deux sont sur OFF, l'assistant IA dans l'application `Stratégies` sera désactivé.
     * **Paramètres d'Affichage** :
         * **Thème** : Un sélecteur pour basculer entre le mode sombre (obligatoirement avec des couleurs néon) et un mode clair.
         * **Fuseau Horaire** : Un sélecteur pour afficher toutes les dates et heures de l'application soit en **UTC**, soit dans le **fuseau horaire local** du navigateur. Le choix est stocké dans le profil utilisateur
@@ -314,43 +270,28 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
     * Gère l'enregistrement de nouveaux Exchanges (Brockers) CRUD.
         * Les Exchanges (Brockers) sont fourni par la librairie CCXT
         * Envoie la liste des Exchanges (ccxt.exchanges)
-          ```
-            import ccxt
-            print (ccxt.exchanges)
-            
-            exchange = ccxt.okx()  # exemple avec OKX qui utilise une passphrase
-            print(exchange.requiredCredentials)
-            ```
-        * Connecter l'Exchange pour tester la clé API fournie
+        * Connecter l'exchange pour tester la clé API fournie
         * Envoyer le solde du compte une fois la connexion  établie
         * mise à jours des marchés, enregistré dans la DBDB
+        ```
+            import ccxt
+            print (ccxt.exchanges)
+            ```
     * Gère l'enregistrement et l'envoi des des préférences utilisateur.
 
 * **Frontend** : Fournit les interfaces pour :
     * Changer son mot de passe.
     * Gérer ses comptes de brokers (CRUD via une fenêtre modale).
         * La modale affiche la liste des brockers reçu du backend
-        * Pour la création, modification, la modale affiche les `requiredCredentials` nécessaires
     * Définir un broker par défaut.
     * Configurer la connexion à une IA (OpenRouter ou Ollama) avec clé API/URL et un switch ON/OFF.
     * Gérer les paramètres d'affichage décrits.
     
-* **DB** : Interagit principalement
+* **DB** : Interagit principalement avec la table `users` (étendue du modèle Django) et la table `brokers`.
 
-* Table `users` (étendue du modèle Django
-* Table `brokers`.
-* Table `exchange_symbols`
+* Table `Market`
 
 * **Script d'Initialisation** : La commande `python manage.py init_aristobot` sera créée. Son unique rôle sera de créer les utilisateurs "dev" et "dac" en base de données pour faciliter le premier lancement.
-
-#### 4.2.bis **Debug Mode (`apps/auth_custom`)**
-* **Rôle** : Gérer le mode développement pour faciliter les tests automatisés.
-* **Backend** : 
-    * Gère l'état du mode debug via le modèle singleton `DebugMode`
-    * Active/désactive l'auto-login avec l'utilisateur "dev"
-    * Vérifie la variable d'environnement `DEBUG_ARISTOBOT`
-* **Frontend** : Intégré dans la page de login (bouton Mode développement)
-* **DB** : Table `debug_mode` (singleton, un seul enregistrement)
 
 #### 4.3. **Trading Manuel (`apps/trading_manual`)**
 * **Rôle** : Permettre à l'utilisateur de passer des ordres manuellement, comme il le ferait sur la plateforme d'un exchange.
@@ -538,141 +479,92 @@ class MaNouvelleStrategie(Strategy):
 
 Les relations entre les tables sont cruciales pour le bon fonctionnement de l'application.La structure est conçue pour être multi-locataire (_multi-tenant_), où la plupart des données sont isolées par `user_id`.
 
-## 5. Architecture Détaillée de la Base de Données
-
-Les relations entre les tables sont cruciales pour le bon fonctionnement de l'application. La structure est conçue pour être multi-locataire (_multi-tenant_), où la plupart des données sont isolées par `user_id`.
 ```ascii
 +-----------+       +-----------+       +---------------------+
 |   users   |------>|  brokers  |<------|  active_strategies  |
 +-----------+       +-----------+       +---------------------+
       |                   |                         |
       |                   |                         |
-      +----------+        +------------------+      |
-      |          |                           |      |
-      |          +-------------------------->|  trades  |<--+
+      |                   +------------------+      |
+      |                                      |      |
+      +------------------------------------->|  trades  |<--+
       |                                      |      |      |
       |                                      +------+      |
       v                                                    |
 +------------+                                         +-----------+
 | strategies |----------------------------------------->| webhooks  |
 +------------+                                         +-----------+
-      |                                                      |
-      v                                                      v
-+------------------+      +-----------+            +----------------+
-| backtest_results |      |  candles  |            | webhook_trades |
-+------------------+      +-----------+            +----------------+
-                                |
-                          +-------------+
-                          | debug_mode  |  <-- (singleton système)
-                          +-------------+
-                                |
-                        +-----------------+
-                        | heartbeat_status|  <-- (monitoring système)
-                        +-----------------+
-                                |
-                        +------------------+
-                        | exchange_symbols |  <-- (partagé tous users)
-                        +------------------+
+      |
+      v
++------------------+      +-----------+
+| backtest_results |      |  candles  |  <-- (utilisée par Backtest et Strategies)
++------------------+      +-----------+
 ```
+#### `users` (Table Utilisateurs)
 
-### Tables Principales
-
-#### `users` (Table Utilisateurs)
-
-* **Description** : Étend le modèle utilisateur standard de Django pour stocker les configurations spécifiques à l'application.
-* **Champs Clés** : `id`, `username`, `password`, `default_broker_id` (FK vers `brokers`), `ai_provider`, `ai_api_key` (chiffré), `display_timezone`.
-* **Relations** : Un utilisateur a plusieurs `brokers`, plusieurs `strategies`, plusieurs `trades`, etc.
+* **Description** : Étend le modèle utilisateur standard de Django pour stocker les configurations spécifiques à l'application.
+* **Champs Clés** : `id`, `username`, `password`, `default_broker_id` (FK vers `brokers`), `ai_provider`, `ai_api_key` (chiffré), `display_timezone`.
+* **Relations** : Un utilisateur a plusieurs `brokers`, plusieurs `strategies`, plusieurs `trades`, etc. C'est la table racine pour les données spécifiques à un utilisateur.
 
 #### `brokers`
 
-* **Description** : Stocke les informations de connexion aux différents comptes de brokers pour chaque utilisateur.
-* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `exchange`, `api_key` (chiffré), `api_secret` (chiffré), `api_password` (chiffré, optionnel), `is_default`, `is_testnet`, `is_active`.
-* **Relations** : Liée à un `user`. Un broker peut être associé à plusieurs `active_strategies` et `trades`.
-* **Statut** : ✅ Implémentée
+* **Description** : Stocke les informations de connexion aux différents comptes de brokers pour chaque utilisateur.
+* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `exchange` (ex: 'binance'), `api_key` (chiffré), `api_secret` (chiffré), `is_default` (booléen).
+* **Relations** : Liée à un `user`. Un broker peut être associé à plusieurs `active_strategies` et `trades`.
 
 #### `strategies`
 
-* **Description** : Contient le code source et les métadonnées des stratégies de trading créées par les utilisateurs.
-* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `description`, `code` (texte Python), `timeframe`.
-* **Relations** : Liée à un `user`. Une stratégie peut être utilisée dans plusieurs `active_strategies` et `backtest_results`.
-* **Statut** : 🔄 À implémenter
+* **Description** : Contient le code source et les métadonnées des stratégies de trading créées par les utilisateurs.
+* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `description`, `code` (champ texte contenant le code Python), `timeframe`.
+* **Relations** : Liée à un `user`. Une stratégie peut être utilisée dans plusieurs `active_strategies` et `backtest_results`.
 
 #### `active_strategies`
 
-* **Description** : Table de liaison qui représente l'activation d'une `strategy` sur un `broker` pour un `symbol` donné, pendant une période définie.
-* **Champs Clés** : `id`, `user_id` (FK), `strategy_id` (FK), `broker_id` (FK), `symbol`, `timeframe`, `start_date`, `end_date`, `is_active`.
-* **Relations** : Fait le lien entre `users`, `strategies` et `brokers`.
-* **Statut** : 🔄 À implémenter
+* **Description** : Table de liaison qui représente l'activation d'une `strategy` sur un `broker` pour un `symbol` donné, pendant une période définie. C'est cette table que le Trading Engine consulte.
+* **Champs Clés** : `id`, `user_id` (FK), `strategy_id` (FK), `broker_id` (FK), `symbol`, `start_date`, `end_date`, `is_active` (booléen).
+* **Relations** : Fait le lien entre `users`, `strategies` et `brokers`.
 
-#### `candles` (Table Bougies)
+#### `candles` (Table Bougies)
 
-* **Description** : Stocke les données de marché OHLCV. Cette table est partagée mais filtrée par broker\_id.
-* **Champs Clés** : `id`, `broker_id` (FK), `symbol`, `timeframe`, `open_time`, `close_time`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`.
-* **Relations** : Utilisée par le _Heartbeat_, _Backtest_ et _Stratégies_.
-* **Index** : Sur (`broker_id`, `symbol`, `timeframe`, `close_time`) pour performances optimales.
-* **Statut** : 🔄 À implémenter
+* **Description** : Stocke les données de marché OHLCV. Cette table est partagée par tous les utilisateurs pour éviter la duplication de données.
+* **Champs Clés** : `id`, `broker_id` (FK), `symbol`, `timeframe`, `open_time` (timestamp), `close_time`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, .
+* **Relations** : Utilisée par le _Backtest_ et potentiellement par les _Stratégies_. C'est la seule table non-locataire majeure.
 
 #### `trades`
 
-* **Description** : Journal central de toutes les transactions exécutées, qu'elles soient manuelles, automatiques ou via webhook.
-* **Champs Clés** : `id`, `user_id` (FK), `broker_id` (FK), `strategy_id` (FK, nullable), `webhook_id` (FK, nullable), `symbol`, `side`, `quantity`, `price`, `status`, `profit_loss`, `source` (manual/strategy/webhook).
-* **Relations** : La table la plus connectée, source principale pour les statistiques.
-* **Statut** : 🔄 À implémenter
-
-#### `positions`
-
-* **Description** : Positions ouvertes actuelles (déjà dans `core.models`).
-* **Champs Clés** : `id`, `user_id`, `broker_id`, `symbol`, `side`, `quantity`, `entry_price`, `current_price`, `stop_loss`, `take_profit`, `unrealized_pnl`, `status`.
-* **Statut** : ✅ Implémentée
+* **Description** : Journal central de toutes les transactions exécutées, qu'elles soient manuelles, automatiques (via stratégie) ou externes (via webhook).
+* **Champs Clés** : `id`, `user_id` (FK), `broker_id` (FK), `strategy_id` (FK, optionnel), `webhook_id` (FK, optionnel), `symbol`, `side` ('buy'/'sell'), `quantity`, `price`, `status`, `profit_loss`.
+* **Relations** : La table la plus connectée, liée à `users`, `brokers`, potentiellement `active_strategies` et `webhooks`. Elle est la source de données principale pour l'application `Statistiques`.
 
 #### `webhooks`
 
-* **Description** : Enregistre chaque appel webhook reçu pour traçabilité et débogage.
-* **Champs Clés** : `id`, `user_id` (FK), `source`, `payload` (JSON), `processed`, `created_at`.
-* **Relations** : Liée à un `user` et peut générer des `trades`.
-* **Statut** : 🔄 À implémenter
+* **Description** : Enregistre chaque appel webhook reçu pour des raisons de traçabilité et de débogage.
+* **Champs Clés** : `id`, `user_id` (FK), `source` (ex: 'tradingview'), `payload` (JSON), `processed` (booléen).
+* **Relations** : Liée à un `user` et peut être liée à un `trade`.
 
 #### `backtest_results`
 
-* **Description** : Stocke les résultats synthétiques de chaque simulation de backtest.
-* **Champs Clés** : `id`, `user_id` (FK), `strategy_id` (FK), `broker_id` (FK), `symbol`, `timeframe`, `start_date`, `end_date`, `initial_amount`, `final_amount`, `total_trades`, `winning_trades`, `losing_trades`, `max_drawdown`, `sharpe_ratio`, `trades_detail` (JSON).
-* **Relations** : Liée à `users`, `strategies` et `brokers`.
-* **Statut** : 🔄 À implémenter
+* **Description** : Stocke les résultats synthétiques de chaque simulation de backtest exécutée.
+* **Champs Clés** : `id`, `user_id` (FK), `strategy_id` (FK), `start_date`, `end_date`, `final_amount`, `total_trades`, `sharpe_ratio`, `trades_detail` (JSON).
+* **Relations** : Liée à `users` et `strategies`.
 
-#### `heartbeat_status`
+#### `heartbeat_status` (Table Système)
 
-* **Description** : Une table simple pour surveiller l'état du service Heartbeat.
-* **Champs Clés** : `is_connected`, `last_heartbeat`, `last_error`, `symbols_monitored` (JSON).
-* **Relations** : Aucune. Table de monitoring interne.
-* **Statut** : ✅ Implémentée
+* **Description** : Une table simple (probablement à une seule ligne) pour surveiller l'état du service Heartbeat.
+* **Champs Clés** : `is_connected` (booléen), `last_heartbeat` (timestamp).
+* **Relations** : Aucune. C'est une table de monitoring interne.
 
-#### `debug_mode`
-
-* **Description** : Singleton pour gérer l'état du mode développement.
-* **Champs Clés** : `id` (toujours 1), `is_active`, `updated_at`.
-* **Relations** : Aucune. Configuration système.
-* **Statut** : ✅ Implémentée
-
-#### `exchange_symbols`
-
-* **Description** : Liste des symboles/marchés disponibles par exchange (table partagée).
-* **Champs Clés** : `exchange`, `symbol`, `base`, `quote`, `active`, `type` (spot/future), `min_amount`, `max_amount`, `price_precision`.
-* **Relations** : Aucune. Données de référence partagées.
-* **Index** : Sur (`exchange`, `active`) et (`symbol`).
-* **Statut** : ✅ Implémentée
-
+#### `Markets`
+* **Description** : Liste des marchés pour chaques exchanges
+* **Champs Clés** :
+* Relation
 ### Précisions sur les Tables et Relations
 
-* **Multi-tenant** : Toutes les données utilisateur sont isolées par `user_id`. Seules `exchange_symbols`, `heartbeat_status` et `debug_mode` sont partagées.
-* **Chiffrement** : Les clés API dans `brokers` et `users` sont chiffrées avec Fernet + SECRET\_KEY Django.
-* **Cascade** : La suppression d'un user supprime en cascade ses brokers, strategies, trades, etc.
-* **Performance** : Index stratégiques sur les champs de filtrage fréquents (user\_id, broker\_id, symbol, timeframe).
-
-* **`users`** : En plus des champs standards, elle contiendra `display_timezone` ('UTC' ou 'Europe/Paris', par exemple) et les configurations de l'IA.
-* **`brokers`** : Le champ `exchange` sera un choix restreint basé sur les exchanges supportés par CCXT.
-* **`trades`** : C'est la table la plus importante pour l'analyse. Les champs `strategy_id` et `webhook_id` sont `nullable=True` pour permettre d'enregistrer les trades manuels qui ne proviennent d'aucune automatisation. Un historique complet de **toutes les tentatives de trades, y compris les échecs**, sera conservé pour le débogage.
-* **`candles`** : C'est une table de données brutes, optimisée pour des lectures rapides. Des **index** sur (`symbol`, `timeframe`, `close_time`, `brocker_id`) seront cruciaux pour les performances des backtests. Le brocker doit être identifié par son proprechamp
-* **`active_strategies`** et **`strategies`** : Il est clair que `strategies` est le "modèle" (le code), et `active_strategies` est "l'instance en cours d'exécution" de ce modèle avec des paramètres concrets (broker, symbole, dates).
+*   **`users`** : En plus des champs standards, elle contiendra `display_timezone` ('UTC' ou 'Europe/Paris', par exemple) et les configurations de l'IA.
+*   **`brokers`** : Le champ `exchange` sera un choix restreint basé sur les exchanges supportés par CCXT.
+*   **`trades`** : C'est la table la plus importante pour l'analyse. Les champs `strategy_id` et `webhook_id` sont `nullable=True` pour permettre d'enregistrer les trades manuels qui ne proviennent d'aucune automatisation. Un historique complet de **toutes les tentatives de trades, y compris les échecs**, sera conservé pour le débogage.
+*   **`candles`** : C'est une table de données brutes, optimisée pour des lectures rapides. Des **index** sur (`symbol`, `timeframe`, `close_time`, `brocker_id`) seront cruciaux pour les performances des backtests. Le brocker doit être identifié par son proprechamp
+*   **`active_strategies`** et **`strategies`** : Il est clair que `strategies` est le "modèle" (le code), et `active_strategies` est "l'instance en cours d'exécution" de ce modèle avec des paramètres concrets (broker, symbole, dates).
 
 ## 6. Points Non Classés et Futurs Développements
 

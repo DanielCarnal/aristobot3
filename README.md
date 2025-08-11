@@ -1,4 +1,4 @@
-# Aristobot3 🚀
+# README.md - Aristobot3 🚀
 
 Bot de trading crypto personnel développé avec Django et Vue.js selon les spécifications du fichier `SPECIFICATIONS.md`.
 

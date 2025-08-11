@@ -119,6 +119,9 @@
                 <span v-if="broker.is_default" class="badge success">✓</span>
               </td>
               <td>
+                <button @click="testBrokerConnection(broker)" class="btn btn-sm btn-test">
+                  Test Exchange
+                </button>
                 <button @click="editBroker(broker)" class="btn btn-sm">
                   Modifier
                 </button>
@@ -142,12 +145,12 @@
         
         <div class="form-group">
           <label>Exchange :</label>
-          <select v-model="brokerForm.exchange">
-            <option value="binance">Binance</option>
-            <option value="kucoin">KuCoin</option>
-            <option value="bitget">Bitget</option>
-            <option value="okx">OKX</option>
-            <option value="bybit">Bybit</option>
+          <select v-model="brokerForm.exchange" @change="onExchangeChange">
+            <option v-for="exchange in availableExchanges" :key="exchange.id" :value="exchange.id">
+              {{ exchange.name }} 
+              <span v-if="exchange.has_testnet">📱</span>
+              <span v-if="exchange.has_future">🔮</span>
+            </option>
           </select>
         </div>
         
@@ -186,7 +189,25 @@
           >
         </div>
         
+        <div v-if="selectedExchange?.required_credentials?.includes('api_password')" class="form-group">
+          <label>Passphrase API :</label>
+          <input 
+            type="password" 
+            v-model="brokerForm.api_password"
+            placeholder="Passphrase API (requis pour certains exchanges)"
+          >
+        </div>
+        
         <div class="form-group">
+          <label>Nom du sous-compte :</label>
+          <input 
+            type="text" 
+            v-model="brokerForm.subaccount_name"
+            placeholder="Optionnel"
+          >
+        </div>
+        
+        <div v-if="selectedExchange?.has_testnet" class="form-group">
           <label>
             <input 
               type="checkbox" 
@@ -197,9 +218,6 @@
         </div>
         
         <div class="modal-actions">
-          <button @click="testConnection" class="btn">
-            Tester la connexion
-          </button>
           <button @click="saveBroker" class="btn btn-primary">
             Sauvegarder
           </button>
@@ -207,9 +225,49 @@
             Annuler
           </button>
         </div>
+      </div>
+    </div>
+    
+    <!-- Modale Test Exchange -->
+    <div v-if="showTestModal" class="modal">
+      <div class="modal-content test-modal">
+        <h3>Test de connexion - {{ testingBroker?.name }}</h3>
         
-        <div v-if="connectionTest" class="alert" :class="connectionTest.success ? 'success' : 'error'">
-          {{ connectionTest.message }}
+        <div v-if="testInProgress" class="test-loading">
+          <div class="spinner"></div>
+          <p>Test de la connexion en cours...</p>
+        </div>
+        
+        <div v-else-if="testResult" class="test-result">
+          <div class="alert" :class="testResult.success ? 'success' : 'error'">
+            {{ testResult.message }}
+            
+            <div v-if="testResult.success && testResult.balance" class="balance-info">
+              <h4>Solde du compte:</h4>
+              <div v-if="testResult.balance.total_usd_equivalent > 0" class="total-balance">
+                Total (équivalent USD): ${{ testResult.balance.total_usd_equivalent }}
+              </div>
+              <div class="balance-details">
+                <div v-for="(amount, symbol) in testResult.balance.total" :key="symbol" class="balance-item">
+                  {{ symbol }}: {{ amount }}
+                </div>
+              </div>
+              
+              <div v-if="testResult.connection_info" class="connection-info">
+                <small>
+                  Exchange: {{ testResult.connection_info.exchange }} 
+                  <span v-if="testResult.connection_info.testnet">(Testnet)</span>
+                  | {{ new Date(testResult.connection_info.timestamp).toLocaleString() }}
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-actions">
+          <button @click="closeTestModal" class="btn btn-secondary">
+            Fermer
+          </button>
         </div>
       </div>
     </div>
@@ -245,7 +303,12 @@ const preferences = ref({
 const localTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
 const brokers = ref([])
+const availableExchanges = ref([])
 const showBrokerModal = ref(false)
+const showTestModal = ref(false)
+const testingBroker = ref(null)
+const testResult = ref(null)
+const testInProgress = ref(false)
 const showAddBroker = computed({
   get: () => showBrokerModal.value,
   set: (val) => {
@@ -271,6 +334,11 @@ const brokerForm = ref({
 
 const connectionTest = ref(null)
 
+// Computed pour l'exchange selectionne
+const selectedExchange = computed(() => {
+  return availableExchanges.value.find(ex => ex.id === brokerForm.value.exchange)
+})
+
 onMounted(async () => {
   // Charger les preferences utilisateur
   if (user.value) {
@@ -287,9 +355,27 @@ onMounted(async () => {
     document.documentElement.setAttribute('data-theme', preferences.value.theme)
   }
   
-  // Charger les brokers
+  // Charger les brokers et exchanges
   await loadBrokers()
+  await loadExchanges()
 })
+
+async function loadExchanges() {
+  try {
+    const response = await api.get('/api/brokers/exchanges/')
+    availableExchanges.value = response.data.exchanges || []
+  } catch (error) {
+    console.error('Erreur chargement exchanges:', error)
+    // Fallback avec les exchanges de base
+    availableExchanges.value = [
+      { id: 'binance', name: 'Binance', required_credentials: ['api_key', 'api_secret'], has_testnet: true },
+      { id: 'kucoin', name: 'KuCoin', required_credentials: ['api_key', 'api_secret'], has_testnet: true },
+      { id: 'bitget', name: 'Bitget', required_credentials: ['api_key', 'api_secret'], has_testnet: true },
+      { id: 'okx', name: 'OKX', required_credentials: ['api_key', 'api_secret', 'api_password'], has_testnet: true },
+      { id: 'bybit', name: 'Bybit', required_credentials: ['api_key', 'api_secret'], has_testnet: true }
+    ]
+  }
+}
 
 async function loadBrokers() {
   try {
@@ -342,6 +428,32 @@ async function updateSymbols(broker) {
   } catch (error) {
     alert('Erreur lors de la mise a jour des symboles')
   }
+}
+
+async function testBrokerConnection(broker) {
+  testingBroker.value = broker
+  testResult.value = null
+  testInProgress.value = true
+  showTestModal.value = true
+  
+  try {
+    const response = await api.post(`/api/brokers/${broker.id}/test_connection/`)
+    testResult.value = response.data
+  } catch (error) {
+    testResult.value = {
+      success: false,
+      message: error.response?.data?.message || 'Erreur de connexion'
+    }
+  } finally {
+    testInProgress.value = false
+  }
+}
+
+function closeTestModal() {
+  showTestModal.value = false
+  testingBroker.value = null
+  testResult.value = null
+  testInProgress.value = false
 }
 
 async function testConnection() {
@@ -401,6 +513,16 @@ async function saveBroker() {
     closeBrokerModal()
   } catch (error) {
     alert('Erreur lors de la sauvegarde')
+  }
+}
+
+function onExchangeChange() {
+  // Reset les champs optionnels lors du changement d'exchange
+  if (!selectedExchange.value?.required_credentials?.includes('api_password')) {
+    brokerForm.value.api_password = ''
+  }
+  if (!selectedExchange.value?.has_testnet) {
+    brokerForm.value.is_testnet = false
   }
 }
 
@@ -619,6 +741,17 @@ input:checked + .slider:before {
   box-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
 }
 
+.btn-test {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-background);
+}
+
+.btn-test:hover {
+  background: var(--color-success);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
 .btn-sm {
   padding: 0.25rem 0.5rem;
   font-size: 0.875rem;
@@ -687,6 +820,70 @@ input:checked + .slider:before {
   background: rgba(255, 0, 85, 0.1);
   border: 1px solid var(--color-danger);
   color: var(--color-danger);
+}
+
+.balance-info {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.balance-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--color-primary);
+}
+
+.total-balance {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--color-success);
+  margin-bottom: 0.5rem;
+}
+
+.balance-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.balance-item {
+  background: var(--color-background);
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.test-modal {
+  max-width: 500px;
+}
+
+.test-loading {
+  text-align: center;
+  padding: 2rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-border);
+  border-top: 4px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.connection-info {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 .actions {

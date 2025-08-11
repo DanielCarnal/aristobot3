@@ -1,11 +1,13 @@
-django==4.2.15
-djangorestframework
-django-cors-headers
-channels
-channels-redis
-daphne
-psycopg2-binary
-python-dotenv
-ccxt
-redis
-websockets
+django==4.2.15              # Framework principal
+djangorestframework         # API REST pour Django
+django-cors-headers         # Gestion des CORS
+channels                    # WebSockets avec Django
+channels-redis              # Backend Redis pour Channels
+daphne                      # Serveur ASGI
+psycopg2-binary             # Connecteur PostgreSQL
+python-dotenv               # Chargement des variables d'environnement
+ccxt                        # API d'échanges crypto
+redis                       # Client Redis
+websockets                  # Support WebSocket pur Python
+pandas-ta-classic           # Indicateurs techniques (trading)
+cryptography                # Chiffrement des clés API (Fernet)

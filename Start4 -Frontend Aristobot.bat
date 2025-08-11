@@ -10,7 +10,7 @@ cd /d C:\Users\dac\Documents\Python\Django\Aristobot3\frontend
 echo Dossier frontend ouvert
 :RESTART
 npm run dev
-
+pause
 REM -- Fin du processus Daphne, proposer redémarrage ou sortie --
 echo.
 echo ==================================================================
