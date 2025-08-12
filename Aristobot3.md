@@ -203,21 +203,32 @@ Le **Heartbeat** est le service le plus fondamental. Il fonctionne comme le mét
     1.**Connexion Directe à Binance** : Au démarrage, le script `run_heartbeat.py` établit une connexion WebSocket **native** avec Binance. Ce choix est stratégique : il garantit la plus faible latence possible et une indépendance totale vis-à-vis de la librairie CCXT pour cette tâche vitale.
     2. **Signaux Multi-Timeframe** : Le service ingère le flux continu de transactions et les agrège en temps réel pour construire des bougies OHLCV sur les unités de temps suivantes : **1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h**.
     3. **Double Diffusion via Django Channels** :
-        *   **Canal `StreamBrut`** : Chaque message brut reçu de Binance est immédiatement publié sur ce canal. Son seul but est de permettre à l'interface `Heartbeat` d'afficher l'activité du marché en temps réel à l'utilisateur pour un simple but de contôle de fonctionnement.
+        *   **Canal `StreamBrut`** : Chaque message brut reçu de Binance est immédiatement publié sur ce canal. Son seul but est de permettre à l'interface `Heartbeat` d'afficher le Stream brut en temps réel à l'utilisateur pour un simple but de contrôle de fonctionnement.
         *   **Canal `Heartbeat`** : C'est le canal le plus important. Dès qu'une bougie (pour n'importe quelle timeframe) est clôturée, un message structuré (un "signal") est envoyé sur ce canal. C'est ce signal qui déclenchera les actions du Moteur de Trading. Ce signal est simplement "1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h". 
-    4.**Persistance des Données** : Chaque bougie clôturée est systématiquement enregistrée dans la table `candles_Heartbeat` de la base de données PostgreSQL.
+    4.**Persistance des Données** : Chaque bougie clôturée est systématiquement enregistrée dans la table `candles_Heartbeat` de la base de données PostgreSQL et les dates/heure/min du démarrage et de l'arrêt de l'application aristobot dans la table  `heartbeat_status`,
 
 * **Rôle** : Fournir un flux constant et fiable de signaux.
  
-* **Backend** : S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
-    * `StreamBrut` -> Données (brut) transmis au frontend par websocket
-    * `Heartbeat` ->  Le signal (1min, 5min, etc.) et la date, heure et min du moment de l'envoi est transmis par websocket au frontend
-    * Enregistre dans la DB les signaux `Heartbeat` avec la date, heure et min du moment de l'envoi.
+* **Backend** :
+    * Au démarrage de l'application, enregistre dans la table `heartbeat_status`,  `last_ApplicationStart` la date/heur/min du système
+    * A l'arrêt de l'application, enregistre dans la table `heartbeat_status`,  `last_ApplicationStop`  la date/heur/min du système
+    * S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
+    * `StreamBrut` -> Publie les données brute reçue du websocket de Binance
+    * `Heartbeat` ->  Publie Le signal (1min, 5min, etc.) et la date/heure/min du traitement
+    * Enregistre dans la DB `Candles_Heartbeat` Les données traitées
+
+    * **A implémenter plus tard...**
+        * Vérifie la cohésion du Stream `Heartbeat` en vérifiant qu'il ne manque pas de bougies depuis le lancement de l'application. -> A implémenter plus tard
       
 * **Frontend** : Visualiser l'état du service Heartbeat.
-* Affiche le flux de données brutes en temps réel dans une liste en haut de la page. Les bougies de clôture sont affichées en vert. Affiche en temps réel le signal `Heartbeat`  + AA.MM.DD_HH:MM dans des case pour chaque timeframe. Les cases sont des listes scrollable qui affichent les 20 derniers éléments visibles sur 60, le plus réçent en haut.
+    * Affiche le flux de données `StreamBrut` brutes en temps réel dans une liste défilante de 60 lignes nommée "Stream Temps Reel". Le but est simplement de voir le stream passer, pour le plaisir...
+    * Publie en temps réel le signal `Heartbeat`  + AA.MM.DD_HH:MM  dans des case pour chaque timeframe. Les cases sont des listes défilante qui affichent les 20 derniers éléments visibles sur 60, le plus récent en haut. A l'initialisation, les cases sont alimentées par les 60 données les plus récentes lue de la  DB `Candles_Heartbeat` , ces lignes sont affichées en orange, puis dès que les signaux arrivent sur `Heartbeat`, ils sont affiché en premier de la liste et en vert
 
-* **DB** : Lit la table `heartbeat_status` pour afficher l'état de connexion du service.
+* **DB** :
+* Lecture de la table `heartbeat_status` pour afficher l'état de connexion du service.
+
+* Enregistre dans la table `candles_HertBeat` l'`ìd` de `hertbeat_status`, la date/heure/minute de l'enregistrement `DHM-RECEPTION`, la date/heure/minute de la bougie reçue `DHM-CANDLE`, le type de signal publié `SignalType` ("1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h")
+* Enregistre dans la table `hertbeat_status` `last_ApplicationStart` et  `last_ApplicationStop` 
 
 ### 3.2 Le Cerveau : Le Moteur de Trading (Trading Engine)
 
@@ -294,7 +305,7 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 
 Chaque application Django est un module spécialisé, interagissant avec les autres et la base de données.
 
-#### 4.1. **Heartbeat (`apps/heartbeat`)**
+Pr
 ##### **Heartbeat  a été intégré dans `apps/core` (voir -> 3.1) lors de l'implémentation initiale**
 * **Service** : `apps/core/management/commands/run_heartbeat.py`
 * **Modèles** : `HeartbeatStatus` dans `apps/core/models.py`
@@ -515,7 +526,7 @@ class MaNouvelleStrategie(Strategy):
 
 * **DB** : Lit la table `candles` et enregistre les résultats finaux dans la table `backtest_results`.
 
-#### 4.7. **Webhooks (`apps/webhooks`)
+#### 4.7. **Webhooks (`apps/webhooks`)**
 * **Rôle** : Recevoir des signaux de trading provenant de services externes (ex: TradingView) et les exécuter. C'est un point d'entrée alternatif pour l'automatisation.
 * **Backend** : Fournit un endpoint d'API sécurisé qui écoute les requêtes webhook. Quand un signal valide est reçu, il le parse et utilise **CCXT** pour passer l'ordre correspondant.
 * **Frontend** : Affiche un journal des webhooks reçus et le statut des ordres qui en ont résulté.
@@ -577,7 +588,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 
 ### Tables Principales
 
-#### `users` (Table Utilisateurs)
+#### `users` 
 
 * **Description** : Étend le modèle utilisateur standard de Django pour stocker les configurations spécifiques à l'application.
 * **Champs Clés** : `id`, `username`, `password`, `default_broker_id` (FK vers `brokers`), `ai_provider`, `ai_api_key` (chiffré), `display_timezone`.
@@ -604,11 +615,19 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 * **Relations** : Fait le lien entre `users`, `strategies` et `brokers`.
 * **Statut** : 🔄 À implémenter
 
-#### `candles` (Table Bougies)
+#### `candle`
 
 * **Description** : Stocke les données de marché OHLCV. Cette table est partagée mais filtrée par broker\_id.
 * **Champs Clés** : `id`, `broker_id` (FK), `symbol`, `timeframe`, `open_time`, `close_time`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`.
 * **Relations** : Utilisée par le _Heartbeat_, _Backtest_ et _Stratégies_.
+* **Index** : Sur (`broker_id`, `symbol`, `timeframe`, `close_time`) pour performances optimales.
+* **Statut** : 🔄 À implémenter
+
+#### `candles_HeartBeat`
+
+* **Description** : Stocke les signaux reçu de HeartBeat
+* **Champs Clés** : `id`, `DHM-RECEPTION`, `DHM-CANDLE`, `SignalType`
+* **Relations** : Utilisée par le _Heartbeat_, _Stratégies_.
 * **Index** : Sur (`broker_id`, `symbol`, `timeframe`, `close_time`) pour performances optimales.
 * **Statut** : 🔄 À implémenter
 
@@ -642,7 +661,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 #### `heartbeat_status`
 
 * **Description** : Une table simple pour surveiller l'état du service Heartbeat.
-* **Champs Clés** : `is_connected`, `last_heartbeat`, `last_error`, `symbols_monitored` (JSON).
+* **Champs Clés** : `ìd`, `is_connected`, `last_ApplicationStart`, `last_error`, `symbols_monitored` (JSON).
 * **Relations** : Aucune. Table de monitoring interne.
 * **Statut** : ✅ Implémentée
 

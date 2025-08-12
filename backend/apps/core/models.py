@@ -8,6 +8,11 @@ class HeartbeatStatus(models.Model):
     last_heartbeat = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     symbols_monitored = models.JSONField(default=list)
+    
+    # NOUVEAUX CHAMPS pour Module 2
+    last_application_start = models.DateTimeField(null=True, blank=True)
+    last_application_stop = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -15,6 +20,20 @@ class HeartbeatStatus(models.Model):
         db_table = 'heartbeat_status'
         verbose_name = 'Etat du Heartbeat'
         verbose_name_plural = 'Etats du Heartbeat'
+    
+    def record_start(self):
+        """Enregistre le démarrage de l'application"""
+        from django.utils import timezone
+        self.last_application_start = timezone.now()
+        self.is_connected = True
+        self.save()
+    
+    def record_stop(self):
+        """Enregistre l'arrêt de l'application"""
+        from django.utils import timezone
+        self.last_application_stop = timezone.now()
+        self.is_connected = False
+        self.save()
     
     def __str__(self):
         status = "Connecte" if self.is_connected else "Deconnecte"
@@ -98,3 +117,52 @@ class Position(models.Model):
     
     def __str__(self):
         return f"{self.symbol} {self.side} x{self.quantity} @ {self.entry_price}"
+
+
+class CandleHeartbeat(models.Model):
+    """Stockage individuel des signaux Heartbeat reçus"""
+    heartbeat_status = models.ForeignKey(
+        HeartbeatStatus,
+        on_delete=models.CASCADE,
+        related_name='candle_signals'
+    )
+    
+    # Timestamps
+    dhm_reception = models.DateTimeField()  # Quand le signal est reçu
+    dhm_candle = models.DateTimeField()     # Timestamp de la bougie Binance
+    
+    # Type de signal
+    signal_type = models.CharField(
+        max_length=10,
+        choices=[
+            ('1m', '1 minute'),
+            ('3m', '3 minutes'),
+            ('5m', '5 minutes'),
+            ('15m', '15 minutes'),
+            ('1h', '1 heure'),
+            ('4h', '4 heures'),
+        ]
+    )
+    
+    # Données OHLCV complètes
+    symbol = models.CharField(max_length=20, default='BTCUSDT')
+    open_price = models.DecimalField(max_digits=20, decimal_places=8)
+    high_price = models.DecimalField(max_digits=20, decimal_places=8)
+    low_price = models.DecimalField(max_digits=20, decimal_places=8)
+    close_price = models.DecimalField(max_digits=20, decimal_places=8)
+    volume = models.DecimalField(max_digits=20, decimal_places=8)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'candles_heartbeat'
+        ordering = ['-dhm_candle']
+        indexes = [
+            models.Index(fields=['signal_type', '-dhm_candle']),
+            models.Index(fields=['symbol', 'signal_type']),
+        ]
+        verbose_name = 'Signal Heartbeat'
+        verbose_name_plural = 'Signaux Heartbeat'
+    
+    def __str__(self):
+        return f"{self.symbol} {self.signal_type} @ {self.close_price} ({self.dhm_candle})"

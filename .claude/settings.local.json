@@ -19,7 +19,8 @@
       "Bash(mv:*)",
       "Bash(dir /s C:UsersdacDocumentsPythonDjangoAristobot3backend*views.py)",
       "Bash(curl:*)",
-      "WebFetch(domain:ccxtcn.readthedocs.io)"
+      "WebFetch(domain:ccxtcn.readthedocs.io)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

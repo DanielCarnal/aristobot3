@@ -6,5 +6,6 @@ urlpatterns = [
     path('api/auth/', include('apps.auth_custom.urls')),        # Nouvelle app auth
     path('api/accounts/', include('apps.accounts.urls')), # Garder accounts pour preferences
     path('api/', include('apps.brokers.urls')),
+    path('api/', include('apps.core.urls')),                    # APIs Heartbeat Module 2
     # ... autres URLs ...
 ]

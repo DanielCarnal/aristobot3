@@ -9,6 +9,24 @@ c:
 cd /d C:\Users\dac\Documents\Python\Django\Aristobot3\backend
 echo Dossier backend ouvert
 
+:RESTART
 python manage.py run_heartbeat
 
+
+REM -- Fin du processus run_heartbeatproposer redémarrage ou sortie --
+echo.
+echo ==================================================================
+echo Script terminé. Que souhaitez-vous faire ?
+echo [R] Redémarrer
+echo [Q] Quitter
+echo ==================================================================
+choice /c RQ /n /m "Votre choix (R/Q) : "
+
+if errorlevel 2 goto END
+if errorlevel 1 goto RESTART
+
+:END
+echo Fermeture du script...
+timeout /t 2 >nul
+exit
 pause

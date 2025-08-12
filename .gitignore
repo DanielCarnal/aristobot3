@@ -55,12 +55,31 @@ db_temp.sqlite3
 
 # Environment variables
 .env
+.env.local
+.env.production
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# SECRETS ET CONFIGURATION SENSIBLE (TRADING)
+*.key
+*.pem
+config/secrets.json
+api_keys.py
+credentials.json
+trading_config.json
+
+# DONNÉES DE TRADING (ne pas committer)
+/data/market_data/
+/data/backtest_results/
+trading_logs/
+backtest_logs/
+*.trade.log
+broker_configs/
+exchange_settings.json
 
 # IDEs
 .vscode/
@@ -155,3 +174,20 @@ jspm_packages/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# CLAUDE CODE ET DÉVELOPPEMENT
+.claude/
+claude-instructions.local
+
+# POSTGRES ET BASES DE DONNÉES
+*.sql.gz
+*.backup
+dump.sql
+dump.rdb
+
+# SCRIPTS DE TEST TEMPORAIRES (garder ceux du MODULE2)
+*temp_test*
+*debug_temp*
+
+# IMPORTANT: Le .env contient les vraies clés API Binance !
+# Vérifiez qu'il est bien ignoré avant de push vers GitHub
