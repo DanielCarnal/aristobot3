@@ -2,7 +2,7 @@
 
 ## 📊 ÉTAT GLOBAL DU PROJET
 
-### ✅ MODULE 1 - USER ACCOUNT & BROKERS (✅ COMPLÉTÉ)
+### ✅ MODULE 1 - USER ACCOUNT & BROKERS (85% TERMINÉ)
 - **Authentification** : Système multi-tenant sécurisé ✅
 - **Mode DEBUG** : Gestion via table DebugMode ✅  
 - **Brokers CCXT** : CRUD complet avec test connexion ✅
@@ -10,38 +10,19 @@
 - **Services** : SymbolUpdaterService + endpoints API ✅
 - **Sécurité** : Chiffrement clés API + permissions ✅
 
-### ✅ MODULE 2 - HEARTBEAT AMÉLIORÉ (✅ COMPLÉTÉ)
-- **Persistance PostgreSQL** : Modèle CandleHeartbeat avec OHLCV ✅
-- **Service heartbeat étendu** : Sauvegarde auto + WebSocket dual-channel ✅
-- **APIs REST** : 3 endpoints pour historique et statut ✅
-- **Frontend amélioré** : Historique orange + temps réel vert ✅
-- **Interface épurée** : Suppression barre statut + titre explicatif ✅
-- **Monitoring complet** : 240 signaux historiques + surveillance temps réel ✅
+### 🔄 EN COURS - Finalisation Module 1
+- ⚠️ Command init_aristobot (user dev normal)
+- ⚠️ Frontend debug toggle dans LoginView  
+- ⚠️ Tests complets mode DEBUG_ARISTOBOT=False
 
-### 🚀 MODULES SUIVANTS - PRIORITÉ RECOMMANDÉE
-
-#### 🎯 **MODULE 3 - TRADING MANUEL** (Priorité 1 - Foundation Trading)
-**Pourquoi en priorité :** Base nécessaire pour tous les autres modules
-- Interface trading manuelle complète
-- Passage d'ordres CCXT (buy/sell, market/limit)
-- Calcul automatique quantité/montant
-- Historique des trades avec persistance
-
-#### 🔔 **MODULE 4 - WEBHOOKS TRADINGVIEW** (Priorité 2 - Automatisation Simple)
-**Pourquoi après Module 3 :** Réutilise la logique de trading manuelle
-- Réception signaux TradingView
-- Exécution automatique des ordres
-- Monitoring et logs complets
-
-#### 🧠 **MODULE 5 - STRATÉGIES PYTHON + IA** (Priorité 3 - Intelligence)
-**Pourquoi après Modules 3-4 :** Nécessite trading + webhooks fonctionnels
-- Éditeur de stratégies Python
-- Assistant IA pour génération de code
-- Validation et tests de stratégies
-
-#### 📊 **MODULE 6 - BACKTEST** (Priorité 4 - Validation)
-#### 🤖 **MODULE 7 - TRADING BOT** (Priorité 5 - Automatisation Complète)
-#### 📈 **MODULE 8 - STATISTIQUES** (Priorité 6 - Analyse)
+### 📋 PROCHAINS MODULES
+- **MODULE 2** : Heartbeat amélioré + bougies DB
+- **MODULE 3** : Trading manuel  
+- **MODULE 4** : Webhooks TradingView
+- **MODULE 5** : Stratégies Python + IA
+- **MODULE 6** : Backtest
+- **MODULE 7** : Trading BOT
+- **MODULE 8** : Statistiques
 
 ## 🎯 DÉCISIONS TECHNIQUES VALIDÉES
 
@@ -87,59 +68,20 @@
 
 ---
 
-## 📦 MODULE 2 : HEARTBEAT AMÉLIORÉ ✅ **TERMINÉ**
+## 📦 MODULE 2 : HEARTBEAT AMÉLIORÉ
 
-### ✅ Objectifs réalisés
-1. ✅ Service Heartbeat amélioré avec persistance PostgreSQL
-2. ✅ Modèle `CandleHeartbeat` pour bougies OHLCV complètes
-3. ✅ Interface monitoring temps réel avec différenciation couleurs
-4. ✅ APIs REST robustes pour historique et statut
+### Objectifs
+1. Améliorer le service Heartbeat existant
+2. Sauvegarder les bougies en PostgreSQL
+3. Créer une interface de monitoring temps réel
+4. Gérer la cohérence des données
 
-### ✅ Réalisations techniques
-- **Modèle CandleHeartbeat** : Stockage OHLCV + timestamps
-- **Service dual-channel** : WebSocket brut + processed
-- **3 APIs REST** : /status/, /heartbeat-history/, /signals/
-- **Frontend épuré** : 240 signaux historiques (orange) + temps réel (vert)
-- **Interface intuitive** : Titre "Heartbeat" + explication contextuelle
-
-**📊 Détails complets :** Voir `MODULE2_IMPLEMENTATION.md`
-
-## 📦 MODULE 2 : Service CCXT Centralisé** (Terminal 5) ✅ **TERMINÉ
-**Le Service CCXT Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
-
-**Principe de fonctionnement :**
-* **Service dédié** : Processus indépendant qui maintient toutes les connexions CCXT
-* **Une instance par broker** : Dictionnaire `{(user_id, broker_id): exchange_instance}` centralisé
-* **Communication Redis** : Tous les autres services communiquent via channels `ccxt_requests` et `ccxt_responses`
-* **Coexistence intelligente** : CCXT direct pour tests ponctuels (User Account) + service centralisé pour opérations répétées (Trading)
-  
-**Consulter** le fichier `MODULE2-Refacto-CCXT_MicroServ.md` qui a servi à l'implémentation. Des modifications ont ensuite été apportées:
-  1. Architecture optimisée: Un seul exchange par type (bitget, binance, etc.) au lieu d'une instance par (user_id, broker_id)
-  2. Injection de credentials: Les credentials sont injectés dynamiquement avant chaque appel API
-  3. Affichage optimisé:
-    - Premier broker: bitget/1 → Loading → OK (35s)
-    - Deuxième broker: bitget/Aristobot2-v1 → SHARED (0s instantané)
-  4. Gain d'efficacité:
-    - Avant: 2 instances séparées = 2x temps de chargement
-    - Maintenant: 1 exchange partagé + configurations instantanées
-
-  Résultat: Au lieu de charger bitget deux fois (60-70 secondes total), on le charge une seule fois (35s) et le deuxième broker est configuré
-  instantanément.
-
-## 🎯 RECOMMANDATION : PROCHAINE ÉTAPE MODULE 3
-
-### Pourquoi le Module 3 (Trading Manuel) en priorité ?
-
-1. **🏗️ Foundation essentielle** : Base nécessaire pour tous les autres modules
-2. **🔄 Réutilisabilité** : La logique de trading sera réutilisée par Webhooks et BOT
-3. **🧪 Tests immédiats** : Possibilité de tester les trades manuellement
-4. **📊 Données réelles** : Génère un historique pour les futures statistiques
-
-### Ce que le Module 3 apportera
-- Interface trading intuitive avec calculateur quantité/prix
-- Historique complet des trades pour analyse
-- Base technique pour l'automatisation (Module 4)
-- Validation de la logique CCXT avec vrais trades
+### Structure générale
+- Modèle `Candle` pour stocker les bougies
+- Service amélioré avec sauvegarde DB
+- API REST pour récupérer l'historique
+- WebSocket pour le temps réel
+- Frontend avec affichage 20 lignes / scroll 60
 
 ---
 
@@ -324,29 +266,19 @@ Aide-moi à corriger sans casser le reste du code.
 
 ## ✅ CHECKLIST DE VALIDATION
 
-### Module 1 ✅ **COMPLÉTÉ**
-- [✅] Migrations créées et appliquées (accounts, brokers, core)
-- [✅] Script init_aristobot fonctionne
-- [✅] Table HeartbeatStatus initialisée
-- [✅] Mode DEBUG : connexion auto avec user "dev"
-- [✅] CRUD Brokers fonctionnel
-- [✅] Test connexion CCXT réussi
-- [✅] Service SymbolUpdater fonctionnel
-- [✅] Mise à jour symboles en arrière-plan
-- [✅] Trading Engine démarre sans erreur (mode test)
-- [✅] Frontend AccountView complet
-- [✅] Chiffrement des API keys vérifié
-- [✅] Table Position créée pour suivi des trades ouverts
-
-### Module 2 ✅ **COMPLÉTÉ**
-- [✅] Modèle CandleHeartbeat avec OHLCV
-- [✅] Service heartbeat avec sauvegarde auto
-- [✅] WebSocket dual-channel (brut + processed)
-- [✅] 3 APIs REST fonctionnelles
-- [✅] Frontend avec historique + temps réel
-- [✅] Couleurs différentielles (orange/vert)
-- [✅] Interface épurée et intuitive
-- [✅] 240 signaux historiques au démarrage
+### Module 1
+- [ ] Migrations créées et appliquées (accounts, brokers, core)
+- [ ] Script init_aristobot fonctionne
+- [ ] Table HeartbeatStatus initialisée
+- [ ] Mode DEBUG : connexion auto avec user "dev"
+- [ ] CRUD Brokers fonctionnel
+- [ ] Test connexion CCXT réussi
+- [ ] Service SymbolUpdater fonctionnel
+- [ ] Mise à jour symboles en arrière-plan
+- [ ] Trading Engine démarre sans erreur (mode test)
+- [ ] Frontend AccountView complet
+- [ ] Chiffrement des API keys vérifié
+- [ ] Table Position créée pour suivi des trades ouverts
 
 ### Points d'attention
 - Toujours utiliser `request.user` pour le multi-tenant

@@ -10,7 +10,7 @@ cd /d C:\Users\dac\Documents\Python\Django\Aristobot3\backend
 echo Dossier backend ouvert
 
 :RESTART
-python manage.py run_heartbeat
+python manage.py run_ccxt_service
 
 
 REM -- Fin du processus run_heartbeatproposer redémarrage ou sortie --

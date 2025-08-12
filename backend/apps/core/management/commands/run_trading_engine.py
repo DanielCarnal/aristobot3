@@ -2,12 +2,12 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 import asyncio
 import logging
 import signal
 import sys
 from datetime import datetime
+from apps.core.services.ccxt_client import CCXTClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ class Command(BaseCommand):
         super().__init__()
         self.running = True
         self.channel_layer = get_channel_layer()
+        self.ccxt_client = CCXTClient()
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,7 +36,7 @@ class Command(BaseCommand):
         
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nOK Trading Engine demarre {'(MODE TEST)' if self.test_mode else ''}\n"
+                f"\n✅ Trading Engine demarre {'(MODE TEST)' if self.test_mode else ''}\n"
             )
         )
         
@@ -45,52 +46,69 @@ class Command(BaseCommand):
     async def run_engine(self):
         """Boucle principale du Trading Engine"""
         
-        # Se connecter au channel Redis pour ecouter les signaux
-        channel_name = 'trading_engine'
-        
         self.stdout.write(
-            self.style.SUCCESS(f"OK Connexion au channel 'heartbeat'...")
+            self.style.SUCCESS("✅ Connexion au service CCXT centralisé...")
         )
         
+        # Écouter les réponses CCXT
+        asyncio.create_task(self.listen_ccxt_responses())
+        
+        # Demander le préchargement des brokers
+        try:
+            success_count, error_count = await self.ccxt_client.preload_all_brokers()
+            self.stdout.write(
+                self.style.SUCCESS(f"✅ Brokers préchargés: {success_count} succès, {error_count} erreurs")
+            )
+        except Exception as e:
+            logger.error(f"❌ Erreur préchargement brokers: {e}")
+        
+        # Boucle principale
         while self.running:
             try:
-                # Attendre un signal du Heartbeat (implementation simplifiee)
-                # Cette partie sera completee dans le Module 7
+                # Attendre un signal du Heartbeat
+                # TODO: Implémenter l'écoute des signaux Heartbeat
                 await asyncio.sleep(1)
                 
-                # Verifier s'il y a des signaux a traiter
-                # Pour l'instant, juste un placeholder
-                if False:  # Sera remplace par la vraie logique
+                # Traiter les signaux (sera implémenté dans Module 7)
+                if False:  # Placeholder
                     await self.process_signal({})
                     
             except Exception as e:
-                logger.error(f"Erreur dans le Trading Engine: {e}")
-                await asyncio.sleep(5)  # Attendre avant de reessayer
+                logger.error(f"❌ Erreur Trading Engine: {e}")
+                await asyncio.sleep(5)
+    
+    async def listen_ccxt_responses(self):
+        """Écoute les réponses du service CCXT"""
+        while self.running:
+            try:
+                # TODO: Implémenter la vraie écoute des réponses Redis
+                # response = await self.channel_layer.receive('ccxt_responses')
+                # await self.ccxt_client.handle_response(response)
+                await asyncio.sleep(0.1)  # Placeholder
+            except Exception as e:
+                logger.error(f"❌ Erreur réception réponse CCXT: {e}")
+                await asyncio.sleep(1)
     
     async def process_signal(self, signal_data):
         """
-        Traite un signal recu du Heartbeat.
-        Cette methode sera completee dans le Module 7.
+        Traite un signal reçu du Heartbeat.
+        Utilise maintenant le CCXTClient au lieu du CCXTManager direct.
         """
         timeframe = signal_data.get('timeframe')
         timestamp = signal_data.get('timestamp')
         
-        self.stdout.write(
-            f"Signal recu: {timeframe} a {timestamp}"
-        )
+        self.stdout.write(f"📊 Signal reçu: {timeframe} à {timestamp}")
         
-        # TODO: Module 7
-        # 1. Recuperer les strategies actives pour ce timeframe
-        # 2. Pour chaque strategie:
-        #    a. Recuperer les bougies necessaires
-        #    b. Executer la logique de la strategie
-        #    c. Passer les ordres si necessaire
+        # TODO: Module 7 - Utiliser self.ccxt_client au lieu de CCXTManager
+        # Exemple:
+        # balance = await self.ccxt_client.get_balance(broker_id)
+        # candles = await self.ccxt_client.get_candles(broker_id, symbol, timeframe)
         pass
     
     def shutdown(self, signum, frame):
-        """Arret propre du service"""
+        """Arrêt propre du service"""
         self.stdout.write(
-            self.style.WARNING("\nATTENTION Arret du Trading Engine...")
+            self.style.WARNING("\n⚠️ Arrêt du Trading Engine...")
         )
         self.running = False
         sys.exit(0)

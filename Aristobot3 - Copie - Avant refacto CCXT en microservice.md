@@ -22,9 +22,9 @@ Aristobot V3 est un bot de trading de cryptomonnaies personnel, développé sous
         * **Communication Temps Réel** : Redis (pour Django Channels)
     * **Librairies Python** :
         * Analyse Technique: **Pandas TA Classic - A Technical Analysis Library in Python 3** (https://github.com/xgboosted/pandas-ta-classic)
-        * Accès aux marchés (Broker) **CCXT – CryptoCurrency eXchange Trading Library** (https://github.com/ccxt/ccxt)
+        * Accès aux marchés (Brocker) **CCXT – CryptoCurrency eXchange Trading Library** (https://github.com/ccxt/ccxt)
     * **Parallélisme** : Les calculs concurrents (notamment pour les stratégies) seront gérés exclusivement par **`asyncio`**. L'utilisation de Celery est exclue pour rester simple.
-    * **Gestion des Instances CCXT** : Une approche **service centralisé** est utilisée. Le service CCXT centralisé (Terminal 5) maintient une seule instance de connexion par `user_id` et `broker_id` et communique avec les autres services via Redis pour respecter les recommandations de CCXT et gérer efficacement les **rate limits**.
+    * **Gestion des Instances CCXT** : Une approche **singleton** sera utilisée. Un service centralisé en mémoire (ex: un dictionnaire global dans `apps/core/services/ccxt_manager.py`) gardera une seule instance de connexion par `user_id` et `broker_id` pour respecter les recommandations de CCXT et gérer efficacement les **rate limits**.
     * **API CCXT asynchrone** : Tous les appels à l'API CCXT devront être effectués via `ccxt.async_support` et `await` pour rester non bloquants et préserver les performances de la boucle `asyncio`.
     * **Validation des Données** : La validation se fera à la fois côté client (pour une meilleure expérience utilisateur) et côté serveur via les **serializers Django Rest Framework** (pour la sécurité et l'intégrité).
     * **Format des Erreurs** : Les messages d'erreur retournés par l'API seront **techniques et en français** (ex: "Erreur de connexion à Binance : Invalid API Key"), pour faciliter le débogage.
@@ -37,27 +37,22 @@ Aristobot3/
 │   ├── aristobot/              # Configuration Django principale
 │   │   ├── settings.py, urls.py, asgi.py, routing.py
 │   ├── apps/
-│   │   ├── core/              # Services partagés, Heartbeat, CCXT centralisé
+│   │   ├── core/              # Services partagés, Heartbeat, Mixins
 │   │   │   ├── management/commands/
-│   │   │   │   ├── run_heartbeat.py      # Terminal 2
-│   │   │   │   └── run_ccxt_service.py   # Terminal 5 (NOUVEAU)
-│   │   │   ├── services/
-│   │   │   │   ├── ccxt_manager.py       # Service centralisé CCXT
-│   │   │   │   ├── ccxt_client.py        # Client pour communication Redis (NOUVEAU)
-│   │   │   │   └── symbol_updater.py
+│   │   │   │   └── run_heartbeat.py
 │   │   │   ├── consumers.py   # WebSocket publishers
 │   │   │   └── models.py
 │   │   ├── accounts/          # Gestion utilisateurs
-│   │   ├── brokers/           # Gestion des brokers (CCXT direct pour tests)
+│   │   ├── brokers/           # Gestion des brokers
 │   │   ├── market_data/       # Stockage des bougies et symboles
 │   │   ├── strategies/        # CRUD des stratégies
 │   │   ├── trading_engine/    # Logique d'exécution des trades
 │   │   │   └── management/commands/
-│   │   │       └── run_trading_engine.py # Terminal 3 (utilise CCXTClient)
-│   │   ├── trading_manual/    # Trading manuel (utilise CCXTClient)
-│   │   ├── backtest/          # Backtesting (utilise CCXTClient)
-│   │   ├── webhooks/          # Webhooks externes
-│   │   └── stats/             # Statistiques de performance
+│   │   │       └── run_trading_engine.py
+│   │   ├── trading_manual/
+│   │   ├── backtest/
+│   │   ├── webhooks/
+│   │   └── stats/
 │   ├── requirements.txt
 │   └── manage.py
 ├── frontend/
@@ -73,24 +68,11 @@ Aristobot3/
 │   └── vite.config.js
 ├── docs/
 │   └── design/               # Mockups et références visuelles
-├── MODULE2-Refacto-CCXT_MicroServ.md  # Prompt Claude Code (NOUVEAU)
-├── Aristobot3.md			   # Documentation du projet
-├── .env
 ├── .env.example
 ├── .gitignore
 ├── .claude-instructions
 └── README.md
 ```
-
-**Nouveaux fichiers pour l'architecture service centralisé :**
-- 🆕 `apps/core/management/commands/run_ccxt_service.py` : Service centralisé CCXT (Terminal 5)
-- 🆕 `apps/core/services/ccxt_client.py` : Client pour communication Redis avec le service CCXT
-- 🔄 `apps/core/services/ccxt_manager.py` : Modifié pour fonctionner uniquement dans le service centralisé
-- 🆕 `MODULE2-Refacto-CCXT_MicroServ.md` : Instructions détaillées pour Claude Code
-
-**Coexistence CCXT :**
-- ✅ `apps/brokers/` : Garde CCXT direct pour tests de connexion ponctuels
-- ✅ `apps/trading_*` : Utilisent CCXTClient pour opérations répétées via service centralisé
 ## 2. Expérience Utilisateur (Frontend)
 
 ### Layout Global
@@ -171,7 +153,7 @@ L'application est conçue pour fonctionner comme un écosystème de services int
 
 ### Processus de Lancement : La "Checklist de Décollage"
 
-Pour que l'application soit pleinement opérationnelle, **cinq terminaux distincts** doivent être lancés.
+Pour que l'application soit pleinement opérationnelle, **quatre terminaux distincts** doivent être lancés.
 Ces services forment l'épine dorsale de l'application et fonctionnent en arrière-plan, indépendamment de la présence d'un utilisateur connecté à l'interface web.
 
 1. **Terminal 1 : Serveur Web + WebSocket (Daphne)**
@@ -194,45 +176,25 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
    * **Commande** : `npm run dev`
    * **Rôle** : Sert l'interface utilisateur développée en Vue.js. C'est ce que l'utilisateur voit et avec quoi il interagit dans son navigateur. Elle se connecte au serveur Daphne (Terminal 1) via WebSocket pour recevoir les données en temps réel.
 
-5. **Terminal 5 : Service CCXT Centralisé (Nouveau)**
-
-   * **Commande** : `python manage.py run_ccxt_service`
-   * **Rôle** : Le "hub" centralisé pour toutes les connexions CCXT. Ce service maintient une seule instance de connexion par (user_id, broker_id) et communique avec les autres services via Redis. Il garantit le respect des rate limits des exchanges et évite la multiplication des connexions.
-
 ```ascii
-    Terminal 1          Terminal 2           Terminal 3          Terminal 4          Terminal 5
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+
-| > daphne ...  |   | > python       |   | > python       |   | > npm run dev |   | > python       |
-|               |   |   manage.py    |   |   manage.py    |   |               |   |   manage.py    |
-| SERVEUR WEB   |   |   run_heartbeat|   | run_trading_   |   |   FRONTEND    |   | run_ccxt_      |
-| & WEBSOCKET   |   |                |   |   engine       |   |   (Vue.js)    |   |   service      |
-| (Standardiste)|   | HEARTBEAT      |   | TRADING ENGINE |   | (Cockpit)     |   | SERVICE CCXT   |
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+
-       ^                     |                     |                   ^                   ^
-       |                     |                     |                   |                   |
-       +---------------------+---------------------+-------------------+-------------------+
-                             |
-                      +----------------+
-                      |     REDIS      |
-                      | (Communication |
-                      |  inter-process)|
-                      | • heartbeat    |
-                      | • ccxt_requests|
-                      | • ccxt_responses|
-                      | • websockets   |
-                      +----------------+
+      Terminal 1                      Terminal 2                         Terminal 3                       Terminal 4
++-----------------------+     +--------------------------+      +--------------------------+      +-----------------------+
+|  > daphne ...         |     |  > python manage.py      |      |  > python manage.py      |      |  > npm run dev        |
+|                       |     |    run_heartbeat         |      |    run_trading_engine    |      |                       |
+|   SERVEUR WEB & WSS   |     |                          |      |                          |      |   INTERFACE UTILISATEUR |
+|   (Le standardiste)   |     |    HEARTBEAT SERVICE     |      |    TRADING ENGINE        |      |   (Le cockpit)          |
++-----------------------+     +--------------------------+      +--------------------------+      +-----------------------+
+           ^                             |                                  |                                 ^
+           |                             | (Publie sur Redis)               | (Écoute Redis)                  |
+           +-----------------------------+----------------------------------+---------------------------------+
+                                         |
+                                  +----------------+
+                                  |     REDIS      |
+                                  | (Le système    |
+                                  |    nerveux)    |
+                                  +----------------+
 ```
-1. Architecture optimisée: Un seul exchange par type (bitget, binance, etc.) au lieu d'une instance par (user_id, broker_id)
-2. Injection de credentials: Les credentials sont injectés dynamiquement avant chaque appel API
-3. Affichage optimisé:
-    - Premier broker: bitget/1 → Loading → OK (35s)
-    - Deuxième broker: bitget/Aristobot2-v1 → SHARED (0s instantané)
-4. Gain d'efficacité:
-    - Avant: 2 instances séparées = 2x temps de chargement
-    - Maintenant: 1 exchange partagé + configurations instantanées
 
-  **Résultat**: Au lieu de charger bitget deux fois (60-70 secondes total), on le charge une seule fois (35s) et le deuxième broker est configuré  instantanément.
-  
 ### 3.1 Le Cœur du Système : Le Service Heartbeat
 
 Le **Heartbeat** est le service le plus fondamental. Il fonctionne comme le métronome de l'application, captant le rythme du marché et le propageant à l'ensemble du système.
@@ -265,7 +227,7 @@ Le **Heartbeat** est le service le plus fondamental. Il fonctionne comme le mét
 * **DB** :
 * Lecture de la table `heartbeat_status` pour afficher l'état de connexion du service.
 
-* Enregistre dans la table `candles_Heartbeat` l'`ìd` de `hertbeat_status`, la date/heure/minute de l'enregistrement `DHM-RECEPTION`, la date/heure/minute de la bougie reçue `DHM-CANDLE`, le type de signal publié `SignalType` ("1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h")
+* Enregistre dans la table `candles_HertBeat` l'`ìd` de `hertbeat_status`, la date/heure/minute de l'enregistrement `DHM-RECEPTION`, la date/heure/minute de la bougie reçue `DHM-CANDLE`, le type de signal publié `SignalType` ("1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h")
 * Enregistre dans la table `hertbeat_status` `last_ApplicationStart` et  `last_ApplicationStop` 
 
 ### 3.2 Le Cerveau : Le Moteur de Trading (Trading Engine)
@@ -276,7 +238,7 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 
 **Workflow détaillé** :
 
-1. **Initialisation au démarrage** : Le Trading Engine utilise le Service  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les Exchanges
+1. **Initialisation au démarrage** : Le Trading Engine précharge toutes les connexions CCXT des brokers actifs via le CCXTManager, garantissant une latence minimale lors de l'exécution des stratégies. `Voir -> 3.3 Architecture CCXT : Le Gestionnaire Singleton` 
 
 2. **À l'écoute du Cœur** : Le service `run_trading_engine.py` est abonné au canal `Heartbeat` et attend passivement les signaux.
 
@@ -286,58 +248,45 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 > > > > > > * L'unité de temps de la stratégie correspond-elle à celle du signal (ex: `15m`) ?
 
 1. **Exécution de la Logique** : Pour chaque stratégie correspondante, le moteur :
-    * A) Récupère les toutes les bougies à la stratégie par le **Service CCXT centralisé** (Terminal 5)**
-    * B) Chargement dynamique de la stratégie:
+    * A) Récupère les toutes les bougies à la stratégie par un appel au brocker via la librairie CCXT
+    * B)Chargement dynamque de la stratégie:
         * Charge le code Python de la stratégie depuis la table `strategies`, puis l’exécute en mémoire via `exec()` dans un **espace de noms local isolé** (ex. un dictionnaire temporaire de type `local_vars`). Cette isolation garantit que le code de l'utilisateur n'interfère pas avec les variables du moteur lui-même.
         * Une fois le code exécuté, le moteur **parcourt les objets définis** dans cet espace local pour identifier, à l’aide de `issubclass`, la classe qui hérite de la base `Strategy`. Cette classe devient alors la stratégie active
     * C) Le moteur instancie dynamiquement cette classe, en lui passant les données nécessaires (`candles`, `balance`, etc.). L’instance obtenue expose alors les méthodes de décision (`should_long()`, `should_short()`, etc.), qui peuvent être appelées directement pour déterminer s’il faut prendre une position ou non.
     * D) Exécute la logique de la stratégie (`should_long()`, etc.).
-2. **Interaction avec les Brokers** : Si une stratégie décide d'ouvrir ou de fermer une position, le moteur utilise le **Service CCXT Centralisé**  pour communiquer avec le broker de l'utilisateur et passer les ordres (y compris les Stop Loss et Take Profit).
+2. **Interaction avec les Brokers** : Si une stratégie décide d'ouvrir ou de fermer une position, le moteur utilise la librairie **CCXT** pour communiquer avec le broker de l'utilisateur et passer les ordres (y compris les Stop Loss et Take Profit).
 3. **Surveillance Continue** : Indépendamment des signaux, le moteur vérifie également à intervalle régulier (toutes les minutes) l'état des trades ouverts pour s'assurer que les TP/SL n'ont pas été atteints
 4. **Gestion Concurrente** : Grâce à `asyncio`, si un signal déclenche 10 stratégies en même temps, le moteur peut les traiter de manière quasi-simultanée, évitant ainsi tout goulot d'étranglement.
 
-### **3.3 Architecture CCXT : Service Centralisé via Redis**
+### **3.3 Architecture CCXT : Le Gestionnaire Singleton**
 
-**Le Service CCXT Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
+**Le CCXTManager** est le point d'accès unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect des rate limits.
 
 **Principe de fonctionnement :**
 
-* **Service dédié** : Processus indépendant qui maintient toutes les connexions CCXT
-* **Une instance par broker** : Dictionnaire `{(user_id, broker_id): exchange_instance}` centralisé
-* **Communication Redis** : Tous les autres services communiquent via channels `ccxt_requests` et `ccxt_responses`
-* **Coexistence intelligente** : CCXT direct pour tests ponctuels (User Account) + service centralisé pour opérations répétées (Trading)
-
-**Channels Redis :**
-```python
-# Communication inter-processus
-ccxt_requests  : Trading Engine → Service CCXT
-ccxt_responses : Service CCXT → Trading Engine
-heartbeat     : Heartbeat → Trading Engine (existant)
-websockets    : Tous → Frontend (existant)
-```
+* **Une instance par broker** : Le singleton maintient un dictionnaire `{(user_id, broker_id): exchange_instance}` en mémoire
+* **Chargement unique des marchés** : `load_markets()` n'est appelé qu'une fois à la création de l'instance, puis les données restent en cache. 
+* **Réutilisation permanente** : Tous les services (Trading Engine, Trading Manuel, Backtest) utilisent la même instance
+* Les **nouveaux brokers** ajoutés dans l'application en cours de route **depuis "User Account"** sont chargés par un processus non bloquant par l'application **après la vérification du compte**.
+* Une **mise à jours** des marchés peut être demandée **depuis "User Account"** pour chaque Exchanges
 
 **Cycle de vie :**
 ```python
-# Communication asynchrone via Redis
-1. Trading Engine → CCXTClient.get_balance(broker_id)
-2. CCXTClient → Redis (ccxt_requests)
-3. Service CCXT → Traite la requête → Redis (ccxt_responses)
-4. CCXTClient → Reçoit la réponse → Retourne au Trading Engine
+# apps/core/services/ccxt_manager.py
+1. get_exchange(broker) → Récupère ou crée l'instance
+2. Si nouvelle : await exchange.load_markets() → Cache permanent
+3. Retourne l'instance pour utilisation
 ```
-
 * **Backend :**
-    * Le Service CCXT précharge TOUS les brokers actifs au démarrage
-    * User Account utilise CCXT direct pour tests de connexion (pas de rate limits)
-    * Trading Engine/Manuel utilisent CCXTClient pour opérations répétées
+    * Le Trading Engine précharge au boot de l'application TOUS les brokers de TOUS les utilisateurs.
+    * Le chargement des données se fait en arrière plan, non bloquant pour l'application
       
 * **Frontend :**
-    * Barre de statut affiche le nombre de marchés chargés par le service centralisé
-    * Status "Chargement Service CCXT xxx%" durant l'initialisation
-    * Click sur l'élément lance la mise à jour via requête au service centralisé
+    * Dans la barre de status, le nombre de marché chargés est affiché. Durant la phase de chargement, un status "Chargement 'Exchange X' xxx%" remplace le nombre de marchés chargés
+    * C'est un élément utilisable pour déclencher le rechargement général. Un click sur cet élément lance une mis à jours des marchés. La validation de la mise à jour se fait par une fenêtre modale de confirmation.
 
 * **DB :**
-    * Table `exchange_symbols` mise à jour par le service centralisé
-    * Logs des requêtes CCXT pour monitoring et débogage 
+    * Enregistre dans la table `exchange_symbols` les données 
 
 
 ***Commentaire AI :*** Cette architecture découplée est très robuste. Le Heartbeat se contente de donner le tempo, et le Trading Engine d'y réagir. Si le Trading Engine plante, le Heartbeat continue de collecter les données. Si le Heartbeat se déconnecte, le Trading Engine attend simplement le prochain signal. C'est un excellent design.*
@@ -369,8 +318,8 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
         * **Fuseau Horaire** : Un sélecteur pour afficher toutes les dates et heures de l'application soit en **UTC**, soit dans le **fuseau horaire local** du navigateur. Le choix est stocké dans le profil utilisateur
 
 * **Backend** : 
-    * Gère l'enregistrement de nouveaux Exchanges (Brokers) CRUD.
-        * Les Exchanges (Brokers) sont fourni par la librairie CCXT
+    * Gère l'enregistrement de nouveaux Exchanges (Brockers) CRUD.
+        * Les Exchanges (Brockers) sont fourni par la librairie CCXT
         * Envoie la liste des Exchanges (ccxt.exchanges)
           ```
             import ccxt
@@ -381,15 +330,13 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
             ```
         * Connecter l'Exchange pour tester la clé API fournie
         * Envoyer le solde du compte une fois la connexion  établie
-        * **Utilise CCXT direct** pour les tests de connexion et listing des exchanges (opérations ponctuelles)
-        * Mise à jour des marchés via le **Service CCXT centralisé** (Terminal 5)
-    * Gère l'enregistrement et l'envoi des préférences utilisateur.
-    * **Note technique** : User Account garde CCXT direct car les tests de connexion sont ponctuels et ne posent pas de problème de rate limits
+        * mise à jours des marchés, enregistré dans la DBDB
+    * Gère l'enregistrement et l'envoi des des préférences utilisateur.
 
 * **Frontend** : Fournit les interfaces pour :
     * Changer son mot de passe.
     * Gérer ses comptes de brokers (CRUD via une fenêtre modale).
-        * La modale affiche la liste des brocers reçu du backend
+        * La modale affiche la liste des brockers reçu du backend
         * Pour la création, modification, la modale affiche les `requiredCredentials` nécessaires
     * Définir un broker par défaut.
     * Configurer la connexion à une IA (OpenRouter ou Ollama) avec clé API/URL et un switch ON/OFF.
@@ -414,14 +361,13 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
 
 #### 4.3. **Trading Manuel (`apps/trading_manual`)**
 * **Rôle** : Permettre à l'utilisateur de passer des ordres manuellement, comme il le ferait sur la plateforme d'un exchange.
-* **Description** :  Le broker par défaut de l'utilisateur est proposé à l'utilisateur. Il peut choisir à l'aide d'une scroll list le broker ave lequel il veut travailler. La zone de saisie de trade sera ergonomique : si l'utilisateur saisit une quantité, la valeur en USD est calculée ; s'il saisit un montant en USD, la quantité d'actifs est calculée. La liste des symboles disponibles sera **configurable, avec pagination et fonction de recherche** pour une meilleure utilisabilité. 
+* **Description** :  Le brocker par défaut de l'utilisateur est proposé à l'utilisateur. Il peut choisir à l'aide d'une scroll list le brocker ave lequel il veut travailler. La zone de saisie de trade sera ergonomique : si l'utilisateur saisit une quantité, la valeur en USD est calculée ; s'il saisit un montant en USD, la quantité d'actifs est calculée. La liste des symboles disponibles sera **configurable, avec pagination et fonction de recherche** pour une meilleure utilisabilité. 
 
-* **Backend** : Utilise  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les exchanges :
+* **Backend** : Utilise **CCXT** pour toutes les interactions avec les exchanges :
   * Connexion au broker sélectionné.
   * Récupération de la balance et des positions en cours.
   * Passage d'ordres (marché, limite).
-  * Récupère le marché dans la DB de la table `exchange_symbols` pour le broker sélectionné
-  * **Note technique** : Utilise **CCXTClient** (service centralisé)
+  * Récupère le marché dans la DB de la table `exchange_symbols` pour le brocker sélectionné
 
 * **Frontend** : Affiche :
   * La liste des brokers configurés par l'utilisateur.
@@ -556,7 +502,7 @@ class MaNouvelleStrategie(Strategy):
 
 * **Rôle** : Simuler l'exécution d'une stratégie sur des données historiques pour en évaluer la performance potentielle.
 
-* **Description** : Permet de lancer un backtest en sélectionnant une stratégie, une plage de dates, un symbole, un timeframe et un montant de départ. Affiche les résultats : statistiques de performance (gains, drawdown, etc.) et la liste de tous les trades simulés. Les données de bougies historiques sont dans la `candles` avec le Broker identifié. Ainsi, si d'autres utilisateurs et d'autres stratégies ont besoin de ces données elles sont accessible. Eviter de backtester sur les bougies d'un autre broker que celui sélectionner pour la stratégie. Si les bougies n'existent pas, elles sont chargées avec le  **Service CCXT centralisé** (Terminal 5).
+* **Description** : Permet de lancer un backtest en sélectionnant une stratégie, une plage de dates, un symbole, un timeframe et un montant de départ. Affiche les résultats : statistiques de performance (gains, drawdown, etc.) et la liste de tous les trades simulés. Les données de bougies historiques sont dans la `candles` avec le Brocker identifié. Ainsi, si d'autres utilisateurs et d'autres stratégies ont besoin de ces données elles sont accessible. Eviter de backtester sur les bougies d'un autre brocker que celui sélectionner pour la stratégie. Si les bougies n'existent pas, elles sont chargeé avec la librairie CCXT.
 
 * **Backend** :
     * Charge les données de bougies historiques.
@@ -569,7 +515,7 @@ class MaNouvelleStrategie(Strategy):
 
 * **Frontend** : Permet à l'utilisateur:
     * De sélectionner modifier créer ou effacer une stratégie (Code du template avec assistant IA)
-    * De sélectionner le broker, l'asset, le timeframe et la plage de date début/fin et un montant en Quantité
+    * De sélectionner le brocker, l'asset, le timeframe et la plage de date début/fin et un montant en Quantité
     * De lancer le backtest
     * D'interrompre le backtest
     * D'interrompre le chargement des bougies durant le chargement
@@ -579,7 +525,7 @@ class MaNouvelleStrategie(Strategy):
 
 #### 4.7. **Webhooks (`apps/webhooks`)**
 * **Rôle** : Recevoir des signaux de trading provenant de services externes (ex: TradingView) et les exécuter. C'est un point d'entrée alternatif pour l'automatisation.
-* **Backend** : Fournit un endpoint d'API sécurisé qui écoute les requêtes webhook. Quand un signal valide est reçu, il le parse et utilise  **Service CCXT centralisé** (Terminal 5) pour passer l'ordre correspondant.
+* **Backend** : Fournit un endpoint d'API sécurisé qui écoute les requêtes webhook. Quand un signal valide est reçu, il le parse et utilise **CCXT** pour passer l'ordre correspondant.
 * **Frontend** : Affiche un journal des webhooks reçus et le statut des ordres qui en ont résulté.
 * **DB** : Enregistre chaque webhook reçu dans la table `webhooks` et les trades correspondants dans la table `trades`.
 
@@ -741,7 +687,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 * **`users`** : En plus des champs standards, elle contiendra `display_timezone` ('UTC' ou 'Europe/Paris', par exemple) et les configurations de l'IA.
 * **`brokers`** : Le champ `exchange` sera un choix restreint basé sur les exchanges supportés par CCXT.
 * **`trades`** : C'est la table la plus importante pour l'analyse. Les champs `strategy_id` et `webhook_id` sont `nullable=True` pour permettre d'enregistrer les trades manuels qui ne proviennent d'aucune automatisation. Un historique complet de **toutes les tentatives de trades, y compris les échecs**, sera conservé pour le débogage.
-* **`candles`** : C'est une table de données brutes, optimisée pour des lectures rapides. Des **index** sur (`symbol`, `timeframe`, `close_time`, `broker_id`) seront cruciaux pour les performances des backtests. Le broker doit être identifié par son propre champ
+* **`candles`** : C'est une table de données brutes, optimisée pour des lectures rapides. Des **index** sur (`symbol`, `timeframe`, `close_time`, `brocker_id`) seront cruciaux pour les performances des backtests. Le brocker doit être identifié par son proprechamp
 * **`active_strategies`** et **`strategies`** : Il est clair que `strategies` est le "modèle" (le code), et `active_strategies` est "l'instance en cours d'exécution" de ce modèle avec des paramètres concrets (broker, symbole, dates).
 
 ## 6. Points Non Classés et Futurs Développements
@@ -752,225 +698,6 @@ Cette section regroupe les idées et les points de discussion qui n'ont pas enco
 * **Gestion Avancée du Mode Testnet** : La librairie CCXT supporte les environnements de test (sandbox) pour certains brokers. Il faudra explorer comment gérer les cas où un broker n'offre pas de mode testnet. L'interface pourrait désactiver le switch "Testnet" pour ce broker ou afficher un avertissement clair. *La gestion du mode Testnet pour les brokers qui ne le supportent pas reste à définir. La solution la plus simple pour une V1 serait de désactiver le switch "Mode Testnet" sur l'interface si `exchange.features['sandbox']` (une propriété de CCXT) est `False` pour le broker sélectionné. C'est une approche pragmatique qui correspond à la philosophie du projet.
 * **Partage de Stratégies** : L'idée d'un système de partage de stratégies entre utilisateurs a été évoquée. Cela nécessiterait des modifications importantes du modèle de données (ex: table de liaison, permissions) et est considéré comme une fonctionnalité pour une version future.
 * **Gestion des Positions Ouvertes** : Il pourrait être pertinent d'ajouter une table dédiée `positions` pour suivre l'état actuel d'un trade ouvert (quantité, prix d'entrée, P\&L latent) plutôt que de le déduire de la table `trades`. C'est un point d'amélioration de l'architecture à considérer.
-
-### 6.5. **Architecture Haute Disponibilité : Redondance Heartbeat et Redis**
-
-Cette section décrit une évolution future possible pour transformer Aristobot3 en système ultra-résilient, en conservant l'esprit "vibe coding" mais avec une robustesse de niveau professionnel.
-
-#### **Concept : Dual-Heartbeat pour Continuité Garantie**
-
-Le service **Heartbeat étant critique** (source unique des signaux de marché), une panne réseau ou serveur provoque l'arrêt complet du trading. La solution : **2 services Heartbeat indépendants** sur des infrastructures séparées.
-
-**Principe** : 
-- **Heartbeat-Primary** : Service principal sur serveur/réseau 1
-- **Heartbeat-Secondary** : Service de secours sur serveur/réseau 2 
-- **Déduplication intelligente** dans le Trading Engine pour éviter les ordres doublons
-
-#### **Architecture Redondante Complète**
-
-```ascii
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                              INFRASTRUCTURE REDONDANTE                                  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-
-    VPS OVH Gravelines (Datacenter 1)          VPS OVH Strasbourg (Datacenter 2)
-   ┌─────────────────────────────────┐        ┌─────────────────────────────────┐
-   │  Terminal A1: Heartbeat-Primary │        │  Terminal B1: Heartbeat-Secondary│
-   │  Terminal A2: Redis-Primary     │        │  Terminal B2: Redis-Secondary   │
-   │  Terminal A3: CCXT-Service      │        │  Terminal B3: CCXT-Backup       │
-   │  Terminal A4: Trading Engine    │        │  Terminal B4: (Standby)         │
-   │  Terminal A5: Frontend          │        │  Terminal B5: (Standby)         │
-   └─────────────────────────────────┘        └─────────────────────────────────┘
-              │                                              │
-          Fibre Orange                                   Fibre Free
-              │                                              │
-              └──────────────── BINANCE ───────────────────┘
-                            WebSocket API
-                            
-   ┌─────────────────────────────────────────────────────────────────────────────────────┐
-   │                              COMMUNICATION REDIS                                    │
-   │  • heartbeat_primary    (Serveur 1 → Trading Engine)                              │
-   │  • heartbeat_secondary  (Serveur 2 → Trading Engine)                              │
-   │  • ccxt_requests       (Trading Engine → Service CCXT)                           │
-   │  • ccxt_responses      (Service CCXT → Trading Engine)                           │
-   │  • websockets          (Tous → Frontend) [existant]                              │
-   └─────────────────────────────────────────────────────────────────────────────────────┘
-````
-
-#### **Gestion de la Déduplication des Signaux**
-
-**Problématique** : Les 2 services Heartbeat vont publier les mêmes signaux avec quelques millisecondes d'écart.
-
-**Solution** : Chaque signal inclut un **ID unique** basé sur le timestamp exact de clôture de bougie :
-```python
-# Format des signaux Heartbeat redondants
-signal_primary = {
-    'timeframe': '5m',
-    'timestamp': '2025-08-12T14:32:15.000Z',
-    'candle_close_time': 1723474335000,  # Timestamp bougie Binance (unique)
-    'source': 'primary',
-    'signal_id': f"5m_{1723474335000}",  # ID unique pour déduplication
-    'server_location': 'gravelines'
-}
-
-signal_secondary = {
-    'timeframe': '5m', 
-    'timestamp': '2025-08-12T14:32:15.067Z',  # 67ms plus tard
-    'candle_close_time': 1723474335000,       # MÊME timestamp bougie
-    'source': 'secondary',
-    'signal_id': f"5m_{1723474335000}",       # MÊME ID → sera ignoré
-    'server_location': 'strasbourg'
-}
-```
-
-**Logique dans Trading Engine** :
-
-python
-
-```python
-# Déduplication + failover automatique
-processed_signals = set()
-last_primary_signal = time.time()
-
-async def handle_heartbeat_signal(signal):
-    signal_id = signal['signal_id']
-    source = signal['source']
-    
-    # Déduplication
-    if signal_id in processed_signals:
-        logger.debug(f"⏭️ Signal déjà traité: {signal_id}")
-        return
-    
-    # Traitement du signal
-    processed_signals.add(signal_id)
-    
-    if source == 'primary':
-        last_primary_signal = time.time()
-        logger.info(f"📊 Signal PRIMARY: {signal['timeframe']}")
-    else:
-        # N'utiliser secondary QUE si primary silent depuis >30s
-        if time.time() - last_primary_signal > 30:
-            logger.warning(f"🔄 FAILOVER! Signal SECONDARY: {signal['timeframe']}")
-        else:
-            logger.debug(f"⏭️ Secondary ignoré (primary actif)")
-            return
-    
-    # Exécuter les stratégies
-    await process_trading_strategies(signal)
-```
-
-#### **Scénarios de Résilience**
-
-**1. Fonctionnement Normal** :
-
-```
-✅ Primary publie signal → Trading Engine traite
-⏭️ Secondary publie signal → Trading Engine ignore (déjà traité)
-```
-
-**2. Panne Serveur 1** :
-
-```
-❌ Primary silent depuis 35s
-🔄 Secondary publie signal → Trading Engine bascule automatiquement  
-✅ Trading continue sans interruption
-```
-
-**3. Panne Réseau Serveur 1** :
-
-```
-❌ Primary perd connexion Binance
-✅ Secondary (autre FAI) maintient connexion
-🔄 Failover automatique en 30s
-```
-
-**4. Panne Redis Primary** :
-
-```
-❌ Redis-Primary plante
-🔄 Configuration pointe vers Redis-Secondary
-✅ Communication rétablie automatiquement
-```
-
-#### **Implémentation Progressive**
-
-**Phase 1 : Redis Dual (Simple)**
-
-bash
-
-```bash
-# Serveur 1
-docker run -d --name redis-main -p 6379:6379 redis:alpine
-
-# Serveur 2  
-docker run -d --name redis-backup -p 6379:6379 redis:alpine \
-    redis-server --slaveof SERVEUR1_IP 6379
-```
-
-**Phase 2 : Heartbeat Dual (Module additionnel)**
-
-* Dupliquer `run_heartbeat.py` → `run_heartbeat_secondary.py`
-* Ajouter `source: 'secondary'` dans les signaux
-* Modifier Trading Engine pour gestion dual-source
-
-**Phase 3 : CCXT Dual (Paranoia mode)**
-
-* Service CCXT backup sur serveur 2
-* Load balancing automatique
-
-#### **Monitoring Vibe DevOps**
-
-**Dashboard Simple** (ajout à la barre de statut) :
-
-```
-🟢 Heartbeat Primary: ACTIF (67ms)
-🟡 Heartbeat Secondary: ACTIF (134ms) 
-🟢 Redis Primary: ACTIF
-🟢 Redis Secondary: SYNC (2ms lag)
-🟢 CCXT Service: 5 brokers chargés
-```
-
-**Alerting Discord** :
-
-python
-
-```python
-if primary_down_since > 30:
-    webhook_discord("🚨 FAILOVER: Heartbeat Primary DOWN, Secondary prend le relais")
-
-if both_heartbeat_down:
-    webhook_discord("🔥 ALERTE CRITIQUE: Tous les Heartbeat DOWN - TRADING ARRÊTÉ")
-```
-
-#### **Coût Total Architecture Redondante**
-
-**Infrastructure** :
-
-* **2 VPS OVH** : 6€/mois
-* **2 connexions internet différentes** : Inclus
-* **Surveillance Uptime Kuma** : Gratuit
-* **Webhook Discord** : Gratuit
-
-**Temps de développement** :
-
-* Redis dual : **2h**
-* Heartbeat dual : **4h**
-* Monitoring : **2h**
-* **Total : 1 weekend** ☕
-
-#### **Résultat Final**
-
-**Aristobot3 Redondant** :
-
-* ✅ **Résiste** aux pannes serveur, réseau, FAI
-* ✅ **Continuité trading** garantie 99.9%
-* ✅ **Zero maintenance** en fonctionnement normal
-* ✅ **Garde l'esprit vibe coding** : pas de Kubernetes, juste Docker + Redis
-* ✅ **Monitoring fun** : Discord notifications + dashboard simple
-
-**Philosophy** : _"2 servers, 2 connections, 0 downtime, 1 weekend of work"_ 🎯
-
-_**Note** : Cette architecture représente l'évolution naturelle d'Aristobot3 vers un système professionnel tout en conservant sa simplicité de développement et de maintenance._
 
 ## 7. Instructions pour le Développement avec l'IA
 

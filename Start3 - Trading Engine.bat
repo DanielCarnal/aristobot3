@@ -10,10 +10,9 @@ cd /d C:\Users\dac\Documents\Python\Django\Aristobot3\backend
 echo Dossier backend ouvert
 
 :RESTART
-python manage.py run_heartbeat
+python manage.py run_trading_engine
 
-
-REM -- Fin du processus run_heartbeatproposer redémarrage ou sortie --
+REM -- Fin du processus Daphne, proposer redémarrage ou sortie --
 echo.
 echo ==================================================================
 echo Script terminé. Que souhaitez-vous faire ?
@@ -29,4 +28,5 @@ if errorlevel 1 goto RESTART
 echo Fermeture du script...
 timeout /t 2 >nul
 exit
+
 pause
