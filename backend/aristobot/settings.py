@@ -127,6 +127,14 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'INFO',
         },
+        'apps.trading_manual': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apps.core.services.ccxt_client': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
     },
 }
 
@@ -200,3 +208,7 @@ CHANNEL_LAYERS = {
 
 BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')
 BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY', '')
+
+# Configuration Async/Timeout pour les opérations de trading longues
+ASYNC_TIMEOUT = 180  # 3 minutes pour les opérations de trading
+APPLICATION_CLOSE_TIMEOUT = 180  # Timeout avant de tuer les connexions

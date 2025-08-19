@@ -14,7 +14,7 @@ dir
 :RESTART
 REM -- Lancer Daphne --
 echo 🚀 Lancement de Daphne...
-daphne aristobot.asgi:application
+daphne --verbosity 2 aristobot.asgi:application
 
 REM -- Fin du processus Daphne, proposer redémarrage ou sortie --
 echo.

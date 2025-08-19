@@ -7,7 +7,7 @@ daphne                      # Serveur ASGI
 psycopg2-binary             # Connecteur PostgreSQL
 python-dotenv               # Chargement des variables d'environnement
 ccxt                        # API d'échanges crypto
-redis                       # Client Redis
+redis>=4.3.4                # Client Redis avec support asyncio
 websockets                  # Support WebSocket pur Python
 pandas-ta-classic           # Indicateurs techniques (trading)
 cryptography                # Chiffrement des clés API (Fernet)

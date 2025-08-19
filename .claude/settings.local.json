@@ -20,7 +20,11 @@
       "Bash(dir /s C:UsersdacDocumentsPythonDjangoAristobot3backend*views.py)",
       "Bash(curl:*)",
       "WebFetch(domain:ccxtcn.readthedocs.io)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "Bash(sed:*)",
+      "WebFetch(domain:docs.ccxt.com)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }
