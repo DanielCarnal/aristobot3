@@ -20,28 +20,38 @@
 
 ### 🚀 MODULES SUIVANTS - PRIORITÉ RECOMMANDÉE
 
-#### 🎯 **MODULE 3 - TRADING MANUEL** (Priorité 1 - Foundation Trading)
-**Pourquoi en priorité :** Base nécessaire pour tous les autres modules
-- Interface trading manuelle complète
-- Passage d'ordres CCXT (buy/sell, market/limit)
-- Calcul automatique quantité/montant
-- Historique des trades avec persistance
+#### ✅ **MODULE 3 - TRADING MANUEL** (✅ COMPLÉTÉ)
+**Réalisé :** Base nécessaire pour tous les autres modules
+- Interface trading manuelle complète ✅
+- Passage d'ordres CCXT (buy/sell, market/limit) ✅  
+- Calcul automatique quantité/montant ✅
+- Historique des trades avec persistance ✅
 
-#### 🔔 **MODULE 4 - WEBHOOKS TRADINGVIEW** (Priorité 2 - Automatisation Simple)
-**Pourquoi après Module 3 :** Réutilise la logique de trading manuelle
+#### 🔔 **MODULE 4 - WEBHOOKS TRADINGVIEW** (Priorité 1 - Automatisation Simple)
+**Pourquoi maintenant :** Logique simple, réutilise Module 3 terminé
 - Réception signaux TradingView
 - Exécution automatique des ordres
 - Monitoring et logs complets
 
-#### 🧠 **MODULE 5 - STRATÉGIES PYTHON + IA** (Priorité 3 - Intelligence)
-**Pourquoi après Modules 3-4 :** Nécessite trading + webhooks fonctionnels
+#### 🧠 **MODULE 5 - STRATÉGIES PYTHON + IA** (Priorité 2 - Intelligence)
+**Pourquoi après Module 4 :** Fondation pour automation intelligente
 - Éditeur de stratégies Python
 - Assistant IA pour génération de code
 - Validation et tests de stratégies
 
+#### 🤖 **MODULE 7 - TRADING BOT** (Priorité 3 - Automatisation Complète)
+**Pourquoi après Module 5 :** Utilise stratégies + Heartbeat fonctionnel
+- Activation des stratégies automatisées
+- Écoute signaux Heartbeat
+- Exécution trades automatiques
+
 #### 📊 **MODULE 6 - BACKTEST** (Priorité 4 - Validation)
-#### 🤖 **MODULE 7 - TRADING BOT** (Priorité 5 - Automatisation Complète)
-#### 📈 **MODULE 8 - STATISTIQUES** (Priorité 6 - Analyse)
+**Pourquoi après Module 7 :** Nécessite stratégies validées en production
+- Test stratégies sur données historiques
+- Validation performance avant production
+
+#### 📈 **MODULE 8 - STATISTIQUES** (Priorité 5 - Analyse)
+**Final :** Analyse complète avec historique complet
 
 ## 🎯 DÉCISIONS TECHNIQUES VALIDÉES
 
@@ -126,41 +136,44 @@
   Résultat: Au lieu de charger bitget deux fois (60-70 secondes total), on le charge une seule fois (35s) et le deuxième broker est configuré
   instantanément.
 
-## 🎯 RECOMMANDATION : PROCHAINE ÉTAPE MODULE 3
+## 🎯 RECOMMANDATION : PROCHAINE ÉTAPE MODULE 4
 
-### Pourquoi le Module 3 (Trading Manuel) en priorité ?
+### Pourquoi le Module 4 (Webhooks) maintenant ?
 
-1. **🏗️ Foundation essentielle** : Base nécessaire pour tous les autres modules
-2. **🔄 Réutilisabilité** : La logique de trading sera réutilisée par Webhooks et BOT
-3. **🧪 Tests immédiats** : Possibilité de tester les trades manuellement
-4. **📊 Données réelles** : Génère un historique pour les futures statistiques
+1. **🚀 Logique simple** : Réception JSON + exécution ordres (réutilise Module 3)
+2. **⚡ Automatisation rapide** : Premier niveau d'automation sans complexité
+3. **🔗 Intégration TradingView** : Permet signaux externes immédiats
+4. **📊 Données pour Stats** : Génère plus d'historique de trades
 
-### Ce que le Module 3 apportera
-- Interface trading intuitive avec calculateur quantité/prix
-- Historique complet des trades pour analyse
-- Base technique pour l'automatisation (Module 4)
-- Validation de la logique CCXT avec vrais trades
-
----
-
-## 📦 MODULE 3 : TRADING MANUEL
-
-### Objectifs
-1. Interface de trading manuel complète
-2. Passage d'ordres via CCXT
-3. Visualisation du portfolio
-4. Historique des trades
-
-### Structure générale
-- Modèle `Trade` multi-tenant
-- API pour passer des ordres (buy/sell, market/limit)
-- Service de calcul position/balance
-- Frontend avec calculateur quantité/montant
-- Sélection des paires depuis `ExchangeSymbol`
+### Ce que le Module 4 apportera
+- Réception automatique de signaux TradingView
+- Exécution ordres basée sur Module 3
+- Monitoring complet des webhooks
+- Base pour l'automation avancée (Module 5-7)
 
 ---
 
-## 📦 MODULE 4 : WEBHOOKS
+## 📦 MODULE 3 : TRADING MANUEL ✅ **TERMINÉ**
+
+### ✅ Objectifs réalisés
+1. ✅ Interface de trading manuel complète
+2. ✅ Passage d'ordres via Service CCXT centralisé
+3. ✅ Visualisation du portfolio temps réel
+4. ✅ Historique des trades avec persistance
+
+### ✅ Structure implémentée
+- ✅ Modèle `Trade` multi-tenant fonctionnel
+- ✅ APIs complètes (portfolio, ordres, symboles, validation)
+- ✅ Services TradingService + PortfolioService optimisés
+- ✅ Frontend TradingManualView.vue avec interface 3 colonnes
+- ✅ Calculateur bidirectionnel quantité/montant
+- ✅ Filtrage symboles USDT/USDC + recherche
+
+**📊 Détails complets :** Voir `MODULE3_IMPLEMENTATION.md`
+
+---
+
+## 📦 MODULE 4 : WEBHOOKS (Priorité 1)
 
 ### Objectifs
 1. Recevoir des signaux TradingView
@@ -175,7 +188,7 @@
 
 ---
 
-## 📦 MODULE 5 : STRATÉGIES
+## 📦 MODULE 5 : STRATÉGIES (Priorité 2)
 
 ### Objectifs
 1. Éditeur de stratégies Python
@@ -192,23 +205,7 @@
 
 ---
 
-## 📦 MODULE 6 : BACKTEST
-
-### Objectifs
-1. Test sur données historiques
-2. Progression en temps réel
-3. Calcul des métriques
-4. Interruption possible
-
-### Structure générale
-- Modèle `BacktestResult`
-- Service de calcul asynchrone
-- WebSocket pour progression
-- Frontend avec graphiques
-
----
-
-## 📦 MODULE 7 : TRADING BOT
+## 📦 MODULE 7 : TRADING BOT (Priorité 3)
 
 ### Objectifs
 1. Activation des stratégies
@@ -221,6 +218,22 @@
 - Service Trading Engine amélioré
 - Connexion au Heartbeat
 - Frontend de contrôle
+
+---
+
+## 📦 MODULE 6 : BACKTEST (Priorité 4)
+
+### Objectifs
+1. Test sur données historiques
+2. Progression en temps réel
+3. Calcul des métriques
+4. Interruption possible
+
+### Structure générale
+- Modèle `BacktestResult`
+- Service de calcul asynchrone
+- WebSocket pour progression
+- Frontend avec graphiques
 
 ---
 
@@ -347,6 +360,18 @@ Aide-moi à corriger sans casser le reste du code.
 - [✅] Couleurs différentielles (orange/vert)
 - [✅] Interface épurée et intuitive
 - [✅] 240 signaux historiques au démarrage
+
+### Module 3 ✅ **COMPLÉTÉ**
+- [✅] Modèle Trade créé avec migrations appliquées
+- [✅] Services TradingService + PortfolioService implémentés
+- [✅] APIs REST complètes (10+ endpoints)
+- [✅] Frontend TradingManualView.vue fonctionnel
+- [✅] Interface 3 colonnes avec calculateur bidirectionnel
+- [✅] Portfolio temps réel avec optimisation batch pricing
+- [✅] Passage d'ordres buy/sell market/limit opérationnel
+- [✅] Filtrage symboles USDT/USDC + recherche
+- [✅] WebSocket notifications temps réel
+- [✅] Intégration Service CCXT centralisé validée
 
 ### Points d'attention
 - Toujours utiliser `request.user` pour le multi-tenant
