@@ -241,8 +241,12 @@ class ValidateTradeView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
+        logger.info(f"🔍 ValidateTradeView: Data reçue: {request.data}")
+        
         serializer = ValidationTradeSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.error(f"❌ Validation serializer échouée: {serializer.errors}")
+            logger.error(f"📊 Data envoyée: {request.data}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         data = serializer.validated_data
@@ -259,7 +263,10 @@ class ValidateTradeView(APIView):
                 data['side'],
                 data['quantity'],
                 data['order_type'],
-                data.get('price')
+                data.get('price'),
+                data.get('stop_loss_price'),
+                data.get('take_profit_price'),
+                data.get('trigger_price')
             ))
             
             return Response(validation)
@@ -309,7 +316,10 @@ class ExecuteTradeView(APIView):
                 data['side'],
                 data['quantity'],
                 data['order_type'],
-                data.get('price')
+                data.get('price'),
+                data.get('stop_loss_price'),
+                data.get('take_profit_price'),
+                data.get('trigger_price')
             ))
             logger.info(f"✅ Validation terminée en {time.time() - validation_start:.2f}s: {validation['valid']}")
             
@@ -320,69 +330,158 @@ class ExecuteTradeView(APIView):
                     'details': validation['errors']
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Execution en 2 étapes pour éviter les timeouts HTTP
+            # Execution - Revenir à l'ancienne méthode qui fonctionnait
             execution_start = time.time()
             logger.info(f"🚀 Début exécution trade...")
             
-            # Créer immédiatement le Trade en DB
-            from apps.trading_manual.models import Trade
-            trade = Trade.objects.create(
-                user=request.user,
-                broker=broker,
-                trade_type='manual',
-                symbol=data['symbol'],
-                side=data['side'],
-                order_type=data['order_type'],
-                quantity=data['quantity'],
-                price=data.get('price'),
-                total_value=data['total_value'],
-                status='pending'
-            )
-            logger.info(f"✅ Trade créé en DB: ID {trade.id}")
-            
-            # Retourner immédiatement la réponse
-            trade_serializer = TradeSerializer(trade)
-            total_time = time.time() - request_start
-            logger.info(f"✅ ExecuteTradeView: Réponse envoyée en {total_time:.2f}s")
-            
-            # Exécuter l'ordre en arrière-plan (fire and forget)
-            import threading
-            
-            def execute_in_background():
+            # Créer Trade DIRECTEMENT en DB (pas async - évite deadlock)
+            try:
+                from apps.trading_manual.models import Trade
+                
+                logger.info(f"💾 Création Trade directe en DB...")
+                trade = Trade.objects.create(
+                    user=request.user,
+                    broker=broker,
+                    trade_type='manual',
+                    symbol=data['symbol'],
+                    side=data['side'],
+                    order_type=data['order_type'],
+                    quantity=data['quantity'],
+                    price=data.get('price'),
+                    total_value=data['total_value'],
+                    # Nouveaux champs pour ordres avancés
+                    stop_loss_price=data.get('stop_loss_price'),
+                    take_profit_price=data.get('take_profit_price'),
+                    trigger_price=data.get('trigger_price'),
+                    status='pending'
+                )
+                logger.info(f"✅ Trade {trade.id} créé en DB")
+                
+                # Puis exécuter via _execute_trade_order (ancienne méthode)
+                trading_service = TradingService(request.user, broker)
+                order_result = asyncio.run(trading_service._execute_trade_order(trade))
+                
+                # Récupérer le trade mis à jour depuis la DB
+                trade.refresh_from_db()
+                
+                # Sérialiser le trade retourné
+                trade_serializer = TradeSerializer(trade)
+                total_time = time.time() - request_start
+                logger.info(f"✅ ExecuteTradeView: Succès en {total_time:.2f}s")
+                
+                return Response(trade_serializer.data, status=status.HTTP_201_CREATED)
+                
+            except Exception as e:
+                logger.error(f"❌ Erreur exécution trade: {e}")
+                
+                # Envoyer notification d'erreur
                 try:
-                    logger.info(f"🔥 Exécution en arrière-plan pour Trade {trade.id}")
-                    # Créer un nouveau TradingService dans le thread
-                    background_service = TradingService(request.user, broker)
-                    # Ré-exécuter l'ordre via CCXT et mettre à jour le Trade
-                    result = asyncio.run(background_service._execute_trade_order(trade))
-                    logger.info(f"✅ Trade {trade.id} exécuté en arrière-plan: {result}")
-                except Exception as e:
-                    logger.error(f"❌ Erreur exécution arrière-plan Trade {trade.id}: {e}")
-                    # Marquer le trade comme failed (utilisation sync)
-                    try:
-                        trade.refresh_from_db()
-                        trade.status = 'failed'
-                        trade.error_message = str(e)
-                        trade.save()
-                    except Exception as save_error:
-                        logger.error(f"❌ Erreur sauvegarde Trade {trade.id}: {save_error}")
-            
-            # Lancer en arrière-plan
-            thread = threading.Thread(target=execute_in_background)
-            thread.daemon = True
-            thread.start()
-            
-            return Response(trade_serializer.data, status=status.HTTP_201_CREATED)
+                    if 'trade' in locals():
+                        asyncio.run(self._send_error_notification(
+                            request.user, trade.id,
+                            f'Erreur lors de l\'execution: {str(e)}', str(e)
+                        ))
+                except:
+                    pass
+                
+                return Response({
+                    'error': f'Erreur execution trade: {str(e)}',
+                    'details': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         except Exception as e:
             total_time = time.time() - request_start
             logger.error(f"❌ Erreur execution trade après {total_time:.2f}s: {e}")
             import traceback
             logger.error(f"📄 Traceback: {traceback.format_exc()}")
+            
+            # Envoyer notification d'erreur générale via WebSocket
+            asyncio.run(self._send_error_notification(
+                request.user, None,
+                f'Erreur fatale lors de l\'exécution: {str(e)}', str(e)
+            ))
+            
             return Response(
                 {'error': f'Erreur execution trade: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    async def _send_success_notification(self, user, trade, execution_time):
+        """Envoie une notification de succès d'exécution via WebSocket"""
+        from channels.layers import get_channel_layer
+        from datetime import datetime
+        
+        try:
+            channel_layer = get_channel_layer()
+            user_group_name = f"trading_notifications_{user.id}"
+            
+            # Construire le message de succès
+            message = f"✅ Ordre exécuté avec succès ! {trade.side.upper()} {trade.filled_quantity or trade.quantity} {trade.symbol}"
+            if trade.exchange_order_id:
+                message += f" - ID: {trade.exchange_order_id}"
+            
+            # Données détaillées du trade
+            trade_data = {
+                'id': trade.id,
+                'symbol': trade.symbol,
+                'side': trade.side,
+                'order_type': trade.order_type,
+                'quantity': float(trade.quantity),
+                'filled_quantity': float(trade.filled_quantity or trade.quantity),
+                'price': float(trade.price) if trade.price else None,
+                'filled_price': float(trade.filled_price) if trade.filled_price else None,
+                'total_value': float(trade.total_value) if trade.total_value else None,
+                'fees': float(trade.fees) if trade.fees else 0,
+                'status': trade.status,
+                'exchange_order_id': trade.exchange_order_id,
+                'execution_time': round(execution_time, 2),
+                'executed_at': trade.executed_at.isoformat() if trade.executed_at else None
+            }
+            
+            await channel_layer.group_send(
+                user_group_name,
+                {
+                    'type': 'trade_execution_success',
+                    'trade_id': trade.id,
+                    'message': message,
+                    'trade_data': trade_data,
+                    'timestamp': int(datetime.now().timestamp() * 1000)
+                }
+            )
+            
+            logger.info(f"✅ Notification succès envoyée à {user_group_name} pour Trade {trade.id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur envoi notification succès: {e}")
+    
+    async def _send_error_notification(self, user, trade_id, message, error_details):
+        """Envoie une notification d'erreur d'exécution via WebSocket"""
+        from channels.layers import get_channel_layer
+        from datetime import datetime
+        
+        try:
+            channel_layer = get_channel_layer()
+            user_group_name = f"trading_notifications_{user.id}"
+            
+            logger.info(f"🔄 TENTATIVE envoi notification erreur à {user_group_name} pour Trade {trade_id or 'N/A'}")
+            
+            await channel_layer.group_send(
+                user_group_name,
+                {
+                    'type': 'trade_execution_error',
+                    'trade_id': trade_id,
+                    'message': message,
+                    'error_details': error_details,
+                    'timestamp': int(datetime.now().timestamp() * 1000)
+                }
+            )
+            
+            logger.info(f"✅ Notification erreur envoyée à {user_group_name} pour Trade {trade_id or 'N/A'}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur envoi notification erreur: {e}")
+            import traceback
+            logger.error(f"📄 Traceback: {traceback.format_exc()}")
 
 
 class CurrentPriceView(APIView):
@@ -555,5 +654,39 @@ class EditOrderView(APIView):
             logger.error(f"Erreur modification ordre {order_id}: {e}")
             return Response(
                 {'error': f'Erreur modification ordre: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class PortfolioPricesView(APIView):
+    """Récupère les prix des assets du portfolio via fetchTickers"""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        broker_id = request.data.get('broker_id')
+        assets = request.data.get('assets', [])
+        
+        if not broker_id:
+            return Response({'error': 'broker_id requis'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not assets:
+            return Response({'prices': {}})
+        
+        try:
+            broker = Broker.objects.get(id=broker_id, user=request.user)
+        except Broker.DoesNotExist:
+            return Response({'error': 'Broker introuvable'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            trading_service = TradingService(request.user, broker)
+            prices = asyncio.run(trading_service.get_portfolio_prices(assets))
+            
+            logger.info(f"✅ Prix portfolio envoyés: {len(prices)} assets")
+            return Response({'prices': prices})
+        except Exception as e:
+            logger.error(f"Erreur récupération prix portfolio: {e}")
+            return Response(
+                {'error': f'Erreur récupération prix: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

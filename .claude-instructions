@@ -60,3 +60,10 @@ Approche pragmatique : shipping > perfection.
 - python manage.py init_aristobot (user dev)
 - Ports : Django 8000, Vue.js 5173
 - Test après chaque migration/reset DB
+
+### NE PAS démarrer les services et serveurs
+- L'utilisateur démarre les services. Il peut ainsi voir les logs.
+- Quand c'est Claude Code qui démarrer les services il arrive des erreurs 500. Ne le fait aps - Indique à l'utilisateur quels sont les services à démarrer en fonction des modifications que tu as effectuées. Daphne ne supporte pas les restarts automatiques, il faut que l'utilisateur le fasse manuellemen.
+
+### Scripts de tests
+- Tu peux exécuter les scripts de tests et d'initialisations nécessaire. Demande juste confirmation à l'utilisateur.

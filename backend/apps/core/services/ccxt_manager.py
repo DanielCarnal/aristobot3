@@ -62,6 +62,11 @@ class CCXTManager:
                         elif broker.exchange == 'okx':
                             config['headers'] = {'x-simulated-trading': '1'} if broker.is_testnet else {}
                     
+                    # Configuration spécifique Bitget
+                    if broker.exchange.lower() == 'bitget':
+                        config['options']['createMarketBuyOrderRequiresPrice'] = False
+                        logger.info(f"CCXT: Configuration Bitget - createMarketBuyOrderRequiresPrice = False")
+                    
                     # Créer l'instance
                     exchange = exchange_class(config)
                     
@@ -141,7 +146,7 @@ class CCXTManager:
         else:
             # Clear screen et afficher header
             os.system('cls' if os.name == 'nt' else 'clear')
-            print(f"🔄 CCXT centralisé: Préchargement de {len(active_brokers)} brokers...")
+            print(f"CCXT centralise: Prechargement de {len(active_brokers)} brokers...")
             print(f"   {'Exchange':<15} {'Broker':<20} {'Status':<10} {'Time':>8}")
             print(f"   {'-'*15} {'-'*20} {'-'*10} {'-'*8:>8}")
         

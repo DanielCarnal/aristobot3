@@ -27,6 +27,7 @@ urlpatterns = [
     path('validate-trade/', views.ValidateTradeView.as_view(), name='validate-trade'),
     path('execute-trade/', views.ExecuteTradeView.as_view(), name='execute-trade'),
     path('price/<path:symbol>/', views.CurrentPriceView.as_view(), name='current-price'),
+    path('portfolio-prices/', views.PortfolioPricesView.as_view(), name='portfolio-prices'),
     
     # Ordres
     path('open-orders/', views.OpenOrdersView.as_view(), name='open-orders'),

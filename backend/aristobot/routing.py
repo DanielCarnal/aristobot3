@@ -8,4 +8,5 @@ websocket_urlpatterns = [
     re_path(r'ws/backtest/$', consumers.BacktestConsumer.as_asgi()),
     re_path(r'ws/trading-manual/$', trading_consumers.TradingManualConsumer.as_asgi()),
     re_path(r'ws/open-orders/$', trading_consumers.OpenOrdersConsumer.as_asgi()),
+    re_path(r'ws/trading-notifications/$', trading_consumers.TradingNotificationsConsumer.as_asgi()),
 ]

@@ -119,6 +119,15 @@ LOGGING = {
         },
     },
     'loggers': {
+        # Reduire les logs WebSocket/Channels verbeux
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
+        'django.channels': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
         'apps.auth_custom': {
             'handlers': ['console'],
             'level': 'INFO',

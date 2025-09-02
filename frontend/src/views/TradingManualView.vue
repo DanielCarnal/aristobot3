@@ -20,25 +20,68 @@
       <button @click="clearError" class="error-close" title="Fermer">&times;</button>
     </div>
 
+
     <!-- Contenu principal - 3 colonnes -->
     <div v-if="selectedBroker" class="main-content">
       
       <!-- Colonne 1: Portfolio -->
       <div class="portfolio-column">
         <div class="section-card">
-          <h2>Portfolio</h2>
+          <div class="portfolio-header">
+            <h2>Portfolio</h2>
+            <button 
+              :class="['portfolio-auto-btn', { 'active': portfolioAutoUpdate }]"
+              @click="togglePortfolioAutoUpdate"
+              title="Mise à jour automatique des prix"
+            >
+              🔄 Auto
+            </button>
+          </div>
           <div v-if="portfolioLoading" class="loading">Chargement...</div>
           <div v-else-if="portfolio">
+            <!-- Zone valeur totale optimisée -->
             <div class="portfolio-summary">
-              <p><strong>Valeur totale:</strong> ${{ portfolio.total_value_usd }}</p>
+              <div class="portfolio-total-success">
+                <strong>Valeur totale:</strong> ${{ portfolio.total_value_usd }}
+              </div>
             </div>
             
             <h3>Balance</h3>
-            <div class="balance-list">
-              <div v-for="(amount, asset) in portfolio.balance.total" :key="asset" class="balance-item">
-                <span class="asset">{{ asset }}:</span>
-                <span class="amount">{{ parseFloat(amount).toFixed(8) }}</span>
-              </div>
+            <div class="portfolio-table-container">
+              <table class="portfolio-table">
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Quantité</th>
+                    <th>Prix unitaire</th>
+                    <th>Total USD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(amount, asset) in portfolio.balance.total" :key="asset" class="balance-row">
+                    <td class="asset-cell">{{ asset }}</td>
+                    <td class="quantity-cell">{{ parseFloat(amount).toFixed(8) }}</td>
+                    <td class="price-cell">
+                      <span v-if="portfolio.prices && portfolio.prices[asset]">
+                        ${{ formatPrice(portfolio.prices[asset]) }}
+                      </span>
+                      <span v-else-if="['USDT', 'USDC', 'USD'].includes(asset)">
+                        $1.000
+                      </span>
+                      <span v-else class="no-price">-</span>
+                    </td>
+                    <td class="total-cell">
+                      <span v-if="portfolio.prices && portfolio.prices[asset]" class="total-value">
+                        ${{ formatValue(parseFloat(amount) * portfolio.prices[asset]) }}
+                      </span>
+                      <span v-else-if="['USDT', 'USDC', 'USD'].includes(asset)" class="total-value">
+                        ${{ formatValue(parseFloat(amount)) }}
+                      </span>
+                      <span v-else class="no-total">-</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
             
             <h3 v-if="Object.keys(portfolio.positions).length > 0">Positions ouvertes</h3>
@@ -249,88 +292,176 @@
           </div>
           
           <div v-else class="trading-form">
-            <div class="symbol-info">
-              <h3>{{ selectedSymbol }}</h3>
-              <div class="price-info">
-                <div v-if="priceTimestamp && currentPrice && !priceLoading" class="price-display">
-                  <p class="current-price">
-                    ${{ currentPrice }}
-                  </p>
-                  <p class="timestamp">
-                    {{ formatTimestamp(priceTimestamp) }}
+            <!-- Section info symbole et contrôles en ligne -->
+            <div class="symbol-controls-row">
+              <div class="symbol-info">
+                <h3>{{ selectedSymbol }}</h3>
+                <div class="price-info">
+                  <div v-if="priceTimestamp && currentPrice && !priceLoading" class="price-display">
+                    <p class="current-price">
+                      ${{ currentPrice }}
+                    </p>
+                    <p class="timestamp">
+                      {{ formatTimestamp(priceTimestamp) }}
+                    </p>
+                  </div>
+                  <div v-else-if="priceLoading" class="price-display">
+                    <p class="current-price loading-price">
+                      Mise à jour... <span class="price-refreshing">🔄</span>
+                    </p>
+                    <p class="timestamp loading-timestamp">
+                      &nbsp;
+                    </p>
+                  </div>
+                  <p v-else class="signal-timestamp error-timestamp">
+                    Signal non disponible
                   </p>
                 </div>
-                <div v-else-if="priceLoading" class="price-display">
-                  <p class="current-price loading-price">
-                    Chargement... <span class="price-refreshing">🔄</span>
-                  </p>
-                  <p class="timestamp loading-timestamp">
-                    Mise à jour du prix...
-                  </p>
+              </div>
+
+              <!-- Section Direction uniquement -->
+              <div class="direction-section">
+                <div class="side-buttons-vertical">
+                  <button 
+                    :class="['side-btn', 'buy-btn', { 'active': tradeForm.side === 'buy' }]"
+                    @click="tradeForm.side = 'buy'"
+                  >
+                    ACHETER
+                  </button>
+                  <button 
+                    :class="['side-btn', 'sell-btn', { 'active': tradeForm.side === 'sell' }]"
+                    @click="tradeForm.side = 'sell'"
+                  >
+                    VENDRE
+                  </button>
                 </div>
-                <p v-else class="signal-timestamp error-timestamp">
-                  Signal non disponible
-                </p>
               </div>
+
             </div>
 
-            <!-- Type d'ordre -->
-            <div class="form-group">
-              <label>Type d'ordre:</label>
-              <div class="radio-group">
-                <label>
-                  <input type="radio" v-model="tradeForm.side" value="buy">
-                  Achat
-                </label>
-                <label>
-                  <input type="radio" v-model="tradeForm.side" value="sell">
-                  Vente
-                </label>
-              </div>
-            </div>
-
-            <!-- Mode d'ordre -->
-            <div class="form-group">
-              <label>Mode:</label>
-              <div class="radio-group">
-                <label>
-                  <input type="radio" v-model="tradeForm.order_type" value="market">
-                  Marché
-                </label>
-                <label>
-                  <input type="radio" v-model="tradeForm.order_type" value="limit">
-                  Limite
-                </label>
-              </div>
-            </div>
-
-            <!-- Prix limite (si ordre limite) -->
-            <div v-if="tradeForm.order_type === 'limit'" class="form-group">
-              <label>Prix limite:</label>
-              <input 
-                type="number" 
-                v-model="tradeForm.price" 
-                step="0.00000001"
-                placeholder="Prix"
+            <!-- Onglets types d'ordres (toute la largeur sous prix et boutons) -->
+            <div class="order-tabs">
+              <button 
+                v-for="tab in orderTypeTabs" 
+                :key="tab.value"
+                :class="['order-tab', { 'active': tradeForm.order_type === tab.value, 'disabled': !tab.enabled }]"
+                @click="selectOrderType(tab.value)"
+                :disabled="!tab.enabled"
+                :title="tab.tooltip"
               >
+                {{ tab.label }}
+              </button>
             </div>
 
-            <!-- Quantité ou valeur -->
-            <div class="form-group">
-              <label>Mode de saisie:</label>
-              <div class="radio-group">
-                <label>
+            <!-- Champs dynamiques selon le type d'ordre sélectionné -->
+            <div class="order-type-fields">
+              
+              <!-- Prix pour ordre limite -->
+              <div v-if="tradeForm.order_type === 'limit'" class="form-field-row">
+                <label>Prix limite:</label>
+                <input 
+                  type="number" 
+                  v-model="tradeForm.price" 
+                  step="0.00000001"
+                  placeholder="Prix limite"
+                  @input="calculateValue"
+                >
+              </div>
+              
+              <!-- Prix Stop Loss -->
+              <div v-if="tradeForm.order_type === 'stop_loss'" class="form-field-row">
+                <label>Prix Stop Loss:</label>
+                <input 
+                  type="number" 
+                  v-model="tradeForm.stop_loss_price" 
+                  step="0.00000001"
+                  placeholder="Prix SL"
+                >
+              </div>
+              
+              <!-- Prix Take Profit -->
+              <div v-if="tradeForm.order_type === 'take_profit'" class="form-field-row">
+                <label>Prix Take Profit:</label>
+                <input 
+                  type="number" 
+                  v-model="tradeForm.take_profit_price" 
+                  step="0.00000001"
+                  placeholder="Prix TP"
+                >
+              </div>
+              
+              <!-- Combo SL + TP -->
+              <div v-if="tradeForm.order_type === 'sl_tp_combo'" class="combo-fields">
+                <div class="form-field-row">
+                  <label>Prix limite (optionnel):</label>
+                  <input 
+                    type="number" 
+                    v-model="tradeForm.price" 
+                    step="0.00000001"
+                    placeholder="Marché si vide"
+                    @input="calculateValue"
+                  >
+                </div>
+                <div class="form-field-row">
+                  <label>Stop Loss:</label>
+                  <input 
+                    type="number" 
+                    v-model="tradeForm.stop_loss_price" 
+                    step="0.00000001"
+                    placeholder="Prix SL"
+                  >
+                </div>
+                <div class="form-field-row">
+                  <label>Take Profit:</label>
+                  <input 
+                    type="number" 
+                    v-model="tradeForm.take_profit_price" 
+                    step="0.00000001"
+                    placeholder="Prix TP"
+                  >
+                </div>
+              </div>
+              
+              <!-- Stop Limit -->
+              <div v-if="tradeForm.order_type === 'stop_limit'" class="combo-fields">
+                <div class="form-field-row">
+                  <label>Prix limite:</label>
+                  <input 
+                    type="number" 
+                    v-model="tradeForm.price" 
+                    step="0.00000001"
+                    placeholder="Prix limite"
+                    @input="calculateValue"
+                  >
+                </div>
+                <div class="form-field-row">
+                  <label>Prix déclenchement:</label>
+                  <input 
+                    type="number" 
+                    v-model="tradeForm.trigger_price" 
+                    step="0.00000001"
+                    placeholder="Prix trigger"
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- Mode de saisie -->
+            <div class="input-mode-section">
+              <div class="radio-group-horizontal">
+                <label class="radio-label">
                   <input type="radio" v-model="inputMode" value="quantity">
-                  Quantité
+                  <span>Quantité</span>
                 </label>
-                <label>
+                <label class="radio-label">
                   <input type="radio" v-model="inputMode" value="value">
-                  Valeur USD
+                  <span>Valeur USD</span>
                 </label>
               </div>
             </div>
 
-            <div v-if="inputMode === 'quantity'" class="form-group">
+            <!-- Champ quantité -->
+            <div v-if="inputMode === 'quantity'" class="form-field-row">
               <label>Quantité:</label>
               <input 
                 type="number" 
@@ -341,7 +472,8 @@
               >
             </div>
 
-            <div v-if="inputMode === 'value'" class="form-group">
+            <!-- Champ valeur USD -->
+            <div v-if="inputMode === 'value'" class="form-field-row">
               <label>Valeur USD:</label>
               <input 
                 type="number" 
@@ -362,6 +494,43 @@
             ]">
               <p>{{ formattedTradeSummary.line1 }}</p>
               <p>{{ formattedTradeSummary.line2 }}</p>
+            </div>
+            
+            <!-- Résultat d'exécution (succès/erreur/attente/annulé) -->
+            <div v-if="executionResult && !formattedTradeSummary" :class="[
+              'trade-summary',
+              'execution-result',
+              {
+                'execution-success': executionResult.type === 'success',
+                'execution-error': executionResult.type === 'error',
+                'execution-waiting': executionResult.type === 'waiting',
+                'execution-cancelled': executionResult.type === 'cancelled'
+              }
+            ]">
+              <div class="execution-content">
+                <p>{{ executionResult.message }}</p>
+                <div v-if="executionResult.trade && executionResult.type === 'success'" class="execution-details">
+                  <p><strong>Order ID:</strong> {{ executionResult.trade.exchange_order_id || 'N/A' }}</p>
+                  <p><strong>Status:</strong> {{ executionResult.trade.status }}</p>
+                  <p v-if="executionResult.trade.filled_quantity"><strong>Quantité:</strong> {{ executionResult.trade.filled_quantity }}</p>
+                  <p v-if="executionResult.trade.filled_price"><strong>Prix:</strong> ${{ executionResult.trade.filled_price }}</p>
+                </div>
+                <div v-if="executionResult.error_details && executionResult.type === 'error'" class="error-details">
+                  <p><small>{{ executionResult.error_details }}</small></p>
+                </div>
+                <p class="execution-timestamp">
+                  <small>{{ new Date(executionResult.timestamp).toLocaleTimeString() }}</small>
+                </p>
+              </div>
+              <!-- Bouton fermeture seulement si pas en attente -->
+              <button 
+                v-if="executionResult.type !== 'waiting'"
+                @click="clearExecutionResult" 
+                class="execution-close"
+                title="Cliquez pour fermer ce message"
+              >
+                ✕
+              </button>
             </div>
 
             <!-- Boutons d'action -->
@@ -587,7 +756,11 @@ export default {
       order_type: 'market',
       price: null,
       quantity: null,
-      total_value: null
+      total_value: null,
+      // Nouveaux champs pour ordres avancés
+      stop_loss_price: null,
+      take_profit_price: null,
+      trigger_price: null
     })
     
     const inputMode = ref('quantity')
@@ -595,11 +768,19 @@ export default {
     const validation = ref(null)
     const executionResult = ref(null)  // Résultat de l'exécution à afficher dans validation-status
     
+    // Variables portfolio pricing
+    const portfolioPrices = ref(null)  // Prix des assets portfolio
+    const portfolioAutoUpdate = ref(false)  // Toggle mise à jour auto
+    const portfolioPricesError = ref(null)  // Message d'erreur
+    
     // Timer de validation
     const validationTimer = ref(null)
     const remainingTime = ref(0)
     const validationExpired = ref(false)
     const validationLoading = ref(false)
+    
+    // État d'exécution pour UX améliorée
+    const executionLoading = ref(false)
     
     // Trades récents
     const recentTrades = ref([])
@@ -610,6 +791,9 @@ export default {
     const closedOrders = ref([])
     const orderViewMode = ref('open') // 'open' ou 'history'
     const ordersLoading = ref(false)
+    
+    // WebSocket pour notifications de trading (uniquement pour trade-summary maintenant)
+    const notificationSocket = ref(null)  // WebSocket pour notifications
     const orderActionLoading = ref(false)
     let openOrdersSocket = null
     
@@ -632,13 +816,16 @@ export default {
     
     // Propriétés calculées
     const canValidate = computed(() => {
-      return selectedSymbol.value && 
-             (tradeForm.quantity || tradeForm.total_value) &&
-             tradeForm.side
+      return selectedBroker.value &&  // Broker obligatoire
+             selectedSymbol.value &&   // Symbole obligatoire
+             tradeForm.side &&         // Side obligatoire (défaut: 'buy')
+             !executionLoading.value   // Pas pendant l'exécution
+      // Note: quantité/valeur sera validée côté serveur lors de la validation
     })
     
     const canExecute = computed(() => {
-      return validation.value && validation.value.valid && !validationExpired.value
+      return validation.value && validation.value.valid && !validationExpired.value &&
+             !executionLoading.value  // NOUVEAU: Désactivé pendant l'exécution
     })
     
     const currentOrdersList = computed(() => {
@@ -739,10 +926,23 @@ export default {
         const data = JSON.parse(event.data)
         
         // Traiter les signaux heartbeat comme HeartbeatView
-        if (data.timeframe === '1m' && selectedSymbol.value && selectedBroker.value) {
-          // Nouveau signal 1min reçu → rafraîchir le prix du symbole actif
-          console.log('💓 Signal heartbeat 1min reçu, rafraîchissement prix...')
-          loadCurrentPrice()
+        if (data.timeframe === '1m') {
+          console.log('💓 Signal heartbeat 1min reçu...')
+          
+          // Prix symbole actuel (ORIGINAL - toujours fonctionnel)
+          if (selectedSymbol.value && selectedBroker.value) {
+            console.log('🔄 Rafraîchissement prix symbole...')
+            loadCurrentPrice()
+          }
+          
+          // NOUVEAU: Portfolio complet (si auto activé)
+          if (portfolioAutoUpdate.value && selectedBroker.value) {
+            console.log('💰 Rafraîchissement portfolio complet...')
+            loadPortfolio()  // Quantités + prix
+            if (portfolio.value) {
+              loadPortfolioPrices()  // Prix détaillés pour calculs USD
+            }
+          }
         }
       }
       
@@ -760,6 +960,81 @@ export default {
         tradingSocket.close()
         tradingSocket = null
       }
+    }
+    
+    // === Fonctions Notifications WebSocket ===
+    
+    const connectNotificationsSocket = () => {
+      if (notificationSocket.value) {
+        notificationSocket.value.close()
+      }
+      
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//localhost:8000/ws/trading-notifications/`
+      
+      notificationSocket.value = new WebSocket(wsUrl)
+      
+      notificationSocket.value.onopen = () => {
+        console.log('✅ WebSocket notifications connecté')
+      }
+      
+      notificationSocket.value.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log('📬 Notification reçue:', data)
+          
+          handleNotification(data)
+        } catch (error) {
+          console.error('❌ Erreur parsing notification:', error)
+        }
+      }
+      
+      notificationSocket.value.onclose = () => {
+        console.log('🔌 WebSocket notifications fermé')
+      }
+      
+      notificationSocket.value.onerror = (error) => {
+        console.error('❌ Erreur WebSocket notifications:', error)
+      }
+    }
+    
+    const disconnectNotificationsSocket = () => {
+      if (notificationSocket.value) {
+        notificationSocket.value.close()
+        notificationSocket.value = null
+      }
+    }
+    
+    const handleNotification = (data) => {
+      console.log('🔔 Notification reçue:', data)
+      
+      // Pour les notifications de trading (succès/erreur d'exécution), 
+      // afficher dans trade-summary
+      if (data.type === 'trade_execution_success' || data.type === 'trade_execution_error') {
+        // Afficher le résultat dans la zone trade-summary
+        executionResult.value = {
+          type: data.type === 'trade_execution_success' ? 'success' : 'error',
+          message: data.message,
+          trade: data.trade_data,
+          error_details: data.error_details,
+          timestamp: data.timestamp || Date.now(),
+          trade_id: data.trade_id
+        }
+        
+        console.log('✅ Message affiché dans trade-summary:', executionResult.value)
+        return
+      }
+      
+      // Pour les autres types de notifications (connection_status, etc.), 
+      // on les ignore maintenant car la zone notifications est supprimée
+      console.log('ℹ️ Notification ignorée (zone notifications supprimée):', data.type, data.message)
+    }
+    
+    // Fonctions de notifications supprimées - plus besoin car zone notifications supprimée
+    
+    const clearExecutionResult = () => {
+      executionResult.value = null
+      console.log('✅ Message d\'exécution fermé depuis trade-summary')
     }
     
     const notifySymbolChange = () => {
@@ -862,20 +1137,46 @@ export default {
     
     const validateTrade = async () => {
       try {
+        // Logs pour débugger le problème de symbole
+        console.log('🔍 VALIDATE - selectedSymbol.value:', selectedSymbol.value)
+        console.log('🔍 VALIDATE - selectedBroker.value:', selectedBroker.value)
+        
+        // Vérification préalable : ne valider que si les champs requis sont remplis
+        if (!selectedBroker.value || !selectedSymbol.value || !tradeForm.quantity || tradeForm.quantity <= 0) {
+          console.log('⏭️ VALIDATE - Champs requis manquants, validation ignorée')
+          validationLoading.value = false
+          validationMessage.value = null
+          validationStatus.value = null
+          return
+        }
+        
         // Démarrer l'effet de chargement
         validationLoading.value = true
         
         // Effacer le timer précédent
         clearValidationTimer()
         
-        const response = await api.post('/api/trading-manual/validate-trade/', {
+        const requestData = {
           broker_id: selectedBroker.value,
           symbol: selectedSymbol.value,
           side: tradeForm.side,
           order_type: tradeForm.order_type,
           quantity: tradeForm.quantity,
-          price: tradeForm.price
-        })
+          price: tradeForm.price,
+          // Nouveaux champs pour ordres avancés (même structure qu'executeTrade)
+          stop_loss_price: tradeForm.stop_loss_price,
+          take_profit_price: tradeForm.take_profit_price,
+          trigger_price: tradeForm.trigger_price
+        }
+        
+        // Vérifier cohérence entre selectedSymbol et tradeForm.symbol
+        if (tradeForm.symbol && tradeForm.symbol !== selectedSymbol.value) {
+          console.warn('⚠️ INCOHÉRENCE - selectedSymbol:', selectedSymbol.value, 'tradeForm.symbol:', tradeForm.symbol)
+        }
+        
+        console.log('🔍 VALIDATE - Données envoyées:', requestData)
+        
+        const response = await api.post('/api/trading-manual/validate-trade/', requestData)
         
         validation.value = response.data
         
@@ -906,51 +1207,88 @@ export default {
         return
       }
       
+      // NOUVEAU: Réinitialiser immédiatement la validation dès le clic sur Exécuter
+      // Cela efface le timer, remet le bouton Valider "prêt" et efface validation-status
+      console.log('🔄 Réinitialisation validation dès le clic Exécuter')
+      validation.value = null
+      validationExpired.value = false
+      clearValidationTimer()
+      // validationLoading sera automatiquement false via clearValidationTimer
+      
       // Préparer les détails de l'ordre pour la modale
       const orderDetails = {
         side: tradeForm.side.toUpperCase(),
         quantity: tradeForm.quantity,
         symbol: selectedSymbol.value,
         type: tradeForm.order_type,
-        price: tradeForm.order_type === 'limit' ? tradeForm.price : 'Au prix du marché',
+        price: ['limit', 'sl_tp_combo', 'stop_limit'].includes(tradeForm.order_type) && tradeForm.price 
+          ? tradeForm.price 
+          : tradeForm.order_type === 'market' ? 'Au prix du marché' : null,
+        stop_loss_price: tradeForm.stop_loss_price,
+        take_profit_price: tradeForm.take_profit_price,
+        trigger_price: tradeForm.trigger_price,
         total: calculatedTrade.value?.total_value || 0
       }
       
       // Fonction d'exécution réelle du trade
       const executeTradeAction = async () => {
-        console.log('🚀 Exécution du trade...', {
+        // Logs pour débugger le problème de symbole  
+        console.log('🚀 EXECUTE - selectedSymbol.value:', selectedSymbol.value)
+        console.log('🚀 EXECUTE - selectedBroker.value:', selectedBroker.value)
+        
+        // NOUVEAU: Activer l'état d'exécution et afficher le message d'attente
+        executionLoading.value = true
+        
+        // Déterminer le nom de l'exchange pour le message
+        const exchangeName = selectedBroker.value ? 
+          brokers.value.find(b => b.id === selectedBroker.value)?.exchange || 'Exchange' : 
+          'Exchange'
+        
+        // Afficher le message d'attente dans trade-summary
+        executionResult.value = {
+          type: 'waiting',
+          message: `⏳ Attente de la confirmation de ${exchangeName}...`,
+          timestamp: Date.now()
+        }
+        
+        console.log(`⏳ Message d'attente affiché pour ${exchangeName}`)
+        
+        const executeData = {
           broker_id: selectedBroker.value,
           symbol: selectedSymbol.value,
           side: tradeForm.side,
           order_type: tradeForm.order_type,
           quantity: tradeForm.quantity,
           price: tradeForm.price,
-          total_value: calculatedTrade.value?.total_value
-        })
+          total_value: calculatedTrade.value?.total_value || tradeForm.total_value,
+          // Nouveaux champs pour ordres avancés
+          stop_loss_price: tradeForm.stop_loss_price,
+          take_profit_price: tradeForm.take_profit_price,
+          trigger_price: tradeForm.trigger_price
+        }
+        
+        // Vérifier cohérence entre selectedSymbol et tradeForm.symbol
+        if (tradeForm.symbol && tradeForm.symbol !== selectedSymbol.value) {
+          console.warn('⚠️ INCOHÉRENCE EXECUTE - selectedSymbol:', selectedSymbol.value, 'tradeForm.symbol:', tradeForm.symbol)
+        }
+        
+        console.log('🚀 EXECUTE - Données envoyées:', executeData)
         
         try {
-          validationLoading.value = true
+          // NOTE: validation.value = null et clearValidationTimer() ont déjà été appelés dans executeTrade()
           
-          const response = await api.post('/api/trading-manual/execute-trade/', {
-            broker_id: selectedBroker.value,
-            symbol: selectedSymbol.value,
-            side: tradeForm.side,
-            order_type: tradeForm.order_type,
-            quantity: tradeForm.quantity,
-            price: tradeForm.price,
-            total_value: calculatedTrade.value?.total_value || tradeForm.total_value
-          })
+          const response = await api.post('/api/trading-manual/execute-trade/', executeData)
           
           console.log('✅ Trade exécuté avec succès:', response.data)
           
-          // Réinitialiser le formulaire et l'état de validation
+          // Réinitialiser le formulaire après succès
           tradeForm.quantity = null
           tradeForm.total_value = null
           tradeForm.price = null
+          tradeForm.stop_loss_price = null
+          tradeForm.take_profit_price = null
+          tradeForm.trigger_price = null
           calculatedTrade.value = null
-          validation.value = null
-          validationExpired.value = false
-          clearValidationTimer()
           
           // Recharger les données
           await Promise.all([
@@ -972,6 +1310,9 @@ export default {
             trade: trade
           }
           
+          console.log('✅ executionResult défini:', executionResult.value)
+          console.log('📊 formattedTradeSummary:', formattedTradeSummary.value)
+          
         } catch (err) {
           console.error('❌ Erreur exécution trade:', err)
           console.error('📄 Détails erreur:', err.response?.data || err.message)
@@ -984,11 +1325,9 @@ export default {
             message: errorMessage
           }
         } finally {
-          // Réinitialiser l'état de loading et de validation pour permettre une nouvelle validation
-          validationLoading.value = false
-          validation.value = null
-          validationExpired.value = false
-          clearValidationTimer()
+          // NOUVEAU: Réactiver les boutons après réponse de l'Exchange
+          executionLoading.value = false
+          console.log('✅ executionLoading désactivé - boutons réactivés')
         }
       }
       
@@ -1001,6 +1340,19 @@ export default {
         onConfirm: executeTradeAction,
         onCancel: () => {
           console.log('Exécution annulée par l\'utilisateur')
+          
+          // NOUVEAU: Afficher les paramètres d'ordre après annulation
+          const typeOrdre = tradeForm.side === 'buy' ? 'Achat' : 'Vente'
+          const symbol = selectedSymbol.value ? selectedSymbol.value.split('/')[0] : '---'
+          const quantity = tradeForm.quantity || calculatedTrade.value?.quantity || 0
+          const orderMode = tradeForm.order_type === 'market' ? 'au marché' : `limite à $${tradeForm.price}`
+          const total = calculatedTrade.value?.total_value || tradeForm.total_value || 0
+          
+          executionResult.value = {
+            type: 'cancelled',
+            message: `❌ Ordre annulé : ${typeOrdre} de ${quantity} ${symbol} ${orderMode} (total: $${total})`,
+            timestamp: Date.now()
+          }
         }
       })
     }
@@ -1293,6 +1645,9 @@ export default {
     
     // Gestion du changement de broker
     const onBrokerChange = async () => {
+      console.log('🔄 onBrokerChange - DEBUT - selectedBroker:', selectedBroker.value)
+      console.log('🔄 onBrokerChange - AVANT reset - selectedSymbol:', selectedSymbol.value)
+      
       if (selectedBroker.value) {
         // Réinitialiser les états
         error.value = ''
@@ -1300,14 +1655,25 @@ export default {
         exchangeInfo.value = null
         symbols.value = []
         selectedSymbol.value = ''
+        tradeForm.symbol = ''  // Cohérence avec selectedSymbol
+        tradeForm.quantity = null    // Reset form complet
+        tradeForm.price = null
+        tradeForm.total_value = null
         currentPrice.value = null
         priceTimestamp.value = null
         recentTrades.value = []
         openOrders.value = []
+        calculatedTrade.value = null  // Reset données calculées
+        validation.value = null       // Reset validation
+        executionResult.value = null  // Reset résultat exécution
+        clearValidationTimer()        // Clear timer validation
+        
+        console.log('🔄 onBrokerChange - APRES reset - selectedSymbol:', selectedSymbol.value)
         
         // Déconnecter les anciens WebSockets
         disconnectTradingSocket()
         disconnectOpenOrdersWebSocket()
+        disconnectNotificationsSocket()
         
         // Charger les nouvelles données
         await Promise.all([
@@ -1318,13 +1684,21 @@ export default {
           loadOrdersForCurrentMode()
         ])
         
+        // Charger les prix du portfolio après avoir chargé le portfolio
+        await loadPortfolioPrices()
+        
         // Reconnecter les WebSockets
         connectTradingSocket()
         connectOpenOrdersWebSocket()
+        connectNotificationsSocket()
+        
+        console.log('🔄 onBrokerChange - FIN - selectedSymbol:', selectedSymbol.value)
       } else {
         // Déconnecter si aucun broker sélectionné
         disconnectTradingSocket()
         disconnectOpenOrdersWebSocket()
+        disconnectNotificationsSocket()
+        console.log('🔄 onBrokerChange - Aucun broker - selectedSymbol:', selectedSymbol.value)
       }
     }
     
@@ -1350,6 +1724,69 @@ export default {
         validationTimer.value = null
       }
       remainingTime.value = 0
+      validationLoading.value = false  // NOUVEAU: Réinitialiser le loading du bouton Valider
+    }
+    
+    // Fonctions Portfolio Pricing
+    const togglePortfolioAutoUpdate = () => {
+      portfolioAutoUpdate.value = !portfolioAutoUpdate.value
+      console.log(`🔄 Portfolio Auto Update: ${portfolioAutoUpdate.value ? 'ON' : 'OFF'}`)
+    }
+    
+    const loadPortfolioPrices = async () => {
+      if (!selectedBroker.value || !portfolio.value) return
+      
+      // Re-calculer les assets avec quantité > 0 (à chaque heartbeat)
+      const assets = Object.keys(portfolio.value.balance.total || {})
+        .filter(asset => parseFloat(portfolio.value.balance.total[asset]) > 0)
+      
+      if (assets.length === 0) {
+        portfolioPrices.value = {}
+        return
+      }
+      
+      console.log(`💰 Chargement prix portfolio pour assets: ${assets}`)
+      
+      try {
+        const response = await api.post('/api/trading-manual/portfolio-prices/', {
+          broker_id: selectedBroker.value,
+          assets: assets
+        })
+        
+        portfolioPrices.value = response.data.prices
+        portfolioPricesError.value = null
+        console.log(`✅ Prix portfolio reçus:`, response.data.prices)
+      } catch (err) {
+        console.error('❌ Erreur prix portfolio:', err)
+        portfolioPricesError.value = 'Erreur récupération prix'
+        portfolioPrices.value = null
+      }
+    }
+    
+    const calculatePortfolioTotal = () => {
+      if (!portfolio.value || !portfolioPrices.value) return '0.00'
+      
+      let total = 0
+      for (const [asset, amount] of Object.entries(portfolio.value.balance.total || {})) {
+        const quantity = parseFloat(amount)
+        const price = portfolioPrices.value[asset]
+        
+        if (quantity > 0 && price) {
+          total += quantity * price
+        }
+      }
+      
+      return total.toFixed(2)
+    }
+    
+    const formatValue = (value) => {
+      if (!value || isNaN(value)) return '0.00'
+      return parseFloat(value).toFixed(2)
+    }
+    
+    const formatPrice = (value) => {
+      if (!value || isNaN(value)) return '0.000'
+      return parseFloat(value).toFixed(3)
     }
     
     // Message de statut de validation
@@ -1396,6 +1833,7 @@ export default {
       
       const typeOrdre = tradeForm.side === 'buy' ? 'Achat' : 'Vente'
       const symbol = selectedSymbol.value ? selectedSymbol.value.split('/')[0] : '---'
+      const currentPriceValue = currentPrice.value || 0
       
       // Quantité : soit du formulaire, soit de calculatedTrade, soit 0
       let quantity = 0
@@ -1405,11 +1843,95 @@ export default {
         quantity = calculatedTrade.value.quantity
       }
       
+      // === EXPLICATIONS DYNAMIQUES POUR ORDRES AVANCÉS ===
+      if (tradeForm.order_type === 'stop_loss') {
+        const stopPrice = tradeForm.stop_loss_price || 0
+        let explanation = ''
+        
+        if (tradeForm.side === 'sell') {
+          // VENDRE Stop Loss = Protection position longue
+          const priceDiff = currentPriceValue - stopPrice
+          explanation = `🛡️ Protection: Si ${symbol} chute sous $${stopPrice} → vente automatique`
+          if (priceDiff > 0) {
+            explanation += ` (perte limitée à -$${(priceDiff * quantity).toFixed(2)})`
+          }
+        } else {
+          // ACHETER Stop Loss = Protection position courte  
+          const priceDiff = stopPrice - currentPriceValue
+          explanation = `🛡️ Protection: Si ${symbol} monte au-dessus de $${stopPrice} → achat automatique`
+          if (priceDiff > 0) {
+            explanation += ` (perte limitée à -$${(priceDiff * quantity).toFixed(2)})`
+          }
+        }
+        
+        return {
+          line1: `${typeOrdre} Stop Loss: ${quantity || 0} ${symbol} (trigger: $${stopPrice})`,
+          line2: explanation
+        }
+      }
+      
+      if (tradeForm.order_type === 'take_profit') {
+        const tpPrice = tradeForm.take_profit_price || 0
+        let explanation = ''
+        
+        if (tradeForm.side === 'sell') {
+          // VENDRE Take Profit = Sécuriser gains position longue
+          const profit = tpPrice - currentPriceValue
+          explanation = `💰 Gains: Si ${symbol} monte à $${tpPrice} → vente automatique`
+          if (profit > 0) {
+            explanation += ` (profit: +$${(profit * quantity).toFixed(2)})`
+          }
+        } else {
+          // ACHETER Take Profit = Sécuriser gains position courte
+          const profit = currentPriceValue - tpPrice  
+          explanation = `💰 Gains: Si ${symbol} descend à $${tpPrice} → achat automatique`
+          if (profit > 0) {
+            explanation += ` (profit: +$${(profit * quantity).toFixed(2)})`
+          }
+        }
+        
+        return {
+          line1: `${typeOrdre} Take Profit: ${quantity || 0} ${symbol} (trigger: $${tpPrice})`,
+          line2: explanation
+        }
+      }
+      
+      if (tradeForm.order_type === 'sl_tp_combo') {
+        const slPrice = tradeForm.stop_loss_price || 0
+        const tpPrice = tradeForm.take_profit_price || 0
+        
+        let explanation = ''
+        
+        if (tradeForm.side === 'sell') {
+          explanation = `🛡️💰 Protection: vente si < $${slPrice} | Gains: vente si > $${tpPrice}`
+        } else {
+          explanation = `🛡️💰 Protection: achat si > $${slPrice} | Gains: achat si < $${tpPrice}`
+        }
+        
+        return {
+          line1: `${typeOrdre} SL+TP Combo: ${quantity || 0} ${symbol}`,
+          line2: explanation
+        }
+      }
+      
+      if (tradeForm.order_type === 'stop_limit') {
+        const triggerPrice = tradeForm.trigger_price || 0
+        const limitPrice = tradeForm.price || 0
+        
+        const explanation = `⚡ Déclenchement: à $${triggerPrice} → ordre limite à $${limitPrice}`
+        
+        return {
+          line1: `${typeOrdre} Stop Limit: ${quantity || 0} ${symbol}`,
+          line2: explanation
+        }
+      }
+      
+      // === ORDRES CLASSIQUES (MARKET, LIMIT) ===
       // Gestion du prix selon le type d'ordre
       let price = 0
       if (tradeForm.order_type === 'market') {
         // Ordre au marché → prix actuel du marché
-        price = currentPrice.value || 0
+        price = currentPriceValue
       } else if (tradeForm.order_type === 'limit') {
         // Ordre limite → prix saisi dans le formulaire
         price = tradeForm.price || 0
@@ -1451,16 +1973,99 @@ export default {
       executionResult.value = null
     })
     
-    // Initialisation
-    onMounted(() => {
-      loadBrokers()
-      connectTradingSocket()
+    // SÉCURITÉ: Watcher pour garantir le reset d'executionLoading
+    watch(executionResult, (newResult) => {
+      if (newResult && (newResult.type === 'success' || newResult.type === 'error')) {
+        console.log('🔒 WATCHER SÉCURITÉ - Remise à zéro executionLoading après notification')
+        executionLoading.value = false
+      }
     })
     
+    // Initialisation
+    onMounted(() => {
+      console.log('🔄 onMounted - selectedSymbol initial:', selectedSymbol.value)
+      console.log('🔄 onMounted - localStorage check:', localStorage.getItem('selectedSymbol'))
+      console.log('🔄 onMounted - sessionStorage check:', sessionStorage.getItem('selectedSymbol'))
+      loadBrokers()
+      // Ne pas connecter WebSocket au démarrage - seulement quand broker sélectionné
+    })
+    
+    // Configuration des onglets de types d'ordres
+    const orderTypeTabs = computed(() => {
+      const baseTypes = [
+        {
+          value: 'market',
+          label: 'Marché',
+          enabled: true,
+          tooltip: 'Ordre exécuté immédiatement au prix du marché'
+        },
+        {
+          value: 'limit',
+          label: 'Limite',
+          enabled: true,
+          tooltip: 'Ordre exécuté à un prix spécifique ou meilleur'
+        },
+        {
+          value: 'stop_loss',
+          label: 'Stop Loss',
+          enabled: exchangeInfo.value?.stop_orders || false,
+          tooltip: 'Ordre de protection contre les pertes'
+        },
+        {
+          value: 'take_profit',
+          label: 'Take Profit',
+          enabled: exchangeInfo.value?.stop_orders || false,
+          tooltip: 'Ordre de prise de bénéfices automatique'
+        },
+        {
+          value: 'sl_tp_combo',
+          label: 'SL+TP',
+          enabled: exchangeInfo.value?.raw_has?.createOrderWithTakeProfitAndStopLoss || false,
+          tooltip: 'Ordre avec Stop Loss et Take Profit combinés'
+        },
+        {
+          value: 'stop_limit',
+          label: 'Stop Limit',
+          enabled: exchangeInfo.value?.stop_limit_orders || false,
+          tooltip: 'Ordre Stop avec prix limite spécifique'
+        }
+      ]
+      
+      return baseTypes
+    })
+    
+    // Sélection d'un type d'ordre
+    const selectOrderType = (orderType) => {
+      const tab = orderTypeTabs.value.find(t => t.value === orderType)
+      if (tab && tab.enabled) {
+        tradeForm.order_type = orderType
+        
+        // Réinitialiser les champs spécifiques lors du changement de type
+        if (orderType !== 'limit' && orderType !== 'sl_tp_combo' && orderType !== 'stop_limit') {
+          tradeForm.price = null
+        }
+        if (orderType !== 'stop_loss' && orderType !== 'sl_tp_combo') {
+          tradeForm.stop_loss_price = null
+        }
+        if (orderType !== 'take_profit' && orderType !== 'sl_tp_combo') {
+          tradeForm.take_profit_price = null
+        }
+        if (orderType !== 'stop_limit') {
+          tradeForm.trigger_price = null
+        }
+        
+        // Recalculer si nécessaire
+        if (tradeForm.quantity && selectedSymbol.value) {
+          calculateValue()
+        }
+      }
+    }
+
     // Nettoyage
     onUnmounted(() => {
       disconnectTradingSocket()
       disconnectOpenOrdersWebSocket()
+      disconnectNotificationsSocket()
       clearValidationTimer()
     })
     
@@ -1484,7 +2089,11 @@ export default {
       calculatedTrade,
       validation,
       executionResult,
+      portfolioPrices,
+      portfolioAutoUpdate,
+      portfolioPricesError,
       validationLoading,
+      executionLoading,
       remainingTime,
       validationExpired,
       validationStatusMessage,
@@ -1500,6 +2109,8 @@ export default {
       currentOrdersList,
       canValidate,
       canExecute,
+      orderTypeTabs,
+      selectOrderType,
       onBrokerChange,
       loadSymbols,
       debouncedSearch,
@@ -1525,7 +2136,13 @@ export default {
       handleConfirm,
       handleCancel,
       formatTimestamp,
-      clearError
+      clearError,
+      togglePortfolioAutoUpdate,
+      loadPortfolioPrices,
+      calculatePortfolioTotal,
+      formatValue,
+      formatPrice,
+      clearExecutionResult
     }
   }
 }
@@ -1594,28 +2211,23 @@ export default {
   background: var(--color-surface);
   border: 1px solid var(--color-danger);
   color: var(--color-danger);
-  padding: 1rem 1.5rem;
-  border-radius: 0.25rem;
-  margin-bottom: 1.5rem;
-  font-weight: 500;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
 }
 
 .error-close {
   background: none;
   border: none;
   color: var(--color-danger);
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 50%;
   transition: all 0.2s ease;
-  border-radius: 3px;
-  margin-left: 1rem;
-  flex-shrink: 0;
 }
 
 .error-close:hover {
@@ -1626,7 +2238,7 @@ export default {
 
 .main-content {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 25% 25% 50%;
   gap: 2rem;
   min-height: 600px;
 }
@@ -1713,15 +2325,13 @@ export default {
 }
 
 .disabled {
-  color: var(--color-danger);
-  font-weight: 500;
-  font-size: 0.8rem;
-  opacity: 0.7;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* Portfolio styles */
 .portfolio-summary {
-  background: linear-gradient(135deg, var(--color-background), var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 1.25rem;
   border-radius: 0.25rem;
@@ -1737,7 +2347,7 @@ export default {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, var(--color-success), var(--color-primary));
+  background: var(--color-success);
 }
 
 .portfolio-summary strong {
@@ -1798,6 +2408,110 @@ export default {
   font-size: 0.9rem;
 }
 
+/* Portfolio Table styles */
+.portfolio-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: var(--color-background);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-background);
+}
+
+.portfolio-table-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.portfolio-table-container::-webkit-scrollbar-track {
+  background: var(--color-background);
+  border-radius: 3px;
+}
+
+.portfolio-table-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.portfolio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.portfolio-table thead {
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.portfolio-table th {
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text);
+  border-bottom: 2px solid var(--color-border);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.portfolio-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.portfolio-table tbody tr:hover {
+  background: var(--color-surface);
+}
+
+.portfolio-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.asset-cell {
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 60px;
+}
+
+.quantity-cell {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--color-primary);
+  font-weight: 500;
+  text-align: right;
+  min-width: 100px;
+}
+
+.price-cell {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--color-text-secondary);
+  text-align: right;
+  min-width: 80px;
+}
+
+.total-cell {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  text-align: right;
+  min-width: 90px;
+}
+
+.total-value {
+  color: var(--color-success);
+}
+
+.no-price, .no-total {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+  font-style: italic;
+}
+
 /* Capacités exchange */
 .capabilities-grid {
   display: grid;
@@ -1829,11 +2543,6 @@ export default {
   color: var(--color-success);
   font-weight: 600;
   }
-
-.disabled {
-  color: var(--color-danger);
-  font-weight: 500;
-}
 
 /* Symboles styles */
 .filters {
@@ -1878,7 +2587,7 @@ export default {
 .filter-checkboxes input[type="checkbox"]:checked {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px var(--color-primary)50;
+  box-shadow: 0 0 8px rgba(from var(--color-primary) r g b / 0.5);
 }
 
 .filter-checkboxes input[type="checkbox"]:checked::after {
@@ -1959,6 +2668,7 @@ export default {
 
 .symbols-container::-webkit-scrollbar-track {
   background: var(--color-background);
+  border-radius: 3px;
 }
 
 .symbols-container::-webkit-scrollbar-thumb {
@@ -1988,11 +2698,241 @@ export default {
 }
 
 .symbol-item.active {
-  background: linear-gradient(135deg, var(--color-primary)20, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-primary);
   border-color: var(--color-primary);
   font-weight: 600;
   box-shadow: 0 0 15px rgba(0, 212, 255, 0.1);
+}
+
+/* Order Tabs Styles - Alignement complet sur la largeur */
+.order-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.5rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.order-tab {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.85rem;
+  flex: 1;
+  text-align: center;
+  position: relative;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-tab:hover:not(.disabled) {
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.15);
+}
+
+.order-tab.active {
+  background: linear-gradient(135deg, var(--color-primary), #0099cc);
+  border-color: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.order-tab.disabled {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.order-tab.disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Price and Direction Section */
+.price-direction-section {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: stretch;
+}
+
+.price-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.direction-zone {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+/* Side Buttons Vertical */
+.side-buttons-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.side-btn {
+  padding: 0.8rem 1rem;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.buy-btn {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--color-success);
+  border-color: rgba(0, 255, 136, 0.3);
+}
+
+.buy-btn:hover,
+.buy-btn.active {
+  background: var(--color-success);
+  color: var(--color-background);
+  border-color: var(--color-success);
+  box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+  transform: translateY(-2px);
+}
+
+.sell-btn {
+  background: rgba(255, 0, 85, 0.1);
+  color: var(--color-danger);
+  border-color: rgba(255, 0, 85, 0.3);
+}
+
+.sell-btn:hover,
+.sell-btn.active {
+  background: var(--color-danger);
+  color: white;
+  border-color: var(--color-danger);
+  box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Order Type Fields */
+.order-type-fields {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.combo-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Form Field Row - Label à gauche, Input à droite */
+.form-field-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-field-row label {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.form-field-row input {
+  flex: 2;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  color: var(--color-text);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.form-field-row input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-field-row input::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Input Mode Section */
+.input-mode-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+
+.radio-group-horizontal {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.radio-label:hover {
+  color: var(--color-text);
+}
+
+.radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.radio-label span {
+  font-size: 1rem;
+  user-select: none;
 }
 
 /* Trading styles */
@@ -2011,7 +2951,7 @@ export default {
   text-align: center;
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: linear-gradient(135deg, var(--color-background), var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.25rem;
   position: relative;
@@ -2025,7 +2965,7 @@ export default {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+  background: var(--color-primary);
 }
 
 .symbol-info h3 {
@@ -2114,6 +3054,184 @@ export default {
   font-size: 0.95rem;
 }
 
+/* Form group inline pour libellé et input côte à côte */
+.form-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group-inline label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 0;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.form-group-inline input[type="number"] {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  color: var(--color-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+/* Layout symbole et contrôles côte à côte */
+.symbol-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.symbol-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.trading-controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.control-group {
+  margin-bottom: 0.75rem;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.control-group .radio-group {
+  gap: 1rem;
+}
+
+/* Header Portfolio avec bouton toggle */
+.portfolio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.portfolio-auto-btn {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.portfolio-auto-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.portfolio-auto-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+}
+
+/* Zone valeur totale avec états */
+.portfolio-total-error {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.portfolio-total-success {
+  color: var(--color-success);
+}
+
+.portfolio-total-loading {
+  color: var(--color-text-secondary);
+}
+
+/* Valeurs USD dans les balances */
+.usd-value {
+  color: var(--color-success);
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+  font-weight: 500;
+}
+
+/* Filtres symboles sur une ligne */
+.filters {
+  margin-bottom: 1rem;
+}
+
+.filter-checkboxes {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.filter-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.filter-checkboxes label:hover {
+  color: var(--color-primary);
+}
+
+.filter-checkboxes input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  background: var(--color-background);
+  border: 2px solid var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+  appearance: none;
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.filter-checkboxes input[type="checkbox"]:checked {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.filter-checkboxes input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+}
+
 .radio-group {
   display: flex;
   gap: 1.5rem;
@@ -2148,7 +3266,7 @@ export default {
 
 .radio-group input[type="radio"]:checked {
   border-color: var(--color-primary);
-  box-shadow: 0 0 8px var(--color-primary)50;
+  box-shadow: 0 0 8px rgba(from var(--color-primary) r g b / 0.5);
 }
 
 .radio-group input[type="radio"]:checked::after {
@@ -2186,7 +3304,7 @@ export default {
 }
 
 .trade-summary {
-  background: linear-gradient(135deg, var(--color-success)10, var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-success);
   padding: 1.5rem;
   border-radius: 0.25rem;
@@ -2217,7 +3335,7 @@ export default {
 
 /* Styles pour les résultats d'exécution dans trade-summary */
 .trade-summary.execution-success {
-  background: linear-gradient(135deg, var(--color-success)15, var(--color-surface));
+  background: var(--color-surface);
   border-color: var(--color-success);
   animation: pulse-success 2s ease-in-out;
 }
@@ -2228,9 +3346,8 @@ export default {
 }
 
 .trade-summary.execution-error {
-  background: linear-gradient(135deg, var(--color-danger)15, var(--color-surface));
-  border-color: var(--color-danger);
-  animation: pulse-error 2s ease-in-out;
+  background: var(--color-surface);
+  border: 1px solid var(--color-danger);
 }
 
 .trade-summary.execution-error::before {
@@ -2248,6 +3365,40 @@ export default {
   font-weight: 600;
 }
 
+/* Styles pour l'état d'attente */
+.trade-summary.execution-waiting {
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  animation: pulse-waiting 2s ease-in-out infinite;
+}
+
+.trade-summary.execution-waiting::before {
+  background: var(--color-primary);
+  height: 3px;
+}
+
+.trade-summary.execution-waiting p:first-child {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Styles pour l'ordre annulé */
+.trade-summary.execution-cancelled {
+  background: var(--color-surface);
+  border-color: var(--color-warning);
+  animation: pulse-cancelled 2s ease-in-out;
+}
+
+.trade-summary.execution-cancelled::before {
+  background: var(--color-warning);
+  height: 3px;
+}
+
+.trade-summary.execution-cancelled p:first-child {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
 @keyframes pulse-success {
   0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.4); }
   50% { box-shadow: 0 0 20px 5px rgba(0, 255, 0, 0.1); }
@@ -2256,6 +3407,65 @@ export default {
 @keyframes pulse-error {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
   50% { box-shadow: 0 0 20px 5px rgba(255, 0, 0, 0.1); }
+}
+
+@keyframes pulse-waiting {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
+  50% { box-shadow: 0 0 15px 3px rgba(0, 212, 255, 0.2); }
+}
+
+@keyframes pulse-cancelled {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+  50% { box-shadow: 0 0 15px 3px rgba(255, 193, 7, 0.1); }
+}
+
+/* Styles pour la nouvelle structure avec bouton de fermeture */
+.trade-summary.execution-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+}
+
+.execution-content {
+  flex: 1;
+}
+
+.execution-close {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.execution-close:hover {
+  background: var(--color-danger);
+  color: white;
+}
+
+.execution-timestamp {
+  margin-top: 0.5rem !important;
+  opacity: 0.7;
+}
+
+.error-details {
+  margin-top: 0.5rem;
+  opacity: 0.8;
+}
+
+.error-details p {
+  margin: 0.25rem 0 !important;
+  font-style: italic;
 }
 
 .form-actions {
@@ -2280,27 +3490,42 @@ export default {
 }
 
 .btn-validate {
-  background: linear-gradient(135deg, var(--color-warning), #FFB800);
+  background: var(--color-warning);
   color: var(--crypto-bg-primary);
   border: 1px solid var(--color-warning);
 }
 
 .btn-validate:hover:not(:disabled) {
-  background: linear-gradient(135deg, #FFB800, var(--color-warning));
-  box-shadow: 0 0 20px var(--color-warning)50;
+  background: var(--color-warning);
+  box-shadow: 0 0 20px rgba(from var(--color-warning) r g b / 0.5);
   transform: translateY(-1px);
 }
 
 .btn-execute {
-  background: linear-gradient(135deg, var(--color-success), #00CC66);
+  background: var(--color-success);
   color: var(--crypto-bg-primary);
   border: 1px solid var(--color-success);
 }
 
 .btn-execute:hover:not(:disabled) {
-  background: linear-gradient(135deg, #00CC66, var(--color-success));
-  box-shadow: 0 0 20px var(--color-success)50;
+  background: var(--color-success);
+  box-shadow: 0 0 20px rgba(from var(--color-success) r g b / 0.5);
   transform: translateY(-1px);
+}
+
+/* Effets de clic (active state) */
+.btn-validate:active:not(:disabled) {
+  background: var(--color-warning);
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(from var(--color-warning) r g b / 0.4);
+  transition: all 0.1s ease;
+}
+
+.btn-execute:active:not(:disabled) {
+  background: var(--color-success);
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(from var(--color-success) r g b / 0.4);
+  transition: all 0.1s ease;
 }
 
 .btn-validate:disabled, .btn-execute:disabled {
@@ -2313,18 +3538,16 @@ export default {
 }
 
 .validation-errors {
-  background: linear-gradient(135deg, var(--color-danger)15, var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-danger);
-  color: var(--color-danger);
-  padding: 1.25rem;
-  border-radius: 0.25rem;
-  margin-top: 1.5rem;
-  box-shadow: 0 0 15px var(--color-danger)25;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
 }
 
 .validation-errors strong {
-  color: var(--color-danger);
   font-weight: 600;
+  color: var(--color-danger);
 }
 
 .validation-errors ul {
@@ -2338,7 +3561,7 @@ export default {
 }
 
 .validation-success {
-  background: linear-gradient(135deg, var(--color-success)15, var(--color-surface));
+  background: var(--color-surface);
   border: 1px solid var(--color-success);
   color: var(--color-success);
   padding: 1.25rem;
@@ -2361,6 +3584,7 @@ export default {
 
 .trades-list::-webkit-scrollbar-track {
   background: var(--color-background);
+  border-radius: 3px;
 }
 
 .trades-list::-webkit-scrollbar-thumb {
@@ -2401,17 +3625,15 @@ export default {
 }
 
 .trade-side.buy {
-  background: linear-gradient(135deg, var(--color-success)20, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-success);
   border: 1px solid var(--color-success);
-  box-shadow: 0 0 8px var(--color-success)25;
+  box-shadow: 0 0 8px rgba(from var(--color-success) r g b / 0.25);
 }
 
 .trade-side.sell {
-  background: linear-gradient(135deg, var(--color-danger)20, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  box-shadow: 0 0 8px var(--color-danger)25;
 }
 
 .trade-symbol {
@@ -2438,21 +3660,21 @@ export default {
 }
 
 .trade-status.filled {
-  background: linear-gradient(135deg, var(--color-success)20, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-success);
   border: 1px solid var(--color-success);
 }
 
 .trade-status.pending {
-  background: linear-gradient(135deg, var(--color-warning)20, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-warning);
   border: 1px solid var(--color-warning);
 }
 
 .trade-status.failed {
-  background: linear-gradient(135deg, var(--color-danger)20, var(--color-surface));
-  color: var(--color-danger);
+  background: var(--color-surface);
   border: 1px solid var(--color-danger);
+  animation: warningPulse 2s infinite;
 }
 
 /* Éléments cliquables dans Types d'Ordres */
@@ -2612,7 +3834,7 @@ export default {
 
 /* Effet de chargement pour le bouton Valider */
 .btn-validate.loading {
-  background: linear-gradient(135deg, var(--color-primary)60, var(--color-primary)80);
+  background: var(--color-primary);
   position: relative;
   overflow: hidden;
 }
@@ -2624,7 +3846,7 @@ export default {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: rgba(255,255,255,0.1);
   animation: shimmer 1.5s infinite;
 }
 
@@ -2666,14 +3888,14 @@ export default {
 }
 
 .validation-status.success {
-  background: linear-gradient(135deg, var(--color-success)15, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-success);
   border-color: var(--color-success);
   box-shadow: 0 0 20px rgba(0, 200, 100, 0.1);
 }
 
 .validation-status.warning {
-  background: linear-gradient(135deg, var(--color-warning)15, var(--color-surface));
+  background: var(--color-surface);
   color: var(--color-warning);
   border-color: var(--color-warning);
   box-shadow: 0 0 20px rgba(255, 165, 0, 0.1);
@@ -2681,10 +3903,9 @@ export default {
 }
 
 .validation-status.error {
-  background: linear-gradient(135deg, var(--color-danger)15, var(--color-surface));
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-  box-shadow: 0 0 20px rgba(255, 59, 48, 0.1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-danger);
+  animation: warningPulse 2s infinite;
 }
 
 .validation-errors-detail {
@@ -2699,7 +3920,6 @@ export default {
 .validation-errors-detail ul {
   margin: 0;
   padding-left: 1.2rem;
-  color: var(--color-danger);
 }
 
 .validation-errors-detail li {
@@ -2727,7 +3947,7 @@ export default {
 .order-item {
   padding: 0.75rem;
   border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(135deg, var(--color-background), var(--color-surface));
+  background: var(--color-surface);
   transition: all 0.2s ease;
 }
 
@@ -2824,8 +4044,13 @@ export default {
 }
 
 .btn-cancel {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .btn-cancel:hover:not(:disabled) {
@@ -3011,7 +4236,7 @@ export default {
 }
 
 .detail-row .value.action-sell {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 .confirm-modal-footer {
@@ -3071,7 +4296,7 @@ export default {
 }
 
 /* Responsive */
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
   .main-content {
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -3098,4 +4323,82 @@ export default {
     gap: 0.5rem;
   }
 }
+
+/* Styles pour les résultats d'exécution */
+.trade-summary.execution-success {
+  background: var(--color-success);
+  border: 1px solid var(--color-success);
+  color: white;
+}
+
+.trade-summary.execution-error {
+  background: var(--color-danger);
+  border: 1px solid var(--color-error);
+  color: white;
+}
+
+.execution-details {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+}
+
+.execution-details p {
+  margin: 0.25rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.execution-details strong {
+  font-weight: 600;
+  margin-right: 1rem;
+}
+
+/* Form Field Row - Label à gauche, Input à droite */
+.form-field-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-field-row label {
+  flex: 0 0 150px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.form-field-row input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  color: var(--color-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.form-field-row input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.form-field-row input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.1);
+}
+
+.form-field-row input:disabled {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+/* === Zone notifications supprimée === */
 </style>

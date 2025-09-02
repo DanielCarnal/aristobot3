@@ -22,12 +22,14 @@ class Command(BaseCommand):
         super().__init__()
         self.running = True
         self.channel_layer = get_channel_layer()
+        # ARCHITECTURE UNIFIÉE - une seule méthode place_order pour tous les types
         self.request_handlers = {
             'get_balance': self._handle_get_balance,
             'get_candles': self._handle_get_candles,
-            'place_order': self._handle_place_order,
+            'place_order': self._handle_place_order,  # ✅ GÈRE TOUS LES TYPES D'ORDRES
             'get_markets': self._handle_get_markets,
             'get_ticker': self._handle_get_ticker,
+            'fetch_tickers': self._handle_fetch_tickers,
             'preload_brokers': self._handle_preload_brokers,
             'fetch_open_orders': self._handle_fetch_open_orders,
             'fetch_closed_orders': self._handle_fetch_closed_orders,
@@ -203,63 +205,289 @@ class Command(BaseCommand):
         return ohlcv
     
     async def _handle_place_order(self, params):
-        """Passe un ordre de trading"""
+        """NOUVELLE ARCHITECTURE - Passe un ordre avec intelligence CCXT native"""
         from apps.brokers.models import Broker
         from asgiref.sync import sync_to_async
         import time
         
-        # Log détaillé de la requête place_order
         start_time = time.time()
-        print(f"🔥 PLACE_ORDER START: {params}")
-        logger.info(f"🔥 PLACE_ORDER START: {params}")
+        logger.info(f"🚀 PLACE_ORDER CCXT NATIVE: {params}")
         
+        # Extraction paramètres
         broker_id = params['broker_id']
         symbol = params['symbol']
-        side = params['side']  # 'buy' or 'sell'
+        side = params['side']
         amount = params['amount']
         order_type = params.get('type', 'market')
         price = params.get('price')
         
+        # Paramètres avancés CCXT natifs
+        stop_loss_price = params.get('stop_loss_price')
+        take_profit_price = params.get('take_profit_price')
+        trigger_price = params.get('trigger_price')
+        
         try:
-            # 1. Récupération broker
-            db_start = time.time()
+            # 1. Récupération broker + exchange
             broker = await sync_to_async(Broker.objects.get)(id=broker_id)
-            db_time = time.time() - db_start
-            print(f"🔥 PLACE_ORDER - Broker récupéré: {broker.name} ({db_time:.3f}s)")
-            
-            # 2. Récupération exchange
-            exchange_start = time.time()
             exchange = await CCXTManager.get_exchange(broker)
-            exchange_time = time.time() - exchange_start
-            print(f"🔥 PLACE_ORDER - Exchange récupéré: {exchange.id} ({exchange_time:.3f}s)")
             
-            # 3. Vérification des capacités
-            if order_type == 'market' and not exchange.has.get('createMarketOrder', False):
-                raise Exception(f"Exchange {broker.exchange} ne supporte pas les ordres au marché")
-            elif order_type == 'limit' and not exchange.has.get('createLimitOrder', False):
-                raise Exception(f"Exchange {broker.exchange} ne supporte pas les ordres limites")
+            # 2. INTELLIGENCE CCXT - Détecter type de marché et capacités (CORRECTION MAJEURE)
+            logger.info(f"🔍 DEBUG: exchange.has type = {type(exchange.has)}")
             
-            # 4. Passage de l'ordre
-            order_start = time.time()
-            if order_type == 'market':
-                print(f"🔥 PLACE_ORDER - Ordre marché: {side} {amount} {symbol}")
-                order = await exchange.create_market_order(symbol, side, amount)
+            # ÉTAPE 1: Déterminer le type de marché (SPOT vs SWAP)
+            try:
+                # Charger les marchés si pas déjà fait
+                if not hasattr(exchange, 'markets') or not exchange.markets:
+                    await exchange.load_markets()
+                
+                market_info = exchange.markets.get(symbol)
+                if market_info:
+                    is_spot = market_info.get('spot', False)
+                    is_swap = market_info.get('swap', False)
+                    market_type = market_info.get('type', 'unknown')
+                    logger.info(f"🔍 Marché {symbol}: type={market_type}, spot={is_spot}, swap={is_swap}")
+                else:
+                    logger.warning(f"⚠️ Impossible de déterminer le type de marché pour {symbol}")
+                    is_spot, is_swap, market_type = True, False, 'spot'  # Défaut SPOT
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur détection type marché: {e}, assume SPOT")
+                is_spot, is_swap, market_type = True, False, 'spot'
+            
+            # ÉTAPE 2: Adapter la stratégie selon SPOT vs SWAP
+            if isinstance(exchange.has, dict):
+                # Capacités générales
+                has_stop_loss_api = exchange.has.get('createStopLossOrder', False)
+                has_take_profit_api = exchange.has.get('createTakeProfitOrder', False)
+                has_sl_tp_combo = exchange.has.get('createOrderWithTakeProfitAndStopLoss', False)
+                has_trigger = exchange.has.get('createTriggerOrder', False)
+                
+                # BITGET LOGIC: SPOT utilise triggerPrice, SWAP utilise APIs spécialisées
+                if is_spot:
+                    # SPOT: Utiliser triggerPrice même si APIs spécialisées existent
+                    use_specialized = False
+                    use_trigger = has_trigger
+                    logger.info(f"🔍 SPOT {symbol}: Utiliser triggerPrice={use_trigger}")
+                elif is_swap:
+                    # SWAP: Utiliser APIs spécialisées si disponibles
+                    use_specialized = has_stop_loss_api or has_take_profit_api
+                    use_trigger = has_trigger and not use_specialized
+                    logger.info(f"🔍 SWAP {symbol}: APIs spécialisées={use_specialized}, fallback trigger={use_trigger}")
+                else:
+                    # Défaut: essayer spécialisé puis trigger
+                    use_specialized = has_stop_loss_api or has_take_profit_api
+                    use_trigger = has_trigger
+                    logger.info(f"🔍 Type inconnu {symbol}: spécialisé={use_specialized}, trigger={use_trigger}")
             else:
-                print(f"🔥 PLACE_ORDER - Ordre limite: {side} {amount} {symbol} @ {price}")
-                order = await exchange.create_limit_order(symbol, side, amount, price)
+                logger.warning(f"⚠️ exchange.has n'est pas un dict: {type(exchange.has)}")
+                use_specialized = False
+                use_trigger = False
             
-            order_time = time.time() - order_start
+            logger.info(f"🔍 Exchange {broker.exchange} stratégie pour {market_type}:")
+            logger.info(f"   - Utiliser APIs spécialisées: {use_specialized}")
+            logger.info(f"   - Utiliser triggerPrice: {use_trigger}")
+            
+            # 3. STRATÉGIE EXÉCUTION adaptée SPOT vs SWAP
+            ccxt_params = {}
+            
+            if order_type == 'stop_loss':
+                if use_specialized and is_swap:
+                    # SWAP MARKETS - APIs spécialisées Bitget 
+                    logger.info(f"🎯 BITGET SWAP - Stop Loss via create_stop_loss_order: {stop_loss_price}")
+                    result = await exchange.create_stop_loss_order(symbol, 'market', side, amount, None, stop_loss_price)
+                    
+                    # Gestion des réponses boolean pour APIs spécialisées
+                    if isinstance(result, bool):
+                        logger.info(f"🔄 API spécialisée SWAP Stop Loss retourne bool: {result}")
+                        standardized_result = {
+                            'id': f"bitget_swap_sl_{int(time.time())}",
+                            'symbol': symbol,
+                            'type': 'stop_loss',
+                            'side': side,
+                            'amount': amount,
+                            'price': None,
+                            'stopPrice': stop_loss_price,
+                            'status': 'created' if result else 'failed',
+                            'timestamp': int(time.time() * 1000),
+                            'info': {'success': result, 'specialized_api': 'create_stop_loss_order', 'market_type': 'swap'}
+                        }
+                        return standardized_result
+                    return result
+                    
+                elif use_trigger:
+                    # SPOT MARKETS - Structure imbriquée Bitget (issue CCXT #21487)
+                    logger.info(f"🎯 BITGET SPOT - Stop Loss structure imbriquée: {stop_loss_price}")
+                    ccxt_params = {
+                        'stopLoss': {
+                            'triggerPrice': stop_loss_price,
+                            'price': stop_loss_price
+                        }
+                    }
+                    # EXÉCUTION IMMÉDIATE avec structure imbriquée
+                    order_result = await exchange.create_order(symbol, 'market', side, amount, None, ccxt_params)
+                    
+                    # Gestion des réponses boolean 
+                    if isinstance(order_result, bool):
+                        logger.info(f"🔄 Stop Loss SPOT structure imbriquée retourne bool: {order_result}")
+                        standardized_result = {
+                            'id': f"bitget_spot_sl_{int(time.time())}",
+                            'symbol': symbol,
+                            'type': 'stop_loss',
+                            'side': side,
+                            'amount': amount,
+                            'price': None,
+                            'stopPrice': stop_loss_price,
+                            'status': 'created' if order_result else 'failed',
+                            'timestamp': int(time.time() * 1000),
+                            'info': {'success': order_result, 'nested_structure': True, 'market_type': 'spot'}
+                        }
+                        return standardized_result
+                    return order_result
+                else:
+                    raise Exception(f"Exchange {broker.exchange} ne supporte ni APIs spécialisées ni triggerPrice pour {market_type}")
+                    
+            elif order_type == 'take_profit':
+                if use_specialized and is_swap:
+                    # SWAP MARKETS - APIs spécialisées Bitget
+                    logger.info(f"🎯 BITGET SWAP - Take Profit via create_take_profit_order: {take_profit_price}")
+                    result = await exchange.create_take_profit_order(symbol, 'market', side, amount, None, take_profit_price)
+                    
+                    # Gestion des réponses boolean pour APIs spécialisées
+                    if isinstance(result, bool):
+                        logger.info(f"🔄 API spécialisée SWAP Take Profit retourne bool: {result}")
+                        standardized_result = {
+                            'id': f"bitget_swap_tp_{int(time.time())}",
+                            'symbol': symbol,
+                            'type': 'take_profit',
+                            'side': side,
+                            'amount': amount,
+                            'price': None,
+                            'takeProfitPrice': take_profit_price,
+                            'status': 'created' if result else 'failed',
+                            'timestamp': int(time.time() * 1000),
+                            'info': {'success': result, 'specialized_api': 'create_take_profit_order', 'market_type': 'swap'}
+                        }
+                        return standardized_result
+                    return result
+                    
+                elif use_trigger:
+                    # SPOT MARKETS - Structure imbriquée Bitget (issue CCXT #21487)
+                    logger.info(f"🎯 BITGET SPOT - Take Profit structure imbriquée: {take_profit_price}")
+                    ccxt_params = {
+                        'takeProfit': {
+                            'triggerPrice': take_profit_price,
+                            'price': take_profit_price
+                        }
+                    }
+                    # EXÉCUTION IMMÉDIATE avec structure imbriquée
+                    order_result = await exchange.create_order(symbol, 'market', side, amount, None, ccxt_params)
+                    
+                    # Gestion des réponses boolean
+                    if isinstance(order_result, bool):
+                        logger.info(f"🔄 Take Profit SPOT structure imbriquée retourne bool: {order_result}")
+                        standardized_result = {
+                            'id': f"bitget_spot_tp_{int(time.time())}",
+                            'symbol': symbol,
+                            'type': 'take_profit',
+                            'side': side,
+                            'amount': amount,
+                            'price': None,
+                            'takeProfitPrice': take_profit_price,
+                            'status': 'created' if order_result else 'failed',
+                            'timestamp': int(time.time() * 1000),
+                            'info': {'success': order_result, 'nested_structure': True, 'market_type': 'spot'}
+                        }
+                        return standardized_result
+                    return order_result
+                else:
+                    raise Exception(f"Exchange {broker.exchange} ne supporte ni APIs spécialisées ni triggerPrice pour {market_type}")
+                    
+            elif order_type == 'sl_tp_combo':
+                if use_specialized and is_swap:
+                    # SWAP MARKETS - Combo spécialisé Bitget
+                    logger.info(f"🎯 BITGET SWAP - SL+TP Combo via create_order_with_take_profit_and_stop_loss")
+                    result = await exchange.create_order_with_take_profit_and_stop_loss(
+                        symbol, 'market', side, amount, None, take_profit_price, stop_loss_price
+                    )
+                    
+                    # Gestion des réponses boolean pour APIs spécialisées
+                    if isinstance(result, bool):
+                        logger.info(f"🔄 API spécialisée SWAP SL+TP Combo retourne bool: {result}")
+                        standardized_result = {
+                            'id': f"bitget_swap_combo_{int(time.time())}",
+                            'symbol': symbol,
+                            'type': 'sl_tp_combo',
+                            'side': side,
+                            'amount': amount,
+                            'price': None,
+                            'stopLossPrice': stop_loss_price,
+                            'takeProfitPrice': take_profit_price,
+                            'status': 'created' if result else 'failed',
+                            'timestamp': int(time.time() * 1000),
+                            'info': {'success': result, 'specialized_api': 'create_order_with_take_profit_and_stop_loss', 'market_type': 'swap'}
+                        }
+                        return standardized_result
+                    return result
+                    
+                elif is_spot:
+                    # SPOT MARKETS - Pas de combo possible, erreur explicite
+                    raise Exception(
+                        f"SPOT {symbol}: SL+TP Combo non supporté sur marchés SPOT Bitget. "
+                        f"Créez des ordres Stop Loss et Take Profit séparés."
+                    )
+                else:
+                    raise Exception(
+                        f"Exchange {broker.exchange} ne supporte pas SL+TP Combo pour {market_type}"
+                    )
+                    
+            elif order_type == 'stop_limit':
+                if has_trigger:
+                    ccxt_params['triggerPrice'] = trigger_price
+                    if broker.exchange.lower() == 'bitget':
+                        order_type = 'limit'  # Bitget mapping
+                    logger.info(f"✅ Stop Limit: triggerPrice={trigger_price}")
+                else:
+                    raise Exception(f"Exchange {broker.exchange} ne supporte pas les ordres Stop Limit")
+            
+            # 4. Exécution CCXT : ordres génériques (Market, Limit, Stop Limit)
+            if order_type in ['market', 'limit', 'stop_limit']:
+                logger.info(f"🎯 Exécution CCXT générique: {symbol} {order_type} {side} {amount} @ {price}")
+                logger.info(f"🎯 Paramètres: {ccxt_params}")
+                
+                order_result = await exchange.create_order(symbol, order_type, side, amount, price, ccxt_params)
+            else:
+                # Les ordres spécialisés (stop_loss, take_profit, sl_tp_combo) 
+                # ont déjà été traités et returned ci-dessus
+                raise Exception(f"Type d'ordre non géré: {order_type}")
+            
             total_time = time.time() - start_time
             
-            print(f"🔥 PLACE_ORDER SUCCESS - Order ID: {order.get('id')} ({order_time:.3f}s order, {total_time:.3f}s total)")
-            logger.info(f"🔥 PLACE_ORDER SUCCESS - Order ID: {order.get('id')} ({total_time:.3f}s)")
+            # VALIDATION TYPE RETOUR CCXT ET CONVERSION GARANTIE
+            if isinstance(order_result, bool):
+                logger.warning(f"⚠️ CCXT retourne bool au lieu d'objet: {order_result}")
+                # Construire réponse standard pour compatibilité
+                standardized_order = {
+                    'id': f"bitget_bool_{int(time.time())}",
+                    'symbol': symbol,
+                    'type': order_type,
+                    'side': side,
+                    'amount': amount,
+                    'price': price,
+                    'status': 'created' if order_result else 'failed',
+                    'timestamp': int(time.time() * 1000),
+                    'info': {'success': order_result, 'original_response': order_result}
+                }
+                logger.info(f"🔄 Bool converti en dict: {standardized_order}")
+                return standardized_order
             
-            return order
+            # Si c'est déjà un dict, retourner tel quel
+            order_id = order_result.get('id', 'unknown') if isinstance(order_result, dict) else str(order_result)
+            logger.info(f"✅ PLACE_ORDER SUCCESS: ID={order_id} ({total_time:.3f}s)")
+            
+            return order_result
             
         except Exception as e:
             total_time = time.time() - start_time
-            print(f"🔥 PLACE_ORDER ERROR après {total_time:.3f}s: {e}")
-            logger.error(f"🔥 PLACE_ORDER ERROR après {total_time:.3f}s: {e}")
+            logger.error(f"❌ PLACE_ORDER ERROR ({total_time:.3f}s): {e}")
             raise
     
     async def _handle_get_markets(self, params):
@@ -288,6 +516,27 @@ class Command(BaseCommand):
         
         ticker = await exchange.fetch_ticker(symbol)
         return ticker
+    
+    async def _handle_fetch_tickers(self, params):
+        """Récupère les tickers pour plusieurs symboles en une requête"""
+        from apps.brokers.models import Broker
+        from asgiref.sync import sync_to_async
+        
+        broker_id = params['broker_id']
+        symbols = params['symbols']
+        
+        logger.info(f"🔄 Handler fetch_tickers: broker {broker_id}, symbols {symbols}")
+        
+        broker = await sync_to_async(Broker.objects.get)(id=broker_id)
+        exchange = await CCXTManager.get_exchange(broker)
+        
+        # Vérifier que l'exchange supporte fetchTickers
+        if not exchange.has['fetchTickers']:
+            raise Exception(f"Exchange {exchange.name} ne supporte pas fetchTickers")
+        
+        tickers = await exchange.fetchTickers(symbols)
+        logger.info(f"✅ Récupérés {len(tickers)} tickers via fetchTickers")
+        return tickers
     
     async def _handle_preload_brokers(self, params):
         """Précharge tous les brokers"""
@@ -322,6 +571,14 @@ class Command(BaseCommand):
         symbol = params.get('symbol')  # Optionnel, pour un symbole spécifique
         since = params.get('since')    # Optionnel
         limit = params.get('limit')    # Optionnel
+        
+        # Convertir since en int si c'est une string
+        if since and isinstance(since, str):
+            try:
+                since = int(since)
+            except ValueError:
+                logger.warning(f"Paramètre 'since' invalide: {since}, ignoré")
+                since = None
         
         broker = await sync_to_async(Broker.objects.get)(id=broker_id)
         exchange = await CCXTManager.get_exchange(broker)
@@ -373,6 +630,128 @@ class Command(BaseCommand):
             raise Exception(f"Exchange {broker.exchange} ne supporte pas editOrder")
         
         result = await exchange.edit_order(order_id, symbol, order_type, side, amount, price)
+        return result
+    
+    async def _handle_place_stop_loss_order(self, params):
+        """Place un ordre Stop Loss"""
+        from apps.brokers.models import Broker
+        from asgiref.sync import sync_to_async
+        
+        broker_id = params['broker_id']
+        symbol = params['symbol']
+        side = params['side']
+        amount = params['amount']
+        stop_loss_price = params['stop_loss_price']
+        order_type = params.get('type', 'market')  # market ou limit
+        
+        broker = await sync_to_async(Broker.objects.get)(id=broker_id)
+        exchange = await CCXTManager.get_exchange(broker)
+        
+        # Vérifier support Stop Loss
+        if not exchange.has.get('createStopLossOrder', False):
+            raise Exception(f"Exchange {broker.exchange} ne supporte pas createStopLossOrder")
+        
+        # Paramètres selon le type
+        if order_type == 'market':
+            result = await exchange.create_stop_loss_order(
+                symbol, 'market', side, amount, None, stop_loss_price
+            )
+        else:  # limit
+            price = params.get('price')
+            if not price:
+                raise Exception("Prix requis pour Stop Loss limite")
+            result = await exchange.create_stop_loss_order(
+                symbol, 'limit', side, amount, price, stop_loss_price
+            )
+        
+        return result
+    
+    async def _handle_place_take_profit_order(self, params):
+        """Place un ordre Take Profit"""
+        from apps.brokers.models import Broker
+        from asgiref.sync import sync_to_async
+        
+        broker_id = params['broker_id']
+        symbol = params['symbol']
+        side = params['side']
+        amount = params['amount']
+        take_profit_price = params['take_profit_price']
+        order_type = params.get('type', 'market')
+        
+        broker = await sync_to_async(Broker.objects.get)(id=broker_id)
+        exchange = await CCXTManager.get_exchange(broker)
+        
+        # Vérifier support Take Profit
+        if not exchange.has.get('createTakeProfitOrder', False):
+            raise Exception(f"Exchange {broker.exchange} ne supporte pas createTakeProfitOrder")
+        
+        # Paramètres selon le type
+        if order_type == 'market':
+            result = await exchange.create_take_profit_order(
+                symbol, 'market', side, amount, None, take_profit_price
+            )
+        else:  # limit
+            price = params.get('price')
+            if not price:
+                raise Exception("Prix requis pour Take Profit limite")
+            result = await exchange.create_take_profit_order(
+                symbol, 'limit', side, amount, price, take_profit_price
+            )
+        
+        return result
+    
+    async def _handle_place_sl_tp_combo_order(self, params):
+        """Place un ordre avec Stop Loss + Take Profit combiné"""
+        from apps.brokers.models import Broker
+        from asgiref.sync import sync_to_async
+        
+        broker_id = params['broker_id']
+        symbol = params['symbol']
+        side = params['side']
+        amount = params['amount']
+        stop_loss_price = params['stop_loss_price']
+        take_profit_price = params['take_profit_price']
+        price = params.get('price')  # Optionnel pour market
+        
+        broker = await sync_to_async(Broker.objects.get)(id=broker_id)
+        exchange = await CCXTManager.get_exchange(broker)
+        
+        # Vérifier support SL+TP combo
+        if not exchange.has.get('createOrderWithTakeProfitAndStopLoss', False):
+            raise Exception(f"Exchange {broker.exchange} ne supporte pas createOrderWithTakeProfitAndStopLoss")
+        
+        # Déterminer le type d'ordre
+        order_type = 'market' if price is None else 'limit'
+        
+        result = await exchange.create_order_with_take_profit_and_stop_loss(
+            symbol, order_type, side, amount, price, take_profit_price, stop_loss_price
+        )
+        
+        return result
+    
+    async def _handle_place_stop_limit_order(self, params):
+        """Place un ordre Stop Limit"""
+        from apps.brokers.models import Broker
+        from asgiref.sync import sync_to_async
+        
+        broker_id = params['broker_id']
+        symbol = params['symbol']
+        side = params['side']
+        amount = params['amount']
+        price = params['price']
+        trigger_price = params['trigger_price']
+        
+        broker = await sync_to_async(Broker.objects.get)(id=broker_id)
+        exchange = await CCXTManager.get_exchange(broker)
+        
+        # Vérifier support Stop Limit
+        if not exchange.has.get('createStopLimitOrder', False):
+            raise Exception(f"Exchange {broker.exchange} ne supporte pas createStopLimitOrder")
+        
+        result = await exchange.create_stop_limit_order(
+            symbol, side, amount, price, trigger_price
+        )
+        
         return result
     
     def _format_message(self, message):

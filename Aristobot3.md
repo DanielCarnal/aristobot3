@@ -16,11 +16,11 @@ Aristobot V3 est un bot de trading de cryptomonnaies personnel, développé sous
   * **Stratégies** : Limité à 20 stratégies actives simultanément.
   * **Environnement de Développement** : Conda avec Python 3.11, en utilisant VS Code et des assistants IA.
   * **Stack Technique** : L'architecture est **non négociable**.
-    * **Backend** : Django 4.2.15 + Django Channels
-    * **Frontend** : Vue.js 3 (Composition API uniquement)
+    * **Backend** : Django 4.2.15 + Django Channels
+    * **Frontend** : Vue.js 3 (Composition API uniquement)
     * **ServeurASGI:** Daphne
     * **Base de Données** : **PostgreSQL est la source de vérité unique** pour toutes les données. MongoDB est formellement exclu.
-    * **Communication Temps Réel** : Redis (pour Django Channels)
+    * **Communication Temps Réel** : Redis (pour Django Channels)
   * **Librairies Python** :
     * Analyse Technique: **Pandas TA Classic - A Technical Analysis Library in Python 3** (https://github.com/xgboosted/pandas-ta-classic)
     * Accès aux marchés (Broker) **CCXT – CryptoCurrency eXchange Trading Library** (https://github.com/ccxt/ccxt)
@@ -100,8 +100,8 @@ Aristobot3/
 
 ### Layout Global
 
-* **Structure** : Une barre latérale (**Sidebar**) fixe à gauche, un bandeau supérieur (**Header**) fixe contenant la barre de statut, et une zone principale de contenu scrollable.
-* **Menu Principal** (dans la Sidebar) :
+* **Structure** : Une barre latérale (**Sidebar**) fixe à gauche, un bandeau supérieur (**Header**) fixe contenant la barre de statut, et une zone principale de contenu scrollable.
+* **Menu Principal** (dans la Sidebar) :
 
   * Heartbeat
   * Trading manuel
@@ -111,23 +111,23 @@ Aristobot3/
   * Webhooks
   * Statistiques
   * Mon Compte
-* **Barre de Statut** (dans le Header) :
+* **Barre de Statut** (dans le Header) :
 
-  * **Heartbeat Actif/Inactif** : Une pastille visuelle (verte/rouge).
-  * **Heartbeat Cohérent/Non Cohérent** : Indicateur de la régularité des données (à développer ultérieurement).
+  * **Heartbeat Actif/Inactif** : Une pastille visuelle (verte/rouge).
+  * **Heartbeat Cohérent/Non Cohérent** : Indicateur de la régularité des données (à développer ultérieurement).
   * **Nombre d'Exchanges :** Indique le nombre de marchés chargé, et si en cours de chargement, affiche "Chargement 'Exchange X' xxx%". C'est un **élément actif**. Sur pression, il lance la fonction de chargement.
-  * **Stratégies Live** : Indique si une ou plusieurs stratégies sont en cours d'exécution.
-  * **Mode Testnet** : Affiche un avertissement visuel (couleur inversée, bordure rouge) si le mode Testnet est activé.
+  * **Stratégies Live** : Indique si une ou plusieurs stratégies sont en cours d'exécution.
+  * **Mode Testnet** : Affiche un avertissement visuel (couleur inversée, bordure rouge) si le mode Testnet est activé.
 
 ### Authentification et Login
 
-* **Rôle** : Permettre à l'utilisateur de s’authentifier ou créer de un compte. Une fonction spéciale DEBUG permet de bypasser l'authentification.
+* **Rôle** : Permettre à l'utilisateur de s'authentifier ou créer de un compte. Une fonction spéciale DEBUG permet de bypasser l'authentification.
 * **Description** :
 
   * La création d'un nouveau compte se fait par une fenêtre modale.
   * L'authentification s'affiche avent que tout autre éléments de l'application. Un simple saisie du user/password permet l'authentification.
   * Un mode "développement" permet de s'authentifier automatiquement avec un user pré-défini (dev) sans saisie de user/password. Le but est qu'un agent IA puisse se connecter facilement et naviguer (piloter un navigateur) dans l'application à des fin de tests.
-* **Backend** :
+* **Backend** :
 
   * Lorsque la variable du fichier **`.env`**  a la valeur **`DEBUG_ARISTOBOT=True`**.
     * Le bouton "Mode développement" est affiché en bas de la fenêtre de login utilisateur. C'est un bouton ON/OFF. Il permet d'activer le mode développement s'il est inactif et de le désactiver s'il est actif.
@@ -144,7 +144,7 @@ Aristobot3/
     * Le bouton d'activation/désactivation du mode debug  de la fenêtre login utilisateur **n'est pas affiché**
     * Le seul moyen de l'afficher est que l'utilisateur modifie le fichier **`.env`**, et redémarre le serveur Daphne afin de prendre en compte le changement.
   * Le bouton "Déconnexion" permet à l'utilisateur de se déconnecter.
-* **Frontend** : Affiche :
+* **Frontend** : Affiche :
 
   * Les champs user password et le bouton login
   * un bouton "nouveau compte" et une fenêtre modale pour la saisie des éléments (user / password) sur pression de celui-ci.
@@ -155,13 +155,13 @@ Aristobot3/
 
 ### Design System
 
-* **Style Général** : Thème sombre "crypto" inspiré de Binance/TradingView. Utilisation de **cards avec fond sombre et une subtile bordure luminescente**.
-* **Couleurs Néon** :
+* **Style Général** : Thème sombre "crypto" inspiré de Binance/TradingView. Utilisation de **cards avec fond sombre et une subtile bordure luminescente**.
+* **Couleurs Néon** :
 
-  * `#00D4FF` (Bleu Électrique - Primaire)
-  * `#00FF88` (Vert Néon - Succès)
-  * `#FF0055` (Rouge Trading - Danger)
-* **Responsive** : "Desktop first", l'UI est optimisée pour des grands écrans.
+  * `#00D4FF` (Bleu Électrique - Primaire)
+  * `#00FF88` (Vert Néon - Succès)
+  * `#FF0055` (Rouge Trading - Danger)
+* **Responsive** : "Desktop first", l'UI est optimisée pour des grands écrans.
 
 ## 3. Démarrage et Architecture des Services
 
@@ -173,60 +173,210 @@ Pour que l'application soit pleinement opérationnelle, **cinq terminaux distinc
 Ces services forment l'épine dorsale de l'application et fonctionnent en arrière-plan, indépendamment de la présence d'un utilisateur connecté à l'interface web.
 
 1. **Terminal 1 : Serveur Web + WebSocket (Daphne)**
+   * **Commande** : `daphne aristobot.asgi:application`
+   - **Port** : 8000
+   * **Rôle** : C'est le serveur principal. Il gère toutes les requêtes HTTP (pour l'API REST et le service des pages web) et maintient les connexions WebSocket ouvertes avec les clients (navigateurs). C'est la porte d'entrée de toute l'application. Exécuter le code des apps Django (accounts, brokers, strategies, etc.)
+  - NE PAS recevoir directement les webhooks externes
+     
+1. **Terminal 2 : Service Heartbeat (Tâche de gestion Django)**
+   * **Commande** : `python manage.py run_heartbeat`
+   * **Rôle** : Le "cœur" du système. Ce service se connecte directement au flux WebSocket de Binance pour écouter les données du marché en temps réel. Il est totalement indépendant et fonctionne en continu.
+       * Connexion permanente au WebSocket Binance
+       * Agrégation des trades en bougies multi-timeframe
+       * Publication des signaux temporels sur Redis
+       * Sauvegarde des bougies en PostgreSQL
+         
+2. **Terminal 3 : Moteur de Trading (Tâche de gestion Django)**
+   * **Commande** : `python manage.py run_trading_engine`
+   * **Port** : Aucun (écoute Redis)
+   * **Rôle** : Le "cerveau" du système. Ce service écoute les signaux émis par le _Heartbeat_ ET _webhooks_. Il prend les décisions de trading en exécutant la logique des stratégies actives.
+   * **Responsabilités** :
+      - Écouter DEUX sources : signaux Heartbeat ET webhooks
+      - Charger et exécuter les stratégies Python
+      - Traiter les webhooks avec logique métier
+      - Gérer l'état des positions
+      - Décider des ordres à passer
+      - Communiquer avec Terminal 5 pour exécution
+     
+3. **Terminal 4 : Frontend (Vite)**
+   * **Commande** : `npm run dev`
+   - **Port** : 5173 (dev) ou 80/443 (production)
+   * **Rôle** : Sert l'interface utilisateur développée en Vue.js. C'est ce que l'utilisateur voit et avec quoi il interagit dans son navigateur. Elle se connecte au serveur Daphne (Terminal 1) via WebSocket pour recevoir les données en temps réel.
+   * **Responsabilités** :
+       * Communication avec Terminal 1 (API + WebSocket)
+       * Affichage temps réel des données
+       * Gestion locale de l'état UI (Pinia)
 
-   * **Commande** : `daphne aristobot.asgi:application`
-   * **Rôle** : C'est le serveur principal. Il gère toutes les requêtes HTTP (pour l'API REST et le service des pages web) et maintient les connexions WebSocket ouvertes avec les clients (navigateurs). C'est la porte d'entrée de toute l'application.
-2. **Terminal 2 : Service Heartbeat (Tâche de gestion Django)**
-
-   * **Commande** : `python manage.py run_heartbeat`
-   * **Rôle** : Le "cœur" du système. Ce service se connecte directement au flux WebSocket de Binance pour écouter les données du marché en temps réel. Il est totalement indépendant et fonctionne en continu.
-3. **Terminal 3 : Moteur de Trading (Tâche de gestion Django)**
-
-   * **Commande** : `python manage.py run_trading_engine`
-   * **Rôle** : Le "cerveau" du système. Ce service écoute les signaux émis par le _Heartbeat_ et prend les décisions de trading en exécutant la logique des stratégies actives.
-4. **Terminal 4 : Frontend (Vite)**
-
-   * **Commande** : `npm run dev`
-   * **Rôle** : Sert l'interface utilisateur développée en Vue.js. C'est ce que l'utilisateur voit et avec quoi il interagit dans son navigateur. Elle se connecte au serveur Daphne (Terminal 1) via WebSocket pour recevoir les données en temps réel.
-5. **Terminal 5 : Service CCXT Centralisé (Nouveau)**
-
+4. **Terminal 5 : Service CCXT Centralisé**
    * **Commande** : `python manage.py run_ccxt_service`
+   * **Port** : Aucun (écoute Redis)
    * **Rôle** : Le "hub" centralisé pour toutes les connexions CCXT. Ce service maintient une seule instance de connexion par (user_id, broker_id) et communique avec les autres services via Redis. Il garantit le respect des rate limits des exchanges et évite la multiplication des connexions.
-
+   * **Responsabilités** :
+      - Exécuter les ordres de trading
+      - Récupérer les balances et positions
+      - Mettre à jour les symboles disponibles
+     
+5. **Terminal 6 : Service Webhook Receiver (NOUVEAU)**
+    - **Commande** : `python manage.py run_webhook_receiver`
+    - **Port** : 8888 (configurable)
+    - **Rôle** :
+      - Recevoir les webhooks HTTP POST, Serveur HTTP léger (FastAPI/aiohttp)
+      - Valider le token d'authentification
+      - Publier immédiatement sur Redis
+      - Répondre rapidement (200 OK)
+      - réception 24/7 des webhooks
+      - AUCUNE logique métier
+      - AUCUN accès à la base de données
+     
+    **Fonctionnement avec TERMINAL 6**
+    
 ```ascii
-    Terminal 1          Terminal 2           Terminal 3          Terminal 4          Terminal 5
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+
-| > daphne ...  |   | > python       |   | > python       |   | > npm run dev |   | > python       |
-|               |   |   manage.py    |   |   manage.py    |   |               |   |   manage.py    |
-| SERVEUR WEB   |   |   run_heartbeat|   | run_trading_   |   |   FRONTEND    |   | run_ccxt_      |
-| & WEBSOCKET   |   |                |   |   engine       |   |   (Vue.js)    |   |   service      |
-| (Standardiste)|   | HEARTBEAT      |   | TRADING ENGINE |   | (Cockpit)     |   | SERVICE CCXT   |
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+
-       ^                     |                     |                   ^                   ^
-       |                     |                     |                   |                   |
-       +---------------------+---------------------+-------------------+-------------------+
-                             |
-                      +----------------+
-                      |     REDIS      |
-                      | (Communication |
-                      |  inter-process)|
-                      | • heartbeat    |
-                      | • ccxt_requests|
-                      | • ccxt_responses|
-                      | • websockets   |
-                      +----------------+
+                          TradingView
+                              ↓   (HTTP POST port 80/443)
+                       [Firewall NAT 80→8888]
+             				   ↓
+        ┌────────────────────────────────────────────────────────────┐
+        │   Terminal 6: Webhook Receiver Service                           │
+        │   • Serveur HTTP minimaliste (aiohttp port 8888)                 │
+        │   • AUCUNE logique métier                                        │
+        │   • Juste recevoir → valider token → publier Redis               │
+        │   • 50 lignes de code max                                        │
+        └────────────────────┬───────────────────────────────────────┘
+                               │ Redis: 'webhook_raw'
+                               ↓
+        ┌───────────────────────────────────────────────────────────┐
+        │   Backend Django App: apps/webhooks/                            │
+        │   • NE TOURNE PAS dans un terminal séparé                       │
+        │   • Fait partie de Terminal 1 (Daphne)                          │
+        │   • Fournit les APIs REST pour le frontend                      │
+        │   • /api/webhooks/history/ (GET)                                │
+        │   • /api/webhooks/stats/ (GET)                                  │
+        │   • /api/webhooks/positions/ (GET)                              │
+        │   • WebSocket consumers pour updates temps réel                 │
+        └───────────────────────────────────────────────────────────┘
+                             ↑ Lit la DB
+        ┌───────────────────────────────────────────────────────────┐
+        │   Terminal 3: Trading Engine (MODIFIÉ)                          │
+        │   • Écoute Redis 'webhook_raw' ET 'heartbeat'                   │
+        │   • NOUVELLE responsabilité: Traiter les webhooks               │
+        │   • Validation métier des webhooks                              │
+        │   • Gestion état positions (WebhookState)                       │
+        │   • Décision trading → envoi ordres vers Terminal 5             │
+        │   • Sauvegarde en DB (tables webhooks, trades)                  │
+        └────────────────────┬──────────────────────────────────────┘
+                               │ Redis: 'ccxt_requests'
+                               ↓
+        ┌───────────────────────────────────────────────────────────┐
+        │   Terminal 5: Service CCXT                                      │
+        │   • Exécute les ordres                                          │
+        │   • Retourne confirmations                                      │
+        └───────────────────────────────────────────────────────────┘
 ```
-
-1. Architecture optimisée: Un seul exchange par type (bitget, binance, etc.) au lieu d'une instance par (user_id, broker_id)
-2. Injection de credentials: Les credentials sont injectés dynamiquement avant chaque appel API
-3. Affichage optimisé:
-   - Premier broker: bitget/1 → Loading → OK (35s)
-   - Deuxième broker: bitget/Aristobot2-v1 → SHARED (0s instantané)
-4. Gain d'efficacité:
-   - Avant: 2 instances séparées = 2x temps de chargement
-   - Maintenant: 1 exchange partagé + configurations instantanées
-
-**Résultat**: Au lieu de charger bitget deux fois (60-70 secondes total), on le charge une seule fois (35s) et le deuxième broker est configuré  instantanément.
+    
+**ARCHITECTURE Block**
+```ascii
+    Terminal 1          Terminal 2           Terminal 3          Terminal 4          Terminal 5			  Terminal 6
++---------------+   +----------------+   +----------------+   +---------------+   +----------------+   +----------------+
+| > daphne ...  |   | > python       |   | > python       |   | > npm run dev |   | > python       |   | > python       |
+|               |   |   manage.py    |   |   manage.py    |   |               |   |   manage.py    |   |   manage.py    |
+| SERVEUR WEB   |   |   run_heartbeat|   | run_trading_   |   |   FRONTEND    |   | run_ccxt_      |   | run_webhook_   |
+| & WEBSOCKET   |   |                |   |   engine       |   |   (Vue.js)    |   |   service      |   |      receiver  |
+| (Standardiste)|   | HEARTBEAT      |   | TRADING ENGINE |   | (Cockpit)     |   | SERVICE CCXT   |   |WEBHOOK RECEIVER|
++---------------+   +----------------+   +----------------+   +---------------+   +----------------+   +----------------+
+       ^                     |                     |                   ^                   ^                    ^
+       |                     |                     |                   |                   |                    |
+       +---------------------+---------------------+-------------------+----------------------------------------+
+                             |
+                      +-----------------+
+                      |     REDIS       |
+                      | (Communication  |
+                      |  inter-process) |
+                      | • heartbeat     |
+                      | • ccxt_requests |
+                      | • ccxt_responses|
+                      | • websockets    |
+                      | • webhooks      |
+                      +-----------------+
+```
+```ascii
+                    ARCHITECTURE COMPLÈTE ARISTOBOT3 - 6 TERMINAUX
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                     SOURCES EXTERNES                                    │
+    ├─────────────────────────────────────────────────────────────────────────┤
+    │  • TradingView (Webhooks)                                              │
+    │  • Binance WebSocket (Market Data)                                     │
+    │  • Exchanges APIs (CCXT)                                               │
+    └─────────────────────────────────────────────────────────────────────────┘
+                    ↓                    ↓                    ↓
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                          COUCHE RÉCEPTION                              │
+    ├─────────────────────────────────────────────────────────────────────────┤
+    │                                                                         │
+    │  Terminal 2: Heartbeat          Terminal 6: Webhook Receiver           │
+    │  • WebSocket Binance            • HTTP Server (port 8888)              │
+    │  • Signaux temporels            • Réception TradingView                │
+    │  • Bougies OHLCV                • Validation token                     │
+    │  └→ Redis: 'heartbeat'          └→ Redis: 'webhook_raw'               │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+                    ↓                                      ↓
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                       COUCHE TRAITEMENT                                │
+    ├─────────────────────────────────────────────────────────────────────────┤
+    │                                                                         │
+    │              Terminal 3: Trading Engine                                │
+    │              • Écoute Redis: 'heartbeat' + 'webhook_raw'              │
+    │              • Exécution stratégies Python                            │
+    │              • Traitement webhooks                                    │
+    │              • Gestion des positions                                  │
+    │              • Décisions de trading                                   │
+    │              └→ Redis: 'ccxt_requests'                               │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+                                        ↓
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                        COUCHE EXÉCUTION                                │
+    ├─────────────────────────────────────────────────────────────────────────┤
+    │                                                                        │
+    │              Terminal 5: Service CCXT Centralisé                       │
+    │              • Gestion instances exchanges                             │
+    │              • Exécution ordres                                        │
+    │              • Rate limiting                                           │
+    │              • Cache symboles                                          │
+    │              └→ Redis: 'ccxt_responses'                                │
+    │                                                                        │
+    └------------------------------------------------------------------------┘
+                                        ↓
+    
+    ┌------------------------------------------------------------------------┐
+    │                      COUCHE PRÉSENTATION                               │
+    ├------------------------------------------------------------------------┤
+    │                                                                        │
+    │  Terminal 1: Daphne (Django)        Terminal 4: Frontend (Vue.js)      │
+    │  • API REST                          • Interface utilisateur           │
+    │  • WebSocket Server                  • Dashboard temps réel            │
+    │  • Authentification                  • Graphiques & monitoring         │
+    │  • Backend apps/*                    • Gestion des stratégies          │
+    │                                                                        │
+    └------------------------------------------------------------------------┘
+    
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                         COUCHE DONNÉES                                 │
+    ├─────────────────────────────────────────────────────────────────┤
+    │  PostgreSQL                          Redis                             │
+    │  • Persistance complète              • Pub/Sub inter-process           │
+    │  • Multi-tenant                      • Cache temporaire                │
+    │  • Historique trades                 • Channels:                       │
+    │  • Stratégies & positions            - heartbeat                       │
+    │                                       - webhook_raw                    │
+    │                                       - ccxt_requests/responses        │
+    │                                       - websockets                     │
+    └─────────────────────────────────────────────────────────────────────────┘
+```
 
 ### 3.1 Le Cœur du Système : Le Service Heartbeat
 
@@ -241,50 +391,26 @@ Le **Heartbeat** est le service le plus fondamental. Il fonctionne comme le mét
   * **Canal `Heartbeat`** : C'est le canal le plus important. Dès qu'une bougie (pour n'importe quelle timeframe) est clôturée, un message structuré (un "signal") est envoyé sur ce canal. C'est ce signal qui déclenchera les actions du Moteur de Trading. Ce signal est simplement "1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h".
     4.**Persistance des Données** : Chaque bougie clôturée est systématiquement enregistrée dans la table `candles_Heartbeat` de la base de données PostgreSQL et les dates/heure/min du démarrage et de l'arrêt de l'application aristobot dans la table  `heartbeat_status`,
 * **Rôle** : Fournir un flux constant et fiable de signaux.
-* **Backend** :
+* **Backend** :
 
   * Au démarrage de l'application, enregistre dans la table `heartbeat_status`,  `last_ApplicationStart` la date/heur/min du système
   * A l'arrêt de l'application, enregistre dans la table `heartbeat_status`,  `last_ApplicationStop`  la date/heur/min du système
-  * S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
+  * S'abonne aux channels `StreamBrut` et `Heartbeat` pour relayer les informations au frontend via WebSocket.
   * `StreamBrut` -> Publie les données brute reçue du websocket de Binance
   * `Heartbeat` ->  Publie Le signal (1min, 5min, etc.) et la date/heure/min du traitement
   * Enregistre dans la DB `Candles_Heartbeat` Les données traitées
   * **A implémenter plus tard...**
 
     * Vérifie la cohésion du Stream `Heartbeat` en vérifiant qu'il ne manque pas de bougies depuis le lancement de l'application. -> A implémenter plus tard
-* **Frontend** : Visualiser l'état du service Heartbeat.
+* **Frontend** : Visualiser l'état du service Heartbeat.
 
   * Affiche le flux de données `StreamBrut` brutes en temps réel dans une liste défilante de 60 lignes nommée "Stream Temps Reel". Le but est simplement de voir le stream passer, pour le plaisir...
   * Publie en temps réel le signal `Heartbeat`  + AA.MM.DD_HH:MM  dans des case pour chaque timeframe. Les cases sont des listes défilante qui affichent les 20 derniers éléments visibles sur 60, le plus récent en haut. A l'initialisation, les cases sont alimentées par les 60 données les plus récentes lue de la  DB `Candles_Heartbeat` , ces lignes sont affichées en orange, puis dès que les signaux arrivent sur `Heartbeat`, ils sont affiché en premier de la liste et en vert
-* **DB** :
-* Lecture de la table `heartbeat_status` pour afficher l'état de connexion du service.
+* **DB** :
+* Lecture de la table `heartbeat_status` pour afficher l'état de connexion du service.
 * Enregistre dans la table `candles_Heartbeat` l'`ìd` de `hertbeat_status`, la date/heure/minute de l'enregistrement `DHM-RECEPTION`, la date/heure/minute de la bougie reçue `DHM-CANDLE`, le type de signal publié `SignalType` ("1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h")
 * Enregistre dans la table `hertbeat_status` `last_ApplicationStart` et  `last_ApplicationStop`
 
-### 3.2 Le Cerveau : Le Moteur de Trading (Trading Engine)
-
-Le **Trading Engine** est le service qui prend les décisions. Il est totalement réactif et ne fait rien tant qu'il n'est pas stimulé par le Heartbeat.
-
-**Rôle** : Évaluer les stratégies et exécuter les ordres de trading.
-
-**Workflow détaillé** :
-
-1. **Initialisation au démarrage** : Le Trading Engine utilise le Service  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les Exchanges
-2. **À l'écoute du Cœur** : Le service `run_trading_engine.py` est abonné au canal `Heartbeat` et attend passivement les signaux.
-3. **Réaction au Signal** : Le moteur consulte la table `active_strategies` en base de données pour trouver toutes les stratégies qui correspondent aux critères du signal :
-    * La stratégie est-elle active (`is_active = True`) ?
-    * La date/heure actuelle est-elle dans la plage de validité (entre `start_date` et `end_date`) ?
-    * L'unité de temps de la stratégie correspond-elle à celle du signal (ex: `15m`) ?
-4. **Exécution de la Logique** : Pour chaque stratégie correspondante, le moteur :
-   * A) Récupère les toutes les bougies à la stratégie par le **Service CCXT centralisé** (Terminal 5)**
-   * B) Chargement dynamique de la stratégie:
-     * Charge le code Python de la stratégie depuis la table `strategies`, puis l’exécute en mémoire via `exec()` dans un **espace de noms local isolé** (ex. un dictionnaire temporaire de type `local_vars`). Cette isolation garantit que le code de l'utilisateur n'interfère pas avec les variables du moteur lui-même.
-     * Une fois le code exécuté, le moteur **parcourt les objets définis** dans cet espace local pour identifier, à l’aide de `issubclass`, la classe qui hérite de la base `Strategy`. Cette classe devient alors la stratégie active
-   * C) Le moteur instancie dynamiquement cette classe, en lui passant les données nécessaires (`candles`, `balance`, etc.). L’instance obtenue expose alors les méthodes de décision (`should_long()`, `should_short()`, etc.), qui peuvent être appelées directement pour déterminer s’il faut prendre une position ou non.
-   * D) Exécute la logique de la stratégie (`should_long()`, etc.).
-5. **Interaction avec les Brokers** : Si une stratégie décide d'ouvrir ou de fermer une position, le moteur utilise le **Service CCXT Centralisé**  pour communiquer avec le broker de l'utilisateur et passer les ordres (y compris les Stop Loss et Take Profit).
-6. **Surveillance Continue** : Indépendamment des signaux, le moteur vérifie également à intervalle régulier (toutes les minutes) l'état des trades ouverts pour s'assurer que les TP/SL n'ont pas été atteints
-7. **Gestion Concurrente** : Grâce à `asyncio`, si un signal déclenche 10 stratégies en même temps, le moteur peut les traiter de manière quasi-simultanée, évitant ainsi tout goulot d'étranglement.
 
 ### **3.3 Architecture CCXT : Service Centralisé via Redis**
 
@@ -297,16 +423,69 @@ Le **Trading Engine** est le service qui prend les décisions. Il est totalement
 * **Communication Redis** : Tous les autres services communiquent via channels `ccxt_requests` et `ccxt_responses`
 * **Coexistence intelligente** : CCXT direct pour tests ponctuels (User Account) + service centralisé pour opérations répétées (Trading)
 
+#### **FICHIERS CONSTITUTIFS**
+1. Fichier Principal de Service
+    - backend/apps/core/management/commands/run_ccxt_service.py
+        - Rôle : Point d'entrée du service (commande Django)
+        - Fonction : Boucle principale d'écoute des requêtes Redis
+        - Handlers : 11 types de requêtes (balance, ordres, tickers, etc.)
+
+2. Gestionnaire CCXT
+    - backend/apps/core/services/ccxt_manager.py
+        - Rôle : Singleton pour gérer les instances CCXT
+        - Fonction : Création/réutilisation des connexions exchanges
+        - Optimisation : Préchargement des brokers actifs
+
+3. Client CCXT
+    - backend/apps/core/services/ccxt_client.py
+        - Rôle : Interface de communication pour les autres modules
+        - Fonction : Envoi de requêtes au service via Redis
+        - Pattern : Request/Response asynchrone avec UUID
+  
+4. A compléter
+
+5. A compléter
+
 **Channels Redis :**
-```python
+```
 # Communication inter-processus
 ccxt_requests  : Trading Engine → Service CCXT
 ccxt_responses : Service CCXT → Trading Engine
 heartbeat     : Heartbeat → Trading Engine (existant)
 websockets    : Tous → Frontend (existant)
+A compléter
+```
+**FLUX DE COMMUNICATION:**
+ ``` 
+1. **`heartbeat`**
+   - Publié par : Terminal 2 (Heartbeat)
+   - Écouté par : Terminal 3 (Trading Engine)
+   - Contenu : Signaux de clôture de bougies (1m, 5m, 15m, etc.)
+
+2. **`webhook_raw`**
+   - Publié par : Terminal 6 (Webhook Receiver)
+   - Écouté par : Terminal 3 (Trading Engine)
+   - Contenu : Webhooks bruts avec timestamp
+
+3. **`ccxt_requests`**
+   - Publié par : Terminal 3 (Trading Engine)
+   - Écouté par : Terminal 5 (Service CCXT)
+   - Contenu : Ordres à exécuter, demandes de balance
+
+4. **`ccxt_responses`**
+   - Publié par : Terminal 5 (Service CCXT)
+   - Écouté par : Terminal 3 (Trading Engine)
+   - Contenu : Confirmations d'ordres, balances
+
+5. **`websockets`**
+   - Publié par : Tous les terminaux
+   - Écouté par : Terminal 1 (Daphne) → Frontend
+   - Contenu : Updates temps réel pour l'UI
 ```
 **Cycle de vie :**
-```python
+```
+ A corriger / compléter
+ 
 # Communication asynchrone via Redis
 1. Trading Engine → CCXTClient.get_balance(broker_id)
 2. CCXTClient → Redis (ccxt_requests)
@@ -314,7 +493,7 @@ websockets    : Tous → Frontend (existant)
 4. CCXTClient → Reçoit la réponse → Retourne au Trading Engine
 ```
 
-* **Documentation**
+* **Documentation CCXT**
     * CCXT -> https://docs.ccxt.com/#/baseSpec
     * Placer un ordre -> https://docs.ccxt.com/#/baseSpec?id=createorder
     * Liste des ordres ouverts -> https://docs.ccxt.com/#/baseSpec?id=fetchopenorder
@@ -336,19 +515,41 @@ websockets    : Tous → Frontend (existant)
   * Table `exchange_symbols` mise à jour pour chaque Exchange. 
   
 
-***Commentaire AI :*** Cette architecture découplée est très robuste. Le Heartbeat se contente de donner le tempo, et le Trading Engine d'y réagir. Si le Trading Engine plante, le Heartbeat continue de collecter les données. Si le Heartbeat se déconnecte, le Trading Engine attend simplement le prochain signal. C'est un excellent design.*
-
 ***Améliorations:***  Ne pas lancer de développement ni de plan…
 
 * Que faire si les signaux n'arrivent plus ?
-* Les données de marché (`candles`) sont lues localement depuis la base, garantissant des temps de réponse rapides, même pour des fenêtres larges (jusqu’à 200 bougies ou plus). Le solde (`balance`) est quant à lui récupéré en temps réel auprès du broker via API, afin de toujours refléter la réalité à l’instant du signal.
+* Les données de marché (`candles`) sont lues localement depuis la base, garantissant des temps de réponse rapides, même pour des fenêtres larges (jusqu'à 200 bougies ou plus). Le solde (`balance`) est quant à lui récupéré en temps réel auprès du broker via API, afin de toujours refléter la réalité à l'instant du signal.
 * Que faire si plus d'une bougie est récupérée pour calculer la stratégie ? Cela veut dire qu'une partie de l'application était plantée ?
 * S'il devait y avoir une incohérence dans la suite des bougies et la plage de date (bougie manquante par ex.), le signaler dans la barre de status et l'enregistrer dans une table d'alerte ? Recharger la plage ? stopper le trading ?
-* 🔄 **Exécution parallèle sécurisée** : Le moteur exécute en parallèle la récupération des bougies via le broker (`A`, avec `ccxt.async_support`) et le chargement dynamique du code Python de la stratégie depuis la base (`B`, via `exec()` dans un espace isolé). Ces deux opérations étant indépendantes, elles sont lancées simultanément avec `asyncio.gather()`, ce qui réduit significativement la latence. L’instanciation de la stratégie (`C`) n’intervient qu’une fois les deux résultats disponibles. Ce processus est sûr, à condition de gérer les erreurs d’exécution du code utilisateur (via `try/except`) et de veiller à une synchronisation correcte des données.
+* 🔄 **Exécution parallèle sécurisée** : Le moteur exécute en parallèle la récupération des bougies via le broker (`A`, avec `ccxt.async_support`) et le chargement dynamique du code Python de la stratégie depuis la base (`B`, via `exec()` dans un espace isolé). Ces deux opérations étant indépendantes, elles sont lancées simultanément avec `asyncio.gather()`, ce qui réduit significativement la latence. L'instanciation de la stratégie (`C`) n'intervient qu'une fois les deux résultats disponibles. Ce processus est sûr, à condition de gérer les erreurs d'exécution du code utilisateur (via `try/except`) et de veiller à une synchronisation correcte des données.
 
 ## 4. Description Détaillée des Applications Django
 
 Chaque application Django est un module spécialisé, interagissant avec les autres et la base de données.
+### 3.2 Le Cerveau : Le Moteur de Trading (Trading Engine)
+
+Le **Trading Engine** est le service qui prend les décisions. Il est totalement réactif et ne fait rien tant qu'il n'est pas stimulé par le Heartbeat.
+
+**Rôle** : Évaluer les stratégies et exécuter les ordres de trading.
+
+**Workflow détaillé** :
+
+1. **Initialisation au démarrage** : Le Trading Engine utilise le Service  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les Exchanges
+2. **À l'écoute du Cœur** : Le service `run_trading_engine.py` est abonné au canal `Heartbeat` et attend passivement les signaux.
+3. **Réaction au Signal** : Le moteur consulte la table `active_strategies` en base de données pour trouver toutes les stratégies qui correspondent aux critères du signal :
+    * La stratégie est-elle active (`is_active = True`) ?
+    * La date/heure actuelle est-elle dans la plage de validité (entre `start_date` et `end_date`) ?
+    * L'unité de temps de la stratégie correspond-elle à celle du signal (ex: `15m`) ?
+4. **Exécution de la Logique** : Pour chaque stratégie correspondante, le moteur :
+   * A) Récupère les toutes les bougies à la stratégie par le **Service CCXT centralisé** (Terminal 5)**
+   * B) Chargement dynamique de la stratégie:
+     * Charge le code Python de la stratégie depuis la table `strategies`, puis l'exécute en mémoire via `exec()` dans un **espace de noms local isolé** (ex. un dictionnaire temporaire de type `local_vars`). Cette isolation garantit que le code de l'utilisateur n'interfère pas avec les variables du moteur lui-même.
+     * Une fois le code exécuté, le moteur **parcourt les objets définis** dans cet espace local pour identifier, à l'aide de `issubclass`, la classe qui hérite de la base `Strategy`. Cette classe devient alors la stratégie active
+   * C) Le moteur instancie dynamiquement cette classe, en lui passant les données nécessaires (`candles`, `balance`, etc.). L'instance obtenue expose alors les méthodes de décision (`should_long()`, `should_short()`, etc.), qui peuvent être appelées directement pour déterminer s'il faut prendre une position ou non.
+   * D) Exécute la logique de la stratégie (`should_long()`, etc.).
+5. **Interaction avec les Brokers** : Si une stratégie décide d'ouvrir ou de fermer une position, le moteur utilise le **Service CCXT Centralisé**  pour communiquer avec le broker de l'utilisateur et passer les ordres (y compris les Stop Loss et Take Profit).
+6. **Surveillance Continue** : Indépendamment des signaux, le moteur vérifie également à intervalle régulier (toutes les minutes) l'état des trades ouverts pour s'assurer que les TP/SL n'ont pas été atteints
+7. **Gestion Concurrente** : Grâce à `asyncio`, si un signal déclenche 10 stratégies en même temps, le moteur peut les traiter de manière quasi-simultanée, évitant ainsi tout goulot d'étranglement.
 
 ##### **Heartbeat  a été intégré dans `apps/core` (voir -> 3.1) lors de l'implémentation initiale**
 
@@ -358,19 +559,18 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
 
 #### 4.2. **User Account (`apps/accounts`)**
 
-**Rôle** : Gérer le compte utilisateur, leurs paramètres de sécurité et leurs configurations personnelles
-**Description** :
+* **Rôle** : Gérer le compte utilisateur, leurs paramètres de sécurité et leurs configurations personnelles4
 
-* **Gestion des Brokers** : L'interface permettra un CRUD complet des comptes brokers via une **fenêtre modale**. Lors de l'ajout ou de la modification d'un broker, une **vérification de la validité des clés API** sera effectuée en temps réel en tentant une connexion via CCXT. Si la connexion réussit, le solde du compte peut être affiché pour confirmation avant de sauvegarder.
-* **Mise à jour des Paires de Trading** : Un bouton "[MAJ Paires de trading]" sera disponible pour chaque broker. Au clic, un processus asynchrone en arrière-plan chargera (via CCXT) toutes les paires de trading disponibles pour cet exchange et les stockera dans une table partagée. `-> voir 3.3 Architecture CCXT`. * Les nouveaux brokers ajoutés dans l'application en cours de route depuis "User Account" sont chargés après la vérification du compte.
-
-  * **Configuration IA** : L'utilisateur peut choisir entre "OpenRouter" (nécessitant une clé API) et "Ollama" (avec une URL suggérée par défaut : `http://localhost:11434`). Des interrupteurs ON/OFF permettent d'activer l'un ou l'autre (activer l'un désactive l'autre). Si les deux sont sur OFF, l'assistant IA dans l'application `Stratégies` sera désactivé. Doit permettre la sélection du modèle
-  * **Paramètres d'Affichage** :
-    * **Thème** : Un sélecteur pour basculer entre le mode sombre (obligatoirement avec des couleurs néon) et un mode clair.
-    * **Fuseau Horaire** : Un sélecteur pour afficher toutes les dates et heures de l'application soit en **UTC**, soit dans le **fuseau horaire local** du navigateur. Le choix est stocké dans le profil utilisateur
-* **Backend** :
-
-  * Gère l'enregistrement de nouveaux Exchanges (Brokers) CRUD.
+* **Description** :
+    * **Gestion des Brokers:** L'interface permettra un CRUD complet des comptes brokers via une **fenêtre modale**. Lors de l'ajout ou de la modification d'un broker, une **vérification de la validité des clés API** sera effectuée en temps réel en tentant une connexion via CCXT. Si la connexion réussit, le solde du compte peut être affiché pour confirmation avant de sauvegarder.
+    * **Mise à jour des Paires de Trading** : Un bouton "[MAJ Paires de trading]" sera disponible pour chaque broker. Au clic, un processus asynchrone en arrière-plan chargera (via CCXT) toutes les paires de trading disponibles pour cet exchange et les stockera dans une table partagée. `-> voir 3.3 Architecture CCXT`. * Les nouveaux brokers ajoutés dans l'application en cours de route depuis "User Account" sont chargés après la vérification du compte.
+    * **Configuration IA** : L'utilisateur peut choisir entre "OpenRouter" (nécessitant une clé API) et "Ollama" (avec une URL suggérée par défaut : `http://localhost:11434`). Des interrupteurs ON/OFF permettent d'activer l'un ou l'autre (activer l'un désactive l'autre). Si les deux sont sur OFF, l'assistant IA dans l'application `Stratégies` sera désactivé. Doit permettre la sélection du modèle
+    * **Paramètres d'Affichage** :
+        * **Thème** : Un sélecteur pour basculer entre le mode sombre (obligatoirement avec des couleurs néon) et un mode clair.
+        * **Fuseau Horaire** : Un sélecteur pour afficher toutes les dates et heures de l'application soit en **UTC**, soit dans le **fuseau horaire local** du navigateur. Le choix est stocké dans le profil utilisateur
+        * 
+* **Backend** :
+    * Gère l'enregistrement de nouveaux Exchanges (Brokers) CRUD.
     * Les Exchanges (Brokers) sont fourni par la librairie CCXT
     * Envoie la liste des Exchanges (ccxt.exchanges)
       ```
@@ -384,25 +584,26 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
     * Envoyer le solde du compte une fois la connexion  établie
     * **Utilise CCXT direct** pour les tests de connexion et listing des exchanges (opérations ponctuelles)
     * Mise à jour des marchés via le **Service CCXT centralisé** (Terminal 5)
-  * Gère l'enregistrement et l'envoi des préférences utilisateur.
-  * **Note technique** : User Account garde CCXT direct car les tests de connexion sont ponctuels et ne posent pas de problème de rate limits
-* **Frontend** : Fournit les interfaces pour :
-
+    * Gère l'enregistrement et l'envoi des préférences utilisateur.
+    * **Note technique** : User Account garde CCXT direct car les tests de connexion sont ponctuels et ne posent pas de problème de rate limits
+    
+* **Frontend** : Fournit les interfaces pour :
   * Changer son mot de passe.
   * Gérer ses comptes de brokers (CRUD via une fenêtre modale).
-    * La modale affiche la liste des brocers reçu du backend
+    * La modale affiche la liste des brokers reçu du backend
     * Pour la création, modification, la modale affiche les `requiredCredentials` nécessaires
   * Définir un broker par défaut.
   * Configurer la connexion à une IA (OpenRouter ou Ollama) avec clé API/URL et un switch ON/OFF.
   * Gérer les paramètres d'affichage décrits.
-* **DB** : Interagit principalement
-* Table `users` (étendue du modèle Django
-* Table `brokers`.
-* Table `exchange_symbols`
+    
+* **DB** : Interagit principalement
+    * Table `users` (étendue du modèle Django
+    * Table `brokers`.
+    * Table `exchange_symbols
+    * `
 * **Script d'Initialisation** : La commande `python manage.py init_aristobot` sera créée. Son unique rôle sera de créer les utilisateurs "dev" et "dac" en base de données pour faciliter le premier lancement.
 
-#### 4.2.bis **Debug Mode (`apps/auth_custom`)**
-
+#### 4.2.01 **Debug Mode (`apps/auth_custom`)**
 * **Rôle** : Gérer le mode développement pour faciliter les tests automatisés.
 * **Backend** :
   * Gère l'état du mode debug via le modèle singleton `DebugMode`
@@ -410,22 +611,33 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
   * Vérifie la variable d'environnement `DEBUG_ARISTOBOT`
 * **Frontend** : Intégré dans la page de login (bouton Mode développement)
 * **DB** : Table `debug_mode` (singleton, un seul enregistrement)
-
+* 
+#### 4.2.02 Paramètre websocket/Stratégie/OFF (`apps/auth_custom`)
+* **Rôle** : Possibilité d'activer/désactiver le compte Exchange pour le mode  Webhook ou Stratégie ou OFF. Le trading Manuel doit toujours être possible (modifier les trades automatiques) sauf sur OFF. L’application Stratégie l'utilise si `TypeDeTrading`="Stratégie". L'application "Webhooks" ne l'utilise que si `TypeDeTrading`="Webhooks". L'application "Trading Manuel" ne l'utilise pas si `TypeDeTrading`="OFF"
+* **Backend** :
+  * Enregistre les paramètre dans la DB 
+* **Frontend** :
+    * Sur chaque ligne Exchange, une sélectbox affiche les  possibilités. Par défaut initialiser sur "
+* **DB** :
+    * Tenir à jours le champ `TypeDeTrading` de la table `brokers`
+        * Valeurs possibles: "OFF" ou "Stratégie" ou "Webhooks".
+    
 #### 4.3. **Trading Manuel (`apps/trading_manual`)**
 
-* **Rôle** : Permettre à l'utilisateur de passer des ordres manuellement, comme il le ferait sur la plateforme d'un exchange.
+* **Rôle** : Permettre à l'utilisateur de passer des ordres manuellement, comme il le ferait sur la plateforme d'un exchange.
 * **Description** :  Le broker par défaut de l'utilisateur est proposé à l'utilisateur. Il peut choisir à l'aide d'une scroll list le broker avec lequel il veut travailler. La zone de saisie de trade sera ergonomique : si l'utilisateur saisit une quantité, la valeur en USD est calculée ; s'il saisit un montant en USD, la quantité d'actifs est calculée. La liste des symboles disponibles sera **filtrée par un dispositif de sélection "USDT (oui/non), USDC (oui/non), Tous(oui/non), fonction de recherche** pour une meilleure utilisabilité.  Dans le cas de "Tous", tous les assets sont disponibles à la recherche.
   
-* **Backend** : Utilise  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les exchanges. Effectue tous les calculs, accès DB, accès brokers (Service CCXT) nécessaire au fonctionnement du frontend. Communication avec le frontend par Websocket.
-  * Connexion au broker sélectionné.
+* **Backend** : Utilise  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les exchanges. Effectue tous les calculs, accès DB, accès brokers (Service CCXT) nécessaire au fonctionnement du frontend. Communication avec le frontend par Websocket.
+  * **Connexion** au broker sélectionné.
   * **Symboles disponibles**
       * Récupère la liste des symboles pour le brocker
-      * Réponces aux filtres
-  * Récupération de la balance et des positions en cours.
+      * Réponses aux filtres
+  * **Récupération** de la balance et des positions en cours.
+      * Utiliser 
   * **Passer un ordre**
       * Passage d'ordres (marché, limite). Exécution asynchrone pour éviter les timeouts HTTP
   * Récupère le marché depuis **CCXTClient**
-  * Récupère l’attribut **`exchange.has`** qui te donne la liste des capacités (fonctions) disponibles pour un exchange donné.
+  * Récupère l'attribut **`exchange.has`** qui te donne la liste des capacités (fonctions) disponibles pour un exchange donné.
   * **Ordres ouverts et ordres fermés**
       * Récupère les ordres ouverts
       * Supprimer des ordres ouverts 
@@ -440,12 +652,12 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
   * **Note technique** : Utilise **CCXTClient** (service centralisé)
     
     
-* **Frontend** : Affiche par Websocket les données du Backend. Tous les calculs, validations, accès aux bocker, DB est fait par le Backend.
+* **Frontend** : Affiche par Websocket les données du Backend. Tous les calculs, validations, accès aux bocker, DB est fait par le Backend.
   * La liste des brokers configurés par l'utilisateur pour choix.
       * Liste box de sélection dans le menu
   * **Zones d'affichage**
       * **Portfolio**
-          * Affiche le portefeuille d'actifs avec les totaux du broker sélectioné
+          * Affiche le portefeuille d'actifs avec les totaux du broker sélectionné
           * Affiche la valeur total   
       * **Symboles disponibles**
           * Une zone de sélection de l'asset selon description.
@@ -454,13 +666,13 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
           * Des boutons "Achat" et "Vente".
           * Bouton Valider
           * Bouton Exécuter
-          * Cadre _trade-summary_ AU-DESSUS des boutons valider et exécuter (résumé du trade calculé)
+          * Cadre _trade-summary_ AU-DESSUS des boutons valider et exécuter (Zone pour afficher différents messages par exemple résumé du trade calculé, message de confirmation de l'Exchange, etc.)
           * Cadre _validation-status_ EN-DESSOUS (statut de validation orange/vert avec timer)
       * **Capacités Exchange**
           * Une zone d'information décrivant les capacités de l'Exchange sélectionné, près de la liste des broker
       * **Ordres ouverts et fermés**
           * Voir l'historique complet des ordres (ouverts + fermés) via le toggle "Historique"
-          * Ong
+          * 
           * Bouton "Supprimer" sur chaque lignes d'ordres ouverts
           * Bouton "Modifier" sur chaque lignes d'ordres ouverts
               * Exécution CCXT en thread séparé avec mise à jour DB automatique
@@ -471,31 +683,47 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
                   * Propriété calculée currentOrdersList : Fusion dynamique des listes d'ordres
                   * Mise à jour automatique : Rechargement des bonnes données après exécution/annulation
           *    
-* **DB** : Enregistre chaque transaction manuelle dans la table `trades`. **Important** renseigner dans un champ que c'est un Trade Manuel.
+* **DB** : Enregistre chaque transaction manuelle dans la table `trades`. **Important** renseigner dans un champ que c'est un Trade Manuel.
     * **Ordres ouverts**
       * rien à faire
 
+##### 4.3.1 Ordre SL, TP, OCO (Rafactoring)
+* **But**: Ajouter les types d'ordres nécessaire au trading. Documentation: https://github.com/ccxt/ccxt/wiki/Manual#placing-orders
+   
+* **Backend** :Utilise  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les exchanges. Effectue tous les calculs, accès DB, accès brokers (Service CCXT) nécessaire au fonctionnement du frontend. Communication avec le frontend par Websocket. S'inspirer du code existant, ne pas supprimer de fonctionnalités.
+     * Passer un order Stop Loss, en mode asynchrone (non bloquant)
+     * Passer un order Take Profit, en mode asynchrone (non bloquant)
+     * Passer un order Stop Loss, en mode asynchrone (non bloquant)
+       
+* **Fontend**: Refaire la zone "Passer un ordre". Inclure les nouveaux éléments (sans supprimer les actuels), agrandir la colonne de manière à utiliser 50% de l'écran. Les 2 autres colonnes se partagent les 50% restant à part égale (25% chaque une).
+     * Sélectionner le type d'ordre à passer (SL, TP, OCO, sans supprimer Market et Limit)
+     * Afficher les champs nécessaire en fonction du type d'ordres saisi
+       
+* **DB**
+    * rien a faire
+ 
+
 #### 4.4. **Trading BOT (`apps/trading_engine`)**
 
-* **Rôle** : Gère le cycle de vie des stratégies actives. Il ne fait aucun calcul de trading lui-même (c'est le rôle du _Trading Engine_), mais il met à jour la base de données pour que le moteur sache quoi faire.
-* **Description** :
+* **Rôle** : Gère le cycle de vie des stratégies actives. Il ne fait aucun calcul de trading lui-même (c'est le rôle du _Trading Engine_), mais il met à jour la base de données pour que le moteur sache quoi faire.
+* **Description** :
 
   * **Comportement des Boutons** :
     * **Bouton "Stop"** : Cette action est une **désactivation sécurisée**. Elle met à jour la date de fin de la stratégie active à une date passée (`01.01.01`) ET bascule son champ `is_active` à `False`. Si un trade est actuellement ouvert pour cette stratégie, une **boîte de dialogue de confirmation** avertira l'utilisateur avant de procéder.
-    * **Bouton "Vendre"** : Déclenche une vente immédiate au prix du marché pour la position ouverte par une stratégie, sans pour autant désactiver la stratégie elle-même.
+    * **Bouton "Vendre"** : Déclenche une vente immédiate au prix du marché pour la position ouverte par une stratégie, sans pour autant désactiver la stratégie elle-même.
     * **Bouton "Suspendre" (Amélioration)** : Il est suggéré d'ajouter un bouton pour suspendre temporairement une stratégie (en basculant simplement `is_active` à `False`), ce qui permettrait de la réactiver plus tard sans devoir reconfigurer les dates.
-* **Backend** : Activer, désactiver et surveiller les stratégies de trading automatisées.
-* **Frontend** : Permet à l'utilisateur de :
+* **Backend** : Activer, désactiver et surveiller les stratégies de trading automatisées.
+* **Frontend** : Permet à l'utilisateur de :
 
   * Sélectionner une stratégie, un broker, un symbole et une plage de dates de fonctionnement et l'activer par un sélecteur `is_active` à `True`.
   * Voir la liste des stratégies actuellement actives.
   * Visualiser les 10 derniers trades et le P\&L (Profit & Loss) pour chaque stratégie active.
-* **DB** : L'interface principale pour la table `active_strategies` (CRUD). Lit la table `trades` pour afficher l'historique récent.
+* **DB** : L'interface principale pour la table `active_strategies` (CRUD). Lit la table `trades` pour afficher l'historique récent.
 
 #### 4.5. **Stratégies (`apps/strategies`)**
 
-* **Rôle** : L'atelier de création et de gestion des stratégies de trading.
-* **Description** : L'utilisateur modifie le template de base en ajoutant des conditions a l'aide de fonctions fournie par la librairie Python "Pandas TA Classic" ->  `pip install -U git+https://github.com/xgboosted/pandas-ta-classic`
+* **Rôle** : L'atelier de création et de gestion des stratégies de trading.
+* **Description** : L'utilisateur modifie le template de base en ajoutant des conditions a l'aide de fonctions fournie par la librairie Python "Pandas TA Classic" ->  `pip install -U git+https://github.com/xgboosted/pandas-ta-classic`
 * **Template de Base** : Toute nouvelle stratégie sera créée à partir d'un template de base. Ce code sera affiché dans l'éditeur de l'interface.
 
   ```python
@@ -527,7 +755,7 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
           return 0.0
   ```
 
-Exemple d’implémentation par l'utilisateur du croisement EMA 10 / EMA 20
+Exemple d'implémentation par l'utilisateur du croisement EMA 10 / EMA 20
 
 ```
 import pandas_ta as ta
@@ -591,21 +819,21 @@ class MaNouvelleStrategie(Strategy):
 * `self.candles` doit être un **DataFrame Pandas** avec une colonne `'close'`.
 * Le croisement est vérifié entre **la bougie précédente** (`iloc[-2]`) et **la bougie actuelle** (`iloc[-1]`).
 * 
-* **Backend** : Gère le CRUD des stratégies. Fournit une fonctionnalité clé : un endpoint d'API qui reçoit le code Python d'une stratégie et le valide syntaxiquement avant de l'enregistrer.
+* **Backend** : Gère le CRUD des stratégies. Fournit une fonctionnalité clé : un endpoint d'API qui reçoit le code Python d'une stratégie et le valide syntaxiquement avant de l'enregistrer.
   
-* **Frontend** :
+* **Frontend** :
 
   * Affiche la liste des stratégies de l'utilisateur (CRUD).
   * Fournit un éditeur de code pour écrire ou modifier la logique d'une stratégie en Python, basé sur un template prédéfini.
   * Intègre un "assistant IA" qui permet à l'utilisateur de décrire sa logique en langage naturel pour aider à générer le code.
   * Un bouton "Tester la syntaxe" envoie le code au backend pour validation.
-* **DB** : Gère les enregistrements de la table `strategies`.
+* **DB** : Gère les enregistrements de la table `strategies`.
 
 #### 4.6. **Backtest (`apps/backtest`)**
 
-* **Rôle** : Simuler l'exécution d'une stratégie sur des données historiques pour en évaluer la performance potentielle.
-* **Description** : Permet de lancer un backtest en sélectionnant une stratégie, une plage de dates, un symbole, un timeframe et un montant de départ. Affiche les résultats : statistiques de performance (gains, drawdown, etc.) et la liste de tous les trades simulés. Les données de bougies historiques sont dans la `candles` avec le Broker identifié. Ainsi, si d'autres utilisateurs et d'autres stratégies ont besoin de ces données elles sont accessible. Eviter de backtester sur les bougies d'un autre broker que celui sélectionner pour la stratégie. Si les bougies n'existent pas, elles sont chargées avec le  **Service CCXT centralisé** (Terminal 5).
-* **Backend** :
+* **Rôle** : Simuler l'exécution d'une stratégie sur des données historiques pour en évaluer la performance potentielle.
+* **Description** : Permet de lancer un backtest en sélectionnant une stratégie, une plage de dates, un symbole, un timeframe et un montant de départ. Affiche les résultats : statistiques de performance (gains, drawdown, etc.) et la liste de tous les trades simulés. Les données de bougies historiques sont dans la `candles` avec le Broker identifié. Ainsi, si d'autres utilisateurs et d'autres stratégies ont besoin de ces données elles sont accessible. Eviter de backtester sur les bougies d'un autre broker que celui sélectionner pour la stratégie. Si les bougies n'existent pas, elles sont chargées avec le  **Service CCXT centralisé** (Terminal 5).
+* **Backend** :
 
   * Charge les données de bougies historiques.
   * Exécute la logique de la stratégie sélectionnée sur cette plage de données.
@@ -615,7 +843,7 @@ class MaNouvelleStrategie(Strategy):
   * Gère la possibilité de l'interruption du calcul par l'utilisateur
   * Gère la possibilité de l'interruption par l'utilisateur du chargement des bougies
   * Pour les fees -> https://docs.ccxt.com/#/exchanges/bitget?id=fetchtradingfee
-* **Frontend** : Permet à l'utilisateur:
+* **Frontend** : Permet à l'utilisateur:
 
   * De sélectionner modifier créer ou effacer une stratégie (Code du template avec assistant IA)
   * De sélectionner le broker, l'asset, le timeframe et la plage de date début/fin et un montant en Quantité
@@ -623,31 +851,122 @@ class MaNouvelleStrategie(Strategy):
   * D'interrompre le backtest
   * D'interrompre le chargement des bougies durant le chargement
   * D'afficher les résultats du backtest (liste des trades et statistiques)
-* **DB** : Lit la table `candles` et enregistre les résultats finaux dans la table `backtest_results`.
+* **DB** : Lit la table `candles` et enregistre les résultats finaux dans la table `backtest_results`.
 
 #### 4.7. **Webhooks (`apps/webhooks`)**
+* **Rôle** : Traiter les signaux de trading reçu de services externes (ex: TradingView) et les exécuter. C'est un point d'entrée alternatif pour l'automatisation.
+  
+* **Justification** : Cette application fournit un moyen de déclencher des trades basé sur des **signaux externes**, par opposition aux stratégies qui sont basées sur des **calculs internes**. C'est une distinction fondamentale qui justifie son existence en tant que module séparé. Les applications "Trading Manuel" et "Trading Bot" peuvent accéder au même compte, pour modifier manuellement une position ou par une stratégie de suivi par exemple.
 
-* **Rôle** : Recevoir des signaux de trading provenant de services externes (ex: TradingView) et les exécuter. C'est un point d'entrée alternatif pour l'automatisation.
-* **Backend** : Fournit un endpoint d'API sécurisé qui écoute les requêtes webhook. Quand un signal valide est reçu, il le parse et utilise  **Service CCXT centralisé** (Terminal 5) pour passer l'ordre correspondant.
-* **Frontend** : Affiche un journal des webhooks reçus et le statut des ordres qui en ont résulté.
-* **DB** : Enregistre chaque webhook reçu dans la table `webhooks` et les trades correspondants dans la table `trades`.
-* **Justification** : Cette application fournit un moyen de déclencher des trades basé sur des **signaux externes**, par opposition aux stratégies qui sont basées sur des **calculs internes**. C'est une distinction fondamentale qui justifie son existence en tant que module séparé.
-*
+* **Backend** : Utilise  **Service CCXT centralisé** (Terminal 5) pour toutes les interactions avec les exchanges. Effectue tous les calculs, accès DB, accès brokers (Service CCXT) nécessaire au fonctionnement du frontend. Communication avec le frontend par Websocket. **Toutes les opérations sont faites de manière asynchrone et non bloquante**.
+    * **S'abonne au canal** dédié au wenhooks de REDIS et lis les messages fourni par **Service Webhook receiver** (Terminal 6). Les message  "webhook" de Tradingview sont formatés en JSON.
+    * **Enregistre** tous les webhooks reçu dans la DB le webhook
+    * **Vérifie la cohérence** des webhooks reçus. Le champ `Interval` indique la fréquence attendue. Les webhooks arrivent normalement à la clôture d’une bougie TradingView, et le champ `Action` précise ce qu’il faut faire (ou `PING` si rien). Un signal _Heartbeat_ est publié chaque minute sur Redis, il contient l’heure exacte de la bougie et sert de référence plutôt que l’horloge système. À chaque minute, on regarde si l’heure Redis correspond à un intervalle prévu + 1 minute. Cela évite de tester trop tôt. Exemple : pour un intervalle de 5 minutes, un webhook attendu à 11h15 sera contrôlé à 11h16. Si le webhook est trouvé en DB, tout va bien. Sinon, insérer un enregistrement avec `Action = "MISS"` et l’heure où il aurait dû arriver. Ainsi, on garde une trace complète des webhooks reçus et manquants, et on peut mesurer la gravité des pertes éventuelles. 
+    * **Analyse** le message et effectue les opérations en fonction du contenu de **`Action`**. Prépare un ordre pour l'Exchange sélectionné (`UserExchangeID` = `ìd`) en fonction du type d'action envoyée dans le JSON (`Action`) par le CCXTclient (Terminal 5)
+        * `Action` = PING
+            * ne rien faire
+        * `Action` = BuyMarket ou SellMarket
+            * Ordre au marché, quantité pondérée avec `PourCent`
+        * `Action` = BuyLimit, SellLimit
+            * Ordre de vente limite, quantité pondérée avec `PourCent`
+        * `Action` = MAJ
+            * Mise à jours des ordres pour le Take Profit et Stop Loss aux prix respectifs de PrixSL et PrixTP, quantité pondérée avec `PourCent`. Pour cela, effacer les anciens ordres et les remplacer par les nouveaux.
+    * **Exécute l'ordre** préparé par CCXTclient.
+    * **Enregistre dans la** DB trade l'ordre passé **_avec_** la réponse `Status_CCXTclient` reçu de l'exchange
+    * **Calculer la vente** (pertes/profit) et mettre à jour la DB trade
+        * P\&L réalisé = (Prix vente - Prix moyen achat) × Quantité vendue
+        * Se fait lors d'une action vente, limite ou market peu importe la quantité vendue.
+        * Met à jours la DB `trade` l’enregistrement en cours avec les résultats des calculs.
+    * * **Calculer le trade en cours** (pertes/profit) et mettre à jour la DB trade
+        * Un trade complet est constitué de tous les enregistrements entre le premier achat (qui suit une vente à 100%) et une vente à 100%.
+        * P\&L réalisé = moyenne des enregistrements constituant le trade. _Voici en exemple:_
+            * 10.10.2025, 10h, vente, qunatité 100% -> fermeture de l'ancien trade
+            * 10.10.2025, 11h, achat, quantité 66%  -> Ouverture du trade. 66% des USDT disponibles
+            * 10.10.2025, 
+                    * 
+        * Se fait lors d'une action vente, limite ou market.
+        * Met à jours la DB `trade` l’enregistrement en cours avec les résultats des calculs.
+        
+        
+    * **Envoyer les données à afficher** au frontend (par websocket) 
+        * Pour la zone "**Ordres effectués**", le faire à chaque modification de la DB `trade`
+            * Si USTD est le seule asset:
+                * on considère qu'il n'y a pas de trade en cours, donc la liste est vide et le front end devra afficher "pas de position ouverte"
+            * S'il il y un autre asset,
+                * Envoyer toutes les dernières enregistrements de la db `trade` jusqu'à trouver la dernière vente 100%*. Un trade est constitué de tous les enregistrements entre le premier achat (qui suit une vente à 100%) et une vente à 100%.
 
-#### 4.8. **Statistiques (`apps/stats`)**
+    * Pour la zone "**Webhooks**"
+        * A Chaque modification de la DB webhooks, envoyer par websocket les données à afficher au frontend
+            * Pour la zone Webhooks reçus
+            * 
+            * Pour la zone liste des gains
+            * Parcourir la table trade, champ
+        * Envoyer les données de la zone **"webhooks"** si une pression sur le bouton "WebHookRefresh" du frontent est faite.
+        * Envoyer les données de la zone "**Ordres effectués**" si une pression sur le bouton "TradeEnCourRefresh" du frontent est faite.
+        * Envoyer les données de la zone webhooks si une pression sur le bouton "WebHookRefresh" du frontent est fait.
 
-* **Rôle** : Fournir une vue d'ensemble de la performance de trading de l'utilisateur.
-* **Backend** : Agrège les données de la table `trades` pour calculer diverses métriques :
+* **Frontend** :
+    * La transmission des données pour chaques zones se fait par websocket. Le backend envoie les données. Le backend fait les calculs.
+    * Zone "**Webhooks**": Affiche un journal des webhooks reçus.
+        * Status CCXTclient, Date, Heure, Min, Exchange, Asset, action, PourCent, Prix, et tous les champs nécessaires au contôle et visualisation. **`Status_CCXTclient`** est la réponse de l'exchange à l'ordre passé par le backend
+        * si `Action` = "MISS" afficher la ligne d'une autre couleur (erreur)
+        * Un bouton pour le rafraîchissement des données est affiché (WebHookRefresh)
+    * Zone "**Ordres effectués**": Affiche les ordres passés.
+        * Affiche la liste des ordres (Date, Heure, Min, `Action` effectuée, Position du TP avec quantité prévue, position du SL avec quantité prévue), montant Gain/Perte. Si la liste est vide, afficher "Pas d'ordres à afficher"
+        *  Un bouton pour le rafraîchissement des données est affiché (TradeEnCourRefresh)
+  
+* **DB** : Enregistre chaque webhook reçu dans la table `webhooks` et les trades correspondants dans la table `trades`.
+
+
+* **Exemple de webhook JSON** :
+````
+  json\_msg = '{' +
+     '"Symbol": "' + syminfo.ticker + '", ' +
+     '"Exchange": "' + syminfo.prefix + '", ' +
+     '"Currency": "' + syminfo.currency + '", ' +
+     '"BaseCurrency": "' + str.tostring(syminfo.basecurrency) + '", ' +
+     '"Interval": "' + timeframe.period + '", ' +
+     '"Open": ' + str.tostring(open) + ', ' +
+     '"High": ' + str.tostring(high) + ', ' +
+     '"Low": ' + str.tostring(low) + ', ' +
+     '"Close": ' + str.tostring(close) + ', ' +
+     '"Volume": ' + str.tostring(volume) + ', ' +
+     '"BarTime": ' +  f\_timeIso(time) + ', ' +
+     '"Action": ' + Action + ', ' +                              // Type d'action : BuyMarket, SellMarket, BuyLimit, SellLimit, MAJ, PING
+     '"Prix": ' +  str.tostring(Prix) + ', ' +                   // Prix auquel placer l'ordre  (BuyMarket, SellMarket, BuyLimit, SellLimit)
+     '"PrixSL": ' +  str.tostring(PrixSL) + ', ' +               // Prix pour le stop Loss (ordre limite)
+     '"PrixTP": ' +  str.tostring(PrixTP) + ', ' +               // Prix pour le TakeProfit (ordre limite)
+     '"PourCent": ' +  str.tostring(PourCent) + ', ' +           // % de quntité à exécuter
+     '"UserID": ' +  str.tostring(UserID) + ', ' +               // UserID pour sauveggarder les trades dans la DB
+     '"IndicateurName": ' + IndicateurName + ', ' +              // Nom de l'indicateur 
+     '"UserExchangeID": ' + str.tostring(exchangeId) + '}'       // UserExchangeID indique quel Exchange utiliser
+     
+
+// Exemple pour l'envoi de l'alerte JSON par Tradingview
+alert(json\_msg, alert.freq\_once\_per\_bar\_close)
+````
+##### **4.7.1. Evolution future**
+**Ne pas developer maintenant**, ce ne sont que des idées
+    * **Test si l'exchange désiré est actif**. Pour cela, vérifier dans la table `brokers`, si le champ `TypeDeTrading` **est égal** à "Webhooks".
+    	* **Si c'est le cas**:
+        
+        * **Si ce n'est pas le cas**, afficher dans la liste des webhooks que l'exchange n'est pas activé !
+            * SURTOUT, ne pas passer d'ordres !!!
+    
+#### 4.8. **Statistiques (`apps/stats`)**
+
+* **Rôle** : Fournir une vue d'ensemble de la performance de trading de l'utilisateur.
+* **Backend** : Agrège les données de la table `trades` pour calculer diverses métriques :
 
   * Évolution globale du solde.
   * Performance par stratégie individuelle.
   * Performance par source de webhook.
-* **Frontend** : Affiche les données sous forme de graphiques et de tableaux de bord, avec la possibilité de filtrer par compte de broker.
-* **DB** : Lit intensivement la table `trades`.
+* **Frontend** : Affiche les données sous forme de graphiques et de tableaux de bord, avec la possibilité de filtrer par compte de broker.
+* **DB** : Lit intensivement la table `trades`.
 
 ## 5. Architecture Détaillée de la Base de Données
 
-Les relations entre les tables sont cruciales pour le bon fonctionnement de l'application.La structure est conçue pour être multi-locataire (_multi-tenant_), où la plupart des données sont isolées par `user_id`.
+Les relations entre les tables sont cruciales pour le bon fonctionnement de l'application.La structure est conçue pour être multi-locataire (_multi-tenant_), où la plupart des données sont isolées par `user_id`.
 
 ## 5. Architecture Détaillée de la Base de Données
 
@@ -698,7 +1017,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 #### `brokers`
 
 * **Description** : Stocke les informations de connexion aux différents comptes de brokers pour chaque utilisateur.
-* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `exchange`, `api_key` (chiffré), `api_secret` (chiffré), `api_password` (chiffré, optionnel), `is_default`, `is_testnet`, `is_active`.
+* **Champs Clés** : `id`, `user_id` (FK vers `users`), `name`, `exchange`, `api_key` (chiffré), `api_secret` (chiffré), `api_password` (chiffré, optionnel), `is_default`, `is_testnet`, `is_active`. `is_active`
 * **Relations** : Liée à un `user`. Un broker peut être associé à plusieurs `active_strategies` et `trades`.
 * **Statut** : ✅ Implémentée
 
@@ -735,7 +1054,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 #### `trades`
 
 * **Description** : Journal central de toutes les transactions exécutées, qu'elles soient manuelles, automatiques ou via webhook.
-* **Champs Clés** : `id`, `user_id` (FK), `broker_id` (FK), `strategy_id` (FK, nullable), `webhook_id` (FK, nullable), `symbol`, `side`, `quantity`, `price`, `status`, `profit_loss`, `source` (manual/strategy/webhook).
+* **Champs Clés** : `id`, `user_id` (FK), `broker_id` (FK), `strategy_id` (FK, nullable), `webhook_id` (FK, nullable), `symbol`, `side`, `quantity`, `price`, `status`, `profit_loss`, `source` (manual/strategy/webhook), `Status_CCXTclient` (Réponse de l'exchange).
 * **Relations** : La table la plus connectée, source principale pour les statistiques.
 * **Statut** : 🔄 À implémenter
 
@@ -748,7 +1067,7 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 #### `webhooks`
 
 * **Description** : Enregistre chaque appel webhook reçu pour traçabilité et débogage.
-* **Champs Clés** : `id`, `user_id` (FK), `source`, `payload` (JSON), `processed`, `created_at`.
+* **Champs Clés** : `id`, `user_id` (FK), `source`, `payload` (JSON), `processed`, `created_at`, `Status_CCXTclient`.
 * **Relations** : Liée à un `user` et peut générer des `trades`.
 * **Statut** : 🔄 À implémenter
 
@@ -797,10 +1116,10 @@ Les relations entre les tables sont cruciales pour le bon fonctionnement de l'ap
 
 Cette section regroupe les idées et les points de discussion qui n'ont pas encore été pleinement intégrés dans le plan de développement initial mais qui doivent être conservés pour référence future.
 
-* **Cohérence du Heartbeat** : L'idée d'une vérification de la "cohésion" des bougies reçues a été mentionnée. Cela pourrait impliquer de vérifier la régularité des timestamps des bougies stockées en base de données pour détecter d'éventuelles interruptions du service. À développer ultérieurement.
-* **Gestion Avancée du Mode Testnet** : La librairie CCXT supporte les environnements de test (sandbox) pour certains brokers. Il faudra explorer comment gérer les cas où un broker n'offre pas de mode testnet. L'interface pourrait désactiver le switch "Testnet" pour ce broker ou afficher un avertissement clair. *La gestion du mode Testnet pour les brokers qui ne le supportent pas reste à définir. La solution la plus simple pour une V1 serait de désactiver le switch "Mode Testnet" sur l'interface si `exchange.features['sandbox']` (une propriété de CCXT) est `False` pour le broker sélectionné. C'est une approche pragmatique qui correspond à la philosophie du projet.
-* **Partage de Stratégies** : L'idée d'un système de partage de stratégies entre utilisateurs a été évoquée. Cela nécessiterait des modifications importantes du modèle de données (ex: table de liaison, permissions) et est considéré comme une fonctionnalité pour une version future.
-* **Gestion des Positions Ouvertes** : Il pourrait être pertinent d'ajouter une table dédiée `positions` pour suivre l'état actuel d'un trade ouvert (quantité, prix d'entrée, P\&L latent) plutôt que de le déduire de la table `trades`. C'est un point d'amélioration de l'architecture à considérer.
+* **Cohérence du Heartbeat** : L'idée d'une vérification de la "cohésion" des bougies reçues a été mentionnée. Cela pourrait impliquer de vérifier la régularité des timestamps des bougies stockées en base de données pour détecter d'éventuelles interruptions du service. À développer ultérieurement.
+* **Gestion Avancée du Mode Testnet** : La librairie CCXT supporte les environnements de test (sandbox) pour certains brokers. Il faudra explorer comment gérer les cas où un broker n'offre pas de mode testnet. L'interface pourrait désactiver le switch "Testnet" pour ce broker ou afficher un avertissement clair. *La gestion du mode Testnet pour les brokers qui ne le supportent pas reste à définir. La solution la plus simple pour une V1 serait de désactiver le switch "Mode Testnet" sur l'interface si `exchange.features['sandbox']` (une propriété de CCXT) est `False` pour le broker sélectionné. C'est une approche pragmatique qui correspond à la philosophie du projet.
+* **Partage de Stratégies** : L'idée d'un système de partage de stratégies entre utilisateurs a été évoquée. Cela nécessiterait des modifications importantes du modèle de données (ex: table de liaison, permissions) et est considéré comme une fonctionnalité pour une version future.
+* **Gestion des Positions Ouvertes** : Il pourrait être pertinent d'ajouter une table dédiée `positions` pour suivre l'état actuel d'un trade ouvert (quantité, prix d'entrée, P\&L latent) plutôt que de le déduire de la table `trades`. C'est un point d'amélioration de l'architecture à considérer.
 
 ### 6.5. **Architecture Haute Disponibilité : Redondance Heartbeat et Redis**
 
@@ -1025,7 +1344,7 @@ _**Note** : Cette architecture représente l'évolution naturelle d'Aristobot3 v
 
 ## 7. Instructions pour le Développement avec l'IA
 
-### Fichier `.claude-instructions`
+### Fichier `.claude-instructions`
 
 Ce fichier à la racine du projet est tenu à jour et contient les directives pour guider l'IA :
 

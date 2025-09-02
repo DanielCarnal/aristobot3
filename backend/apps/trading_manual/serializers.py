@@ -33,15 +33,43 @@ class TradeExecutionSerializer(serializers.Serializer):
     broker_id = serializers.IntegerField()
     symbol = serializers.CharField(max_length=20)
     side = serializers.ChoiceField(choices=['buy', 'sell'])
-    order_type = serializers.ChoiceField(choices=['market', 'limit'])
+    order_type = serializers.ChoiceField(choices=[
+        'market', 'limit', 'stop_loss', 'take_profit', 'sl_tp_combo', 'stop_limit'
+    ])
     quantity = serializers.DecimalField(max_digits=20, decimal_places=8)
     price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
     total_value = serializers.DecimalField(max_digits=20, decimal_places=8)
     
+    # Nouveaux champs pour ordres avances
+    stop_loss_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    take_profit_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    trigger_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    
     def validate(self, data):
         """Validation croisee des donnees"""
-        if data['order_type'] == 'limit' and not data.get('price'):
+        order_type = data['order_type']
+        
+        # Validations par type d'ordre
+        if order_type == 'limit' and not data.get('price'):
             raise serializers.ValidationError("Le prix est requis pour un ordre limite")
+        
+        if order_type == 'stop_loss' and not data.get('stop_loss_price'):
+            raise serializers.ValidationError("Le prix stop loss est requis")
+        
+        if order_type == 'take_profit' and not data.get('take_profit_price'):
+            raise serializers.ValidationError("Le prix take profit est requis")
+        
+        if order_type == 'sl_tp_combo':
+            if not data.get('stop_loss_price'):
+                raise serializers.ValidationError("Le prix stop loss est requis pour le combo SL+TP")
+            if not data.get('take_profit_price'):
+                raise serializers.ValidationError("Le prix take profit est requis pour le combo SL+TP")
+        
+        if order_type == 'stop_limit':
+            if not data.get('price'):
+                raise serializers.ValidationError("Le prix limite est requis pour un stop limit")
+            if not data.get('trigger_price'):
+                raise serializers.ValidationError("Le prix de declenchement est requis pour un stop limit")
         
         if data['quantity'] <= 0:
             raise serializers.ValidationError("La quantite doit etre positive")
@@ -91,6 +119,44 @@ class ValidationTradeSerializer(serializers.Serializer):
     broker_id = serializers.IntegerField()
     symbol = serializers.CharField(max_length=20)
     side = serializers.ChoiceField(choices=['buy', 'sell'])
-    order_type = serializers.ChoiceField(choices=['market', 'limit'])
+    order_type = serializers.ChoiceField(choices=[
+        'market', 'limit', 'stop_loss', 'take_profit', 'sl_tp_combo', 'stop_limit'
+    ])
     quantity = serializers.DecimalField(max_digits=20, decimal_places=8)
     price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    
+    # Nouveaux champs pour ordres avances
+    stop_loss_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    take_profit_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    trigger_price = serializers.DecimalField(max_digits=20, decimal_places=8, required=False, allow_null=True)
+    
+    def validate(self, data):
+        """Validation croisee des donnees pour tous types d'ordres"""
+        order_type = data['order_type']
+        
+        # Validations par type d'ordre
+        if order_type == 'limit' and not data.get('price'):
+            raise serializers.ValidationError("Le prix est requis pour un ordre limite")
+        
+        if order_type == 'stop_loss' and not data.get('stop_loss_price'):
+            raise serializers.ValidationError("Le prix stop loss est requis")
+        
+        if order_type == 'take_profit' and not data.get('take_profit_price'):
+            raise serializers.ValidationError("Le prix take profit est requis")
+        
+        if order_type == 'sl_tp_combo':
+            if not data.get('stop_loss_price'):
+                raise serializers.ValidationError("Le prix stop loss est requis pour le combo SL+TP")
+            if not data.get('take_profit_price'):
+                raise serializers.ValidationError("Le prix take profit est requis pour le combo SL+TP")
+        
+        if order_type == 'stop_limit':
+            if not data.get('price'):
+                raise serializers.ValidationError("Le prix limite est requis pour un stop limit")
+            if not data.get('trigger_price'):
+                raise serializers.ValidationError("Le prix de declenchement est requis pour un stop limit")
+        
+        if data['quantity'] <= 0:
+            raise serializers.ValidationError("La quantite doit etre positive")
+            
+        return data

@@ -4,6 +4,8 @@ Service principal pour le trading manuel
 """
 import logging
 from datetime import datetime
+from django.utils import timezone
+from asgiref.sync import sync_to_async
 from apps.core.services.ccxt_client import CCXTClient
 
 logger = logging.getLogger(__name__)
@@ -54,7 +56,8 @@ class TradingService:
         }
         
     
-    async def validate_trade(self, symbol, side, quantity, order_type, price=None):
+    async def validate_trade(self, symbol, side, quantity, order_type, price=None, 
+                            stop_loss_price=None, take_profit_price=None, trigger_price=None):
         """Valide un trade avant exécution"""
         errors = []
         
@@ -103,6 +106,7 @@ class TradingService:
         # Debug: afficher les valeurs pour comprendre l'erreur
         print(f"DEBUG: order_type={order_type}, price={price}, type(price)={type(price)}")
         
+        # Validation par type d'ordre
         if order_type == 'limit':
             if price is None:
                 errors.append("Le prix est requis pour un ordre limite")
@@ -110,6 +114,46 @@ class TradingService:
                 price_float = float(price) if price is not None else 0
                 if price_float <= 0:
                     errors.append(f"Le prix doit être positif pour un ordre limite (reçu: {price_float})")
+        
+        elif order_type == 'stop_loss':
+            if stop_loss_price is None:
+                errors.append("Le prix stop loss est requis")
+            else:
+                sl_price_float = float(stop_loss_price)
+                if sl_price_float <= 0:
+                    errors.append("Le prix stop loss doit être positif")
+        
+        elif order_type == 'take_profit':
+            if take_profit_price is None:
+                errors.append("Le prix take profit est requis")
+            else:
+                tp_price_float = float(take_profit_price)
+                if tp_price_float <= 0:
+                    errors.append("Le prix take profit doit être positif")
+        
+        elif order_type == 'sl_tp_combo':
+            if stop_loss_price is None:
+                errors.append("Le prix stop loss est requis pour le combo SL+TP")
+            if take_profit_price is None:
+                errors.append("Le prix take profit est requis pour le combo SL+TP")
+            
+            if stop_loss_price and take_profit_price:
+                sl_float = float(stop_loss_price)
+                tp_float = float(take_profit_price)
+                if sl_float <= 0 or tp_float <= 0:
+                    errors.append("Les prix SL et TP doivent être positifs")
+        
+        elif order_type == 'stop_limit':
+            if price is None:
+                errors.append("Le prix limite est requis pour un stop limit")
+            if trigger_price is None:
+                errors.append("Le prix de déclenchement est requis pour un stop limit")
+            
+            if price and trigger_price:
+                price_float = float(price)
+                trigger_float = float(trigger_price)
+                if price_float <= 0 or trigger_float <= 0:
+                    errors.append("Le prix et le trigger doivent être positifs")
         
         return {
             'valid': len(errors) == 0,
@@ -139,6 +183,10 @@ class TradingService:
             quantity=trade_data['quantity'],
             price=trade_data.get('price'),
             total_value=trade_data['total_value'],
+            # Nouveaux champs pour ordres avances
+            stop_loss_price=trade_data.get('stop_loss_price'),
+            take_profit_price=trade_data.get('take_profit_price'),
+            trigger_price=trade_data.get('trigger_price'),
             status='pending'
         )
         db_create_time = time.time() - db_start
@@ -149,17 +197,35 @@ class TradingService:
             db_time = time.time() - start_time
             logger.info(f"🔄 Exécution trade {trade.id}: {trade.side} {trade.quantity} {trade.symbol} (DB: {db_time:.2f}s)")
             
-            # Envoyer l'ordre via CCXTClient
+            # NOUVELLE ARCHITECTURE - Méthode unifiée CCXTClient.place_order()
             ccxt_start = time.time()
-            if trade.order_type == 'market':
-                order_result = await self.ccxt_client.place_market_order(
-                    self.broker.id, trade.symbol, trade.side, float(trade.quantity)
-                )
-            else:
-                order_result = await self.ccxt_client.place_limit_order(
-                    self.broker.id, trade.symbol, trade.side, 
-                    float(trade.quantity), float(trade.price)
-                )
+            
+            # Préparer les paramètres selon le type d'ordre
+            order_params = {
+                'broker_id': self.broker.id,
+                'symbol': trade.symbol,
+                'side': trade.side,
+                'amount': float(trade.quantity),
+                'order_type': trade.order_type,
+                'price': float(trade.price) if trade.price else None
+            }
+            
+            # Ajouter paramètres avancés selon le type
+            if trade.order_type == 'stop_loss' and trade.stop_loss_price:
+                order_params['stop_loss_price'] = float(trade.stop_loss_price)
+            elif trade.order_type == 'take_profit' and trade.take_profit_price:
+                order_params['take_profit_price'] = float(trade.take_profit_price)
+            elif trade.order_type == 'sl_tp_combo':
+                if trade.stop_loss_price:
+                    order_params['stop_loss_price'] = float(trade.stop_loss_price)
+                if trade.take_profit_price:
+                    order_params['take_profit_price'] = float(trade.take_profit_price)
+            elif trade.order_type == 'stop_limit' and trade.trigger_price:
+                order_params['trigger_price'] = float(trade.trigger_price)
+            
+            # APPEL UNIFIÉ via place_order()
+            logger.info(f"🎯 TradingService: Appel CCXTClient.place_order avec: {order_params}")
+            order_result = await self.ccxt_client.place_order(**order_params)
             
             ccxt_time = time.time() - ccxt_start
             logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
@@ -187,7 +253,41 @@ class TradingService:
             
             trade.status = 'failed'
             trade.error_message = error_msg
-            await sync_to_async(trade.save)()
+            
+            # Utiliser database_sync_to_async pour éviter les deadlocks
+            from django.db import transaction
+            from channels.db import database_sync_to_async
+            
+            logger.info(f"🔄 Sauvegarde Trade {trade.id} en failed...")
+            
+            @database_sync_to_async
+            def save_failed_trade_sync():
+                logger.info(f"🔄 Début save_failed_trade_sync pour Trade {trade.id}")
+                try:
+                    with transaction.atomic():
+                        # Récupérer l'objet depuis la DB pour éviter les conflits
+                        from apps.trading_manual.models import Trade
+                        logger.info(f"🔄 Récupération Trade {trade.id} depuis DB...")
+                        fresh_trade = Trade.objects.get(id=trade.id)
+                        logger.info(f"🔄 Trade {trade.id} récupéré, status actuel: {fresh_trade.status}")
+                        
+                        # Mettre à jour avec les nouvelles valeurs
+                        fresh_trade.status = trade.status
+                        fresh_trade.error_message = trade.error_message
+                        logger.info(f"🔄 Sauvegarde Trade {trade.id} avec status: {fresh_trade.status}")
+                        
+                        fresh_trade.save()
+                        logger.info(f"🔄 Trade {trade.id} sauvegardé avec succès")
+                        return fresh_trade.id
+                except Exception as e:
+                    logger.error(f"❌ Erreur dans save_failed_trade_sync: {e}")
+                    raise
+            
+            try:
+                saved_id = await save_failed_trade_sync()
+                logger.info(f"✅ Trade {saved_id} marqué failed avec succès")
+            except Exception as save_error:
+                logger.error(f"❌ Erreur sauvegarde failed Trade {trade.id}: {save_error}")
             
             raise
     
@@ -200,19 +300,58 @@ class TradingService:
         logger.info(f"🔥 _execute_trade_order START: Trade {trade.id}")
         
         try:
-            # Envoyer l'ordre via CCXTClient
+            # Envoyer l'ordre via CCXTClient selon le type
             ccxt_start = time.time()
             if trade.order_type == 'market':
                 logger.info(f"🔥 Exécution ordre marché: {trade.side} {trade.quantity} {trade.symbol}")
-                order_result = await self.ccxt_client.place_market_order(
-                    self.broker.id, trade.symbol, trade.side, float(trade.quantity)
-                )
-            else:
+                
+                # Pour Bitget market buy, utiliser la valeur totale USD au lieu de la quantité
+                if self.broker.exchange.lower() == 'bitget' and trade.side == 'buy' and trade.total_value:
+                    logger.info(f"🔥 Bitget market buy: utilisation total_value=${trade.total_value} au lieu de quantity={trade.quantity}")
+                    order_result = await self.ccxt_client.place_market_order(
+                        self.broker.id, trade.symbol, trade.side, float(trade.total_value)
+                    )
+                else:
+                    order_result = await self.ccxt_client.place_market_order(
+                        self.broker.id, trade.symbol, trade.side, float(trade.quantity)
+                    )
+            elif trade.order_type == 'limit':
                 logger.info(f"🔥 Exécution ordre limite: {trade.side} {trade.quantity} {trade.symbol} @ {trade.price}")
                 order_result = await self.ccxt_client.place_limit_order(
                     self.broker.id, trade.symbol, trade.side, 
                     float(trade.quantity), float(trade.price)
                 )
+            else:
+                # NOUVELLE ARCHITECTURE UNIFIÉE - Tous ordres avancés via place_order()
+                order_params = {
+                    'broker_id': self.broker.id,
+                    'symbol': trade.symbol,
+                    'side': trade.side,
+                    'amount': float(trade.quantity),
+                    'order_type': trade.order_type,
+                    'price': float(trade.price) if trade.price else None
+                }
+                
+                # Ajouter paramètres avancés selon le type
+                if trade.order_type == 'stop_loss' and trade.stop_loss_price:
+                    logger.info(f"🔥 Exécution ordre Stop Loss: {trade.side} {trade.quantity} {trade.symbol} @ SL:{trade.stop_loss_price}")
+                    order_params['stop_loss_price'] = float(trade.stop_loss_price)
+                elif trade.order_type == 'take_profit' and trade.take_profit_price:
+                    logger.info(f"🔥 Exécution ordre Take Profit: {trade.side} {trade.quantity} {trade.symbol} @ TP:{trade.take_profit_price}")
+                    order_params['take_profit_price'] = float(trade.take_profit_price)
+                elif trade.order_type == 'sl_tp_combo':
+                    logger.info(f"🔥 Exécution ordre SL+TP Combo: {trade.side} {trade.quantity} {trade.symbol} SL:{trade.stop_loss_price} TP:{trade.take_profit_price}")
+                    if trade.stop_loss_price:
+                        order_params['stop_loss_price'] = float(trade.stop_loss_price)
+                    if trade.take_profit_price:
+                        order_params['take_profit_price'] = float(trade.take_profit_price)
+                elif trade.order_type == 'stop_limit' and trade.trigger_price:
+                    logger.info(f"🔥 Exécution ordre Stop Limit: {trade.side} {trade.quantity} {trade.symbol} @ {trade.price} trigger:{trade.trigger_price}")
+                    order_params['trigger_price'] = float(trade.trigger_price)
+                
+                # APPEL UNIFIÉ via place_order()
+                logger.info(f"🎯 _execute_trade_order: Appel CCXTClient.place_order avec: {order_params}")
+                order_result = await self.ccxt_client.place_order(**order_params)
             
             ccxt_time = time.time() - ccxt_start
             logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
@@ -235,12 +374,51 @@ class TradingService:
                 trade.filled_price = trade.price
                 trade.fees = 0
                 
-            trade.executed_at = datetime.now()
-            trade.save()
+            trade.executed_at = timezone.now()
             
-            # Log succès avec timing total
+            # Utiliser database_sync_to_async pour éviter les deadlocks
+            from django.db import transaction
+            from channels.db import database_sync_to_async
+            
+            logger.info(f"🔄 Tentative sauvegarde Trade {trade.id}...")
+            
+            @database_sync_to_async
+            def save_trade_sync():
+                with transaction.atomic():
+                    # Récupérer l'objet depuis la DB pour éviter les conflits
+                    from apps.trading_manual.models import Trade
+                    fresh_trade = Trade.objects.get(id=trade.id)
+                    
+                    # Mettre à jour avec les nouvelles valeurs
+                    fresh_trade.status = trade.status
+                    fresh_trade.exchange_order_id = trade.exchange_order_id
+                    fresh_trade.filled_quantity = trade.filled_quantity
+                    fresh_trade.filled_price = trade.filled_price
+                    fresh_trade.fees = trade.fees
+                    fresh_trade.executed_at = trade.executed_at
+                    
+                    fresh_trade.save()
+                    return fresh_trade.id
+            
+            # Envoyer notification de succès AVANT sauvegarde pour éviter les blocages
             total_time = time.time() - start_time
-            logger.info(f"✅ Trade {trade.id} exécuté avec succès - Order ID: {trade.exchange_order_id} (Total: {total_time:.2f}s)")
+            logger.info(f"🔄 PRIORITÉ - Envoi notification succès AVANT sauvegarde pour Trade {trade.id}")
+            try:
+                await self._send_success_notification(trade, total_time)
+                logger.info(f"✅ PRIORITÉ - Notification succès envoyée AVANT sauvegarde pour Trade {trade.id}")
+            except Exception as notif_error:
+                logger.error(f"❌ PRIORITÉ - Erreur notification succès avant sauvegarde: {notif_error}")
+            
+            try:
+                saved_id = await save_trade_sync()
+                logger.info(f"✅ Trade {saved_id} sauvegardé avec succès")
+                
+                # Log succès avec timing total
+                logger.info(f"✅ Trade {trade.id} exécuté avec succès - Order ID: {trade.exchange_order_id} (Total: {total_time:.2f}s)")
+                
+            except Exception as save_error:
+                logger.error(f"❌ Erreur sauvegarde Trade {trade.id}: {save_error}")
+                raise save_error
             
             return order_result
             
@@ -248,12 +426,146 @@ class TradingService:
             # Log erreur et mise à jour du trade
             error_msg = str(e)
             logger.error(f"❌ Erreur trade {trade.id}: {error_msg}")
+            logger.info(f"🔥 DEBUG - Exception capturée dans _execute_trade_order pour Trade {trade.id}")
             
             trade.status = 'failed'
             trade.error_message = error_msg
-            trade.save()
+            
+            # NOUVEAU: Envoyer la notification AVANT de sauvegarder en DB pour éviter les blocages
+            logger.info(f"🔄 PRIORITÉ - Envoi notification erreur AVANT sauvegarde pour Trade {trade.id}")
+            try:
+                await self._send_error_notification(trade, error_msg)
+                logger.info(f"✅ PRIORITÉ - Notification erreur envoyée AVANT sauvegarde pour Trade {trade.id}")
+            except Exception as notif_error:
+                logger.error(f"❌ PRIORITÉ - Erreur notification avant sauvegarde: {notif_error}")
+            
+            # Utiliser database_sync_to_async pour éviter les deadlocks
+            from django.db import transaction
+            from channels.db import database_sync_to_async
+            
+            logger.info(f"🔄 Sauvegarde Trade {trade.id} en failed...")
+            
+            @database_sync_to_async
+            def save_failed_trade_sync():
+                logger.info(f"🔄 Début save_failed_trade_sync pour Trade {trade.id}")
+                try:
+                    with transaction.atomic():
+                        # Récupérer l'objet depuis la DB pour éviter les conflits
+                        from apps.trading_manual.models import Trade
+                        logger.info(f"🔄 Récupération Trade {trade.id} depuis DB...")
+                        fresh_trade = Trade.objects.get(id=trade.id)
+                        logger.info(f"🔄 Trade {trade.id} récupéré, status actuel: {fresh_trade.status}")
+                        
+                        # Mettre à jour avec les nouvelles valeurs
+                        fresh_trade.status = trade.status
+                        fresh_trade.error_message = trade.error_message
+                        logger.info(f"🔄 Sauvegarde Trade {trade.id} avec status: {fresh_trade.status}")
+                        
+                        fresh_trade.save()
+                        logger.info(f"🔄 Trade {trade.id} sauvegardé avec succès")
+                        return fresh_trade.id
+                except Exception as e:
+                    logger.error(f"❌ Erreur dans save_failed_trade_sync: {e}")
+                    raise
+            
+            try:
+                saved_id = await save_failed_trade_sync()
+                logger.info(f"✅ Trade {saved_id} marqué failed avec succès")
+                
+            except Exception as save_error:
+                logger.error(f"❌ Erreur sauvegarde failed Trade {trade.id}: {save_error}")
+                # Note: La notification a déjà été envoyée avant, donc pas besoin de la renvoyer ici
             
             raise
+    
+    async def _send_success_notification(self, trade, execution_time):
+        """Envoie une notification de succès d'exécution via WebSocket"""
+        from channels.layers import get_channel_layer
+        from datetime import datetime
+        
+        try:
+            channel_layer = get_channel_layer()
+            user_group_name = f"trading_notifications_{self.user.id}"
+            
+            logger.info(f"🔄 TRADING_SERVICE - Envoi notification succès à {user_group_name} pour Trade {trade.id}")
+            
+            # Construire le message de succès
+            message = f"✅ Ordre exécuté avec succès ! {trade.side.upper()} {trade.filled_quantity or trade.quantity} {trade.symbol}"
+            if trade.exchange_order_id:
+                message += f" - ID: {trade.exchange_order_id}"
+            
+            # Données détaillées du trade
+            trade_data = {
+                'id': trade.id,
+                'symbol': trade.symbol,
+                'side': trade.side,
+                'order_type': trade.order_type,
+                'quantity': float(trade.quantity),
+                'filled_quantity': float(trade.filled_quantity or trade.quantity),
+                'price': float(trade.price) if trade.price else None,
+                'filled_price': float(trade.filled_price) if trade.filled_price else None,
+                'total_value': float(trade.total_value) if trade.total_value else None,
+                'fees': float(trade.fees) if trade.fees else 0,
+                'status': trade.status,
+                'exchange_order_id': trade.exchange_order_id,
+                'execution_time': round(execution_time, 2),
+                'executed_at': trade.executed_at.isoformat() if trade.executed_at else None
+            }
+            
+            await channel_layer.group_send(
+                user_group_name,
+                {
+                    'type': 'trade_execution_success',
+                    'trade_id': trade.id,
+                    'message': message,
+                    'trade_data': trade_data,
+                    'timestamp': int(datetime.now().timestamp() * 1000)
+                }
+            )
+            
+            logger.info(f"✅ TRADING_SERVICE - Notification succès envoyée à {user_group_name} pour Trade {trade.id}")
+            
+        except Exception as e:
+            logger.error(f"❌ TRADING_SERVICE - Erreur envoi notification succès: {e}")
+            import traceback
+            logger.error(f"📄 Traceback: {traceback.format_exc()}")
+    
+    async def _send_error_notification(self, trade, error_msg):
+        """Envoie une notification d'erreur d'exécution via WebSocket"""
+        from channels.layers import get_channel_layer
+        from datetime import datetime
+        
+        logger.info(f"🔥 DEBUG _send_error_notification CALLED - Trade {trade.id}, user {self.user.id}")
+        
+        try:
+            channel_layer = get_channel_layer()
+            user_group_name = f"trading_notifications_{self.user.id}"
+            
+            logger.info(f"🔄 TRADING_SERVICE - Envoi notification erreur à {user_group_name} pour Trade {trade.id}")
+            
+            # Construire le message d'erreur
+            message = f"❌ Erreur lors de l'exécution de l'ordre ! {trade.side.upper()} {trade.quantity} {trade.symbol} - {error_msg}"
+            
+            logger.info(f"🔥 DEBUG - Avant channel_layer.group_send pour {user_group_name}")
+            
+            await channel_layer.group_send(
+                user_group_name,
+                {
+                    'type': 'trade_execution_error',
+                    'trade_id': trade.id,
+                    'message': message,
+                    'error_details': error_msg,
+                    'timestamp': int(datetime.now().timestamp() * 1000)
+                }
+            )
+            
+            logger.info(f"🔥 DEBUG - Après channel_layer.group_send pour {user_group_name}")
+            logger.info(f"✅ TRADING_SERVICE - Notification erreur envoyée à {user_group_name} pour Trade {trade.id}")
+            
+        except Exception as e:
+            logger.error(f"❌ TRADING_SERVICE - Erreur envoi notification erreur: {e}")
+            import traceback
+            logger.error(f"📄 Traceback: {traceback.format_exc()}")
     
     async def calculate_trade_value(self, symbol, quantity=None, total_value=None, price=None):
         """Calcule quantité ↔ valeur USD selon le prix donné ou actuel"""
@@ -396,3 +708,48 @@ class TradingService:
         except Exception as e:
             logger.error(f"❌ Erreur modification ordre {order_id}: {e}")
             raise
+    
+    async def get_portfolio_prices(self, portfolio_assets):
+        """
+        Convertit les assets du portfolio en prix USDT via fetchTickers
+        portfolio_assets = ['BTC', 'ETH', 'USDT'] → prix pour chaque asset
+        """
+        logger.info(f"🔄 get_portfolio_prices appelé pour assets: {portfolio_assets}")
+        
+        if not portfolio_assets:
+            return {}
+        
+        # Filtrer les stablecoins qui n'ont pas besoin de prix
+        tradable_assets = [asset for asset in portfolio_assets 
+                          if asset not in ['USDT', 'USDC', 'USD']]
+        
+        # Convertir en paires USDT pour fetchTickers
+        symbols = [f"{asset}/USDT" for asset in tradable_assets]
+        
+        prices = {}
+        
+        if symbols:
+            try:
+                # Récupérer tous les prix via fetchTickers en une requête
+                tickers = await self.ccxt_client.get_tickers(self.broker.id, symbols)
+                
+                # Transformer pour le frontend: BTC/USDT → BTC
+                for symbol, ticker in tickers.items():
+                    asset = symbol.split('/')[0]  # BTC/USDT → BTC
+                    if ticker and ticker.get('last'):
+                        prices[asset] = float(ticker['last'])
+                        logger.info(f"💰 Prix {asset}: ${prices[asset]}")
+                    else:
+                        logger.warning(f"⚠️ Pas de prix pour {asset}")
+                        
+            except Exception as e:
+                logger.error(f"❌ Erreur récupération prix portfolio: {e}")
+                raise
+        
+        # Ajouter les stablecoins avec prix fixe $1
+        for asset in portfolio_assets:
+            if asset in ['USDT', 'USDC', 'USD']:
+                prices[asset] = 1.0
+                
+        logger.info(f"✅ Prix portfolio récupérés: {prices}")
+        return prices

@@ -345,3 +345,141 @@ class OpenOrdersConsumer(AsyncWebsocketConsumer):
             }))
             # Rafraîchir les ordres pour tous
             await self.send_open_orders()
+
+
+class TradingNotificationsConsumer(AsyncWebsocketConsumer):
+    """
+    Consumer WebSocket pour les notifications de trading manuel
+    Gère les notifications d'exécution d'ordres en temps réel
+    """
+    
+    async def connect(self):
+        """Connexion WebSocket pour les notifications de trading"""
+        try:
+            # Vérifier l'authentification
+            user = self.scope["user"]
+            if user.is_anonymous:
+                logger.warning("❌ Connexion WS trading notifications refusée - utilisateur non authentifié")
+                await self.close()
+                return
+            
+            self.user = user
+            
+            # Groupe unique par utilisateur pour les notifications
+            self.user_group_name = f"trading_notifications_{user.id}"
+            
+            # Rejoindre le groupe de l'utilisateur
+            await self.channel_layer.group_add(
+                self.user_group_name,
+                self.channel_name
+            )
+            
+            # Accepter la connexion
+            await self.accept()
+            
+            logger.info(f"✅ WebSocket trading notifications connecté pour user {user.id} - groupe: {self.user_group_name}")
+            print(f"🔔 NOTIFICATIONS WebSocket connecté pour user {user.id} - groupe: {self.user_group_name}")
+            
+            # Envoyer message de confirmation de connexion
+            await self.send(text_data=json.dumps({
+                'type': 'connection_status',
+                'status': 'connected',
+                'message': 'WebSocket notifications connecté',
+                'timestamp': self._get_timestamp()
+            }))
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur connexion WebSocket trading notifications: {e}")
+            await self.close()
+    
+    async def disconnect(self, close_code):
+        """Déconnexion WebSocket"""
+        try:
+            if hasattr(self, 'user_group_name'):
+                await self.channel_layer.group_discard(
+                    self.user_group_name,
+                    self.channel_name
+                )
+                logger.info(f"🔌 WebSocket trading notifications déconnecté - groupe: {self.user_group_name}")
+        except Exception as e:
+            logger.error(f"❌ Erreur déconnexion WebSocket trading notifications: {e}")
+    
+    async def receive(self, text_data):
+        """Réception de messages du client (optionnel pour ce consumer)"""
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'ping':
+                # Répondre au ping pour maintenir la connexion
+                await self.send(text_data=json.dumps({
+                    'type': 'pong',
+                    'timestamp': self._get_timestamp()
+                }))
+            else:
+                logger.info(f"📨 Message reçu trading notifications: {data}")
+                
+        except json.JSONDecodeError:
+            logger.error("❌ Format JSON invalide dans message WebSocket trading notifications")
+        except Exception as e:
+            logger.error(f"❌ Erreur traitement message WebSocket trading notifications: {e}")
+    
+    # === Handlers pour les différents types de notifications ===
+    
+    async def trade_execution_success(self, event):
+        """Notification de succès d'exécution d'ordre"""
+        await self.send(text_data=json.dumps({
+            'type': 'trade_execution_success',
+            'trade_id': event['trade_id'],
+            'message': event['message'],
+            'trade_data': event['trade_data'],
+            'timestamp': event.get('timestamp', self._get_timestamp())
+        }))
+        
+        logger.info(f"✅ Notification succès envoyée - Trade {event['trade_id']}")
+    
+    async def trade_execution_error(self, event):
+        """Notification d'erreur d'exécution d'ordre"""
+        logger.info(f"🔥 DEBUG CONSUMER - trade_execution_error method called")
+        logger.info(f"🔄 CONSUMER reçoit notification erreur - Trade {event.get('trade_id', 'N/A')}: {event['message']}")
+        print(f"🔔 CONSUMER ERROR - Trade {event.get('trade_id', 'N/A')}: {event['message']}")
+        
+        await self.send(text_data=json.dumps({
+            'type': 'trade_execution_error',
+            'trade_id': event.get('trade_id'),
+            'message': event['message'],
+            'error_details': event.get('error_details'),
+            'timestamp': event.get('timestamp', self._get_timestamp())
+        }))
+        
+        logger.info(f"✅ Notification erreur envoyée au client - Trade {event.get('trade_id', 'N/A')}")
+        print(f"✅ CONSUMER - Message envoyé au client pour Trade {event.get('trade_id', 'N/A')}")
+    
+    async def order_status_update(self, event):
+        """Notification de mise à jour de statut d'ordre"""
+        await self.send(text_data=json.dumps({
+            'type': 'order_status_update',
+            'order_id': event['order_id'],
+            'status': event['status'],
+            'message': event['message'],
+            'timestamp': event.get('timestamp', self._get_timestamp())
+        }))
+        
+        logger.info(f"🔄 Notification statut ordre envoyée - Order {event['order_id']}: {event['status']}")
+    
+    async def general_notification(self, event):
+        """Notification générale (info, warning, etc.)"""
+        await self.send(text_data=json.dumps({
+            'type': 'general_notification',
+            'level': event.get('level', 'info'),  # info, warning, error, success
+            'message': event['message'],
+            'details': event.get('details'),
+            'timestamp': event.get('timestamp', self._get_timestamp())
+        }))
+        
+        logger.info(f"📢 Notification générale envoyée: {event['message']}")
+    
+    def _get_timestamp(self):
+        """Retourne un timestamp Unix en millisecondes"""
+        from datetime import datetime
+        return int(datetime.now().timestamp() * 1000)

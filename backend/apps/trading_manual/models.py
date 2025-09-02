@@ -28,6 +28,10 @@ class Trade(models.Model):
     ORDER_TYPES = [
         ('market', 'Marche'),
         ('limit', 'Limite'),
+        ('stop_loss', 'Stop Loss'),
+        ('take_profit', 'Take Profit'),
+        ('sl_tp_combo', 'Stop Loss + Take Profit'),
+        ('stop_limit', 'Stop Limite'),
     ]
     
     STATUS_CHOICES = [
@@ -45,12 +49,17 @@ class Trade(models.Model):
     # Details de l'ordre
     symbol = models.CharField(max_length=20)  # Ex: "BTC/USDT"
     side = models.CharField(max_length=4, choices=SIDE_CHOICES)
-    order_type = models.CharField(max_length=10, choices=ORDER_TYPES)
+    order_type = models.CharField(max_length=15, choices=ORDER_TYPES)
     
     # Quantites et prix
     quantity = models.DecimalField(max_digits=20, decimal_places=8)
     price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
     total_value = models.DecimalField(max_digits=20, decimal_places=8)
+    
+    # Prix pour ordres avances (SL/TP)
+    stop_loss_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    take_profit_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    trigger_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)  # Pour stop orders
     
     # Resultats
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')

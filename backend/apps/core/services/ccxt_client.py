@@ -130,34 +130,36 @@ class CCXTClient:
         }
         return await self._send_request('get_candles', params)
     
-    async def place_market_order(self, broker_id: int, symbol: str, 
-                                side: str, amount: float) -> Dict:
-        """Passe un ordre au marché"""
-        logger.info(f"🔥 CCXTClient.place_market_order appelé: {side} {amount} {symbol}")
+    async def place_order(self, broker_id: int, symbol: str, side: str, 
+                         amount: float, order_type: str = 'market', 
+                         price: float = None, **advanced_params) -> Dict:
+        """MÉTHODE UNIFIÉE - Passe n'importe quel type d'ordre"""
+        logger.info(f"🔥 CCXTClient.place_order UNIFIÉ: {order_type} {side} {amount} {symbol}")
+        
         params = {
             'broker_id': broker_id,
             'symbol': symbol,
             'side': side,
             'amount': amount,
-            'type': 'market'
+            'type': order_type,
+            'price': price,
         }
-        logger.info(f"🔥 CCXTClient: Envoi place_order avec params: {params}")
+        
+        # Ajouter les paramètres avancés (stop_loss_price, take_profit_price, etc.)
+        params.update(advanced_params)
+        
+        logger.info(f"🔥 CCXTClient: Envoi place_order UNIFIÉ avec params: {params}")
         return await self._send_request('place_order', params)
+    
+    async def place_market_order(self, broker_id: int, symbol: str, 
+                                side: str, amount: float) -> Dict:
+        """Passe un ordre au marché - WRAPPER vers méthode unifiée"""
+        return await self.place_order(broker_id, symbol, side, amount, 'market')
     
     async def place_limit_order(self, broker_id: int, symbol: str, 
                                side: str, amount: float, price: float) -> Dict:
-        """Passe un ordre limite"""
-        logger.info(f"🔥 CCXTClient.place_limit_order appelé: {side} {amount} {symbol} @ {price}")
-        params = {
-            'broker_id': broker_id,
-            'symbol': symbol,
-            'side': side,
-            'amount': amount,
-            'price': price,
-            'type': 'limit'
-        }
-        logger.info(f"🔥 CCXTClient: Envoi place_order avec params: {params}")
-        return await self._send_request('place_order', params)
+        """Passe un ordre limite - WRAPPER vers méthode unifiée"""
+        return await self.place_order(broker_id, symbol, side, amount, 'limit', price)
     
     async def get_markets(self, broker_id: int) -> Dict:
         """Récupère les marchés disponibles pour un broker"""
@@ -228,6 +230,46 @@ class CCXTClient:
         # Supprimer les paramètres None
         params = {k: v for k, v in params.items() if v is not None}
         return await self._send_request('edit_order', params)
+    
+    async def get_tickers(self, broker_id: int, symbols: list[str]) -> Dict:
+        """Récupère les tickers pour plusieurs symboles en une requête"""
+        logger.info(f"🔄 CCXTClient.get_tickers appelé: broker {broker_id}, symbols {symbols}")
+        params = {
+            'broker_id': broker_id,
+            'symbols': symbols
+        }
+        return await self._send_request('fetch_tickers', params)
+    
+    # === MÉTHODES RÉTROCOMPATIBILITÉ ===
+    # CONSERVÉES APRÈS REFACTORING SEPT 2025 POUR :
+    # - Compatibilité avec modules futurs (Trading Engine, Webhooks, Backtest)
+    # - Éviter breaking changes dans l'architecture existante
+    # - Ces wrappers REDIRIGENT vers place_order() unifié (pas de duplication)
+    # 
+    # NOTE: TradingService utilise maintenant place_order() directement
+    # Ces méthodes sont des FAÇADES SEULEMENT pour d'autres modules
+    
+    async def place_stop_loss_order(self, broker_id: int, symbol: str, 
+                                   side: str, amount: float, stop_loss_price: float) -> Dict:
+        """
+        WRAPPER RÉTROCOMPATIBILITÉ - Redirige vers place_order() unifié
+        Conservé pour Trading Engine, Webhooks, Backtest modules
+        """
+        return await self.place_order(
+            broker_id, symbol, side, amount, 'stop_loss',
+            stop_loss_price=stop_loss_price
+        )
+    
+    async def place_take_profit_order(self, broker_id: int, symbol: str, 
+                                     side: str, amount: float, take_profit_price: float) -> Dict:
+        """
+        WRAPPER RÉTROCOMPATIBILITÉ - Redirige vers place_order() unifié  
+        Conservé pour Trading Engine, Webhooks, Backtest modules
+        """
+        return await self.place_order(
+            broker_id, symbol, side, amount, 'take_profit',
+            take_profit_price=take_profit_price
+        )
 
 def get_global_ccxt_client():
     """Récupère l'instance globale de CCXTClient"""

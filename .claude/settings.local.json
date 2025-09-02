@@ -24,7 +24,12 @@
       "Bash(python:*)",
       "Bash(sed:*)",
       "WebFetch(domain:docs.ccxt.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:www.bitget.com)",
+      "Bash(copy Aristobot3.md Aristobot3.1.md)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }
