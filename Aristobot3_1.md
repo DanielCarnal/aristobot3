@@ -1,4 +1,4 @@
-# Aristobot3.1.md - GUIDE DU DEVELOPPEUR (ARCHITECTURE NATIVE EXCHANGE GATEWAY)
+# Aristobot3_1.md - GUIDE DU DEVELOPPEUR (ARCHITECTURE NATIVE EXCHANGE GATEWAY)
 
 ## 1. Philosophie et Cadre du Projet
 
@@ -23,7 +23,7 @@ Aristobot V3.1 est un bot de trading de cryptomonnaies personnel, développé so
     * **Communication Temps Réel** : Redis (pour Django Channels)
   * **Librairies Python** :
     * Analyse Technique: **Pandas TA Classic - A Technical Analysis Library in Python 3** (https://github.com/xgboosted/pandas-ta-classic)
-    * Accès aux marchés (Broker) **APIs Natives des Exchanges - Bitget (40%), Binance (40%), KuCoin (10%), Kraken (10%)**
+    * Accès aux marchés (Broker) **APIs Natives des Exchanges - Bitget (45%), Binance (35%), KuCoin (10%), Kraken (10%)**
   * **Parallélisme** : Les calculs concurrents (notamment pour les stratégies) seront gérés exclusivement par **`asyncio`**. L'utilisation de Celery est exclue pour rester simple.
   * **Gestion des Instances Exchange** : Une approche **service centralisé** est utilisée. L'Exchange Gateway centralisé (Terminal 5) maintient une seule instance de connexion par `user_id` et `broker_id` et communique avec les autres services via Redis pour respecter les recommandations des exchanges et gérer efficacement les **rate limits**.
   * **API Exchange asynchrone** : Tous les appels aux APIs des exchanges devront être effectués via des clients natifs asynchrones et `await` pour rester non bloquants et préserver les performances de la boucle `asyncio`.
@@ -179,21 +179,22 @@ L'application est conçue pour fonctionner comme un écosystème de services int
 Pour que l'application soit pleinement opérationnelle, **cinq terminaux distincts** doivent être lancés.
 Ces services forment l'épine dorsale de l'application et fonctionnent en arrière-plan, indépendamment de la présence d'un utilisateur connecté à l'interface web.
 
-1. **Terminal 1 : Serveur Web + WebSocket (Daphne)**
-   * **Commande** : `daphne aristobot.asgi:application`
-   - **Port** : 8000
-   * **Rôle** : C'est le serveur principal. Il gère toutes les requêtes HTTP (pour l'API REST et le service des pages web) et maintient les connexions WebSocket ouvertes avec les clients (navigateurs). C'est la porte d'entrée de toute l'application. Exécuter le code des apps Django (accounts, brokers, strategies, etc.)
-  - NE PAS recevoir directement les webhooks externes
+##### **Terminal 1 : Serveur Web + WebSocket (Daphne)**
+* **Commande** : `daphne aristobot.asgi:application`
+- **Port** : 8000
+* **Rôle** : C'est le serveur principal. Il gère toutes les requêtes HTTP (pour l'API REST et le service des pages web) et maintient les connexions WebSocket ouvertes avec les clients (navigateurs). C'est la porte d'entrée de toute l'application. Exécuter le code des apps Django (accounts, brokers, strategies, etc.)
+- NE PAS recevoir directement les webhooks externes
      
-1. **Terminal 2 : Service Heartbeat (Tâche de gestion Django)**
-   * **Commande** : `python manage.py run_heartbeat`
-   * **Rôle** : Le "cœur" du système. Ce service se connecte directement au flux WebSocket de Binance pour écouter les données du marché en temps réel. Il est totalement indépendant et fonctionne en continu. Son rôle principal est de fournir le rythme aux applications Django, par exemple pour déclencher le calcul d'une stratégie, ou du rafraîchissement du prix affiché.
-       * Connexion permanente au WebSocket Binance
-       * Agrégation des trades en bougies multi-timeframe
-       * Publication des signaux temporels sur Redis
-       * Sauvegarde des bougies en PostgreSQL
+##### **Terminal 2 : Service Heartbeat (Tâche de gestion Django)
+* ****Commande** : `python manage.py run_heartbeat`
+* xxx
+* **Rôle** : Le "cœur" du système. Ce service se connecte directement au flux WebSocket de Binance pour écouter les données du marché en temps réel. Il est totalement indépendant et fonctionne en continu. Son rôle principal est de fournir le rythme aux applications Django, par exemple pour déclencher le calcul d'une stratégie, ou du rafraîchissement du prix affiché.
+  * Connexion permanente au WebSocket Binance
+  * Agrégation des trades en bougies multi-timeframe
+  * Publication des signaux temporels sur Redis
+  * Sauvegarde des bougies en PostgreSQL
          
-2. **Terminal 3 : Moteur de Trading - Trading Engine (Tâche de gestion Django)**
+##### **Terminal 3 : Moteur de Trading - Trading Engine (Tâche de gestion Django)**
    * **Commande** : `python manage.py run_trading_engine`
    * **Port** : Aucun (écoute Redis)
    * **Rôle** : Le "cerveau" du système. Ce service écoute les signaux émis par le _Heartbeat_ ET _webhooks_. Il prend les décisions de trading en exécutant la logique des stratégies actives.
@@ -205,7 +206,7 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
       - Décider des ordres à passer
       - Communiquer avec Terminal 5 pour exécution
      
-3. **Terminal 4 : Frontend (Vite)**
+##### **Terminal 4 : Frontend (Vite)**
    * **Commande** : `npm run dev`
    - **Port** : 5173 (dev) ou 80/443 (production)
    * **Rôle** : Sert l'interface utilisateur développée en Vue.js. C'est ce que l'utilisateur voit et avec quoi il interagit dans son navigateur. Elle se connecte au serveur Daphne (Terminal 1) via WebSocket pour recevoir les données en temps réel.
@@ -214,30 +215,30 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
        * Affichage temps réel des données
        * Gestion locale de l'état UI (Pinia)
 
-4. **Terminal 5 : Exchange Gateway Centralisé**
-   * **Commande** : `python manage.py run_exchange_service`
+##### **Terminal 5 : Native Exchange Gateway (Migré)**
+   * **Commande** : `python manage.py run_native_exchange_service`
+   * **Fichier de démarrage** : `Start2 - Terminal 5 _ Native Exchange Service.bat`
    * **Port** : Aucun (écoute Redis)
-   * **Rôle** : Le "hub" centralisé pour toutes les connexions aux exchanges. Ce service maintient des connexions lazy loading et communique avec les autres services via Redis. Il garantit le respect des rate limits des exchanges.
+   * **Rôle** : Le "hub" centralisé pour toutes les connexions aux exchanges avec APIs natives. Remplace l'ancien service CCXT. Maintient des connexions lazy loading et communique avec les autres services via Redis. Performance ~56% supérieure.
    * **Responsabilités** :
       - Exécuter les ordres de trading
       - Récupérer les balances et positions
       - Tester les connexions pour User Account
       - Charger les marchés à la demande pour User Account
      
-5. **Terminal 6 : Service Webhook Receiver (NOUVEAU)**
-    - **Commande** : `python manage.py run_webhook_receiver`
-    - **Port** : 8888 (configurable)
-    - **Rôle** :
-      - Recevoir les webhooks HTTP POST, Serveur HTTP léger (FastAPI/aiohttp)
-      - Valider le token d'authentification
-      - Publier immédiatement sur Redis
-      - Répondre rapidement (200 OK)
-      - réception 24/7 des webhooks
-      - AUCUNE logique métier
-      - AUCUN accès à la base de données
-     
-    **Fonctionnement avec TERMINAL 6**
-    
+##### **Terminal 6 : Service Webhook Receiver (NOUVEAU)**
+- **Commande** : `python manage.py run_webhook_receiver`
+- **Port** : 8888 (configurable)
+- **Rôle** :
+  - Recevoir les webhooks HTTP POST, Serveur HTTP léger (FastAPI/aiohttp)
+  - Valider le token d'authentification
+  - Publier immédiatement sur Redis
+  - Répondre rapidement (200 OK)
+  - réception 24/7 des webhooks
+  - AUCUNE logique métier
+  - AUCUN accès à la base de données
+ 
+**Fonctionnement avec TERMINAL 6**   
 ```ascii
                           TradingView
                               ↓   (HTTP POST port 80/443)
@@ -280,32 +281,64 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
         │   • Retourne confirmations                                      │
         └───────────────────────────────────────────────────────────┘
 ```
-    
+##### **Terminal 7 : Service de suivi des ordres (NOUVEAU)**
+* **Commande** : `python manage.py run_???`
+* **Port** : Aucun (écoute Redis)
+* **Rôle** : Il recherche les ordres qui ont été FILL et met à jours la DB à chaque signal. Il est responsable des calculs P&L, rendements et autres statistiques. Il communique les résultats par wevsocket avec les applications qui demande des informations. Ce service écoute les signaux émis par le `Heartbeat`, qui sert de déclencheur pour lexécution des prcessus. 
+* **Responsabilités** :
+  - Écouter signaux Heartbeat
+  - Charger les ordres ouverts des exchanges, vérifier leur présences dans la DB (enregistrés lors de la création). S'ils n'existent pas les ajouter (l'ordre a pu être passé dans la console de l'Exchange). Renseigner la colonne "OrdreExistant" par "Ajouté par Terminal 7"
+  - Charger les ordres exécutés
+  - Comparer avec l'état précédent (est-ce qu'il y a des ordres ouverts qui ont été FILL ?)
+      - Oui, calculer le P&L
+      - Non, ne rien faire
+  * Est-ce qu'il y a des ordres Limit pas complétement Fill ?
+  - Communiquer avec Terminal 5 pour exécution
+
 **ARCHITECTURE Block**
 ```ascii
-    Terminal 1          Terminal 2           Terminal 3          Terminal 4          Terminal 5			  Terminal 6
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+   +----------------+
-| > daphne ...  |   | > python       |   | > python       |   | > npm run dev |   | > python       |   | > python       |
-|               |   |   manage.py    |   |   manage.py    |   |               |   |   manage.py    |   |   manage.py    |
-| SERVEUR WEB   |   |   run_heartbeat|   | run_trading_   |   |   FRONTEND    |   | run_exchange_  |   | run_webhook_   |
-| & WEBSOCKET   |   |                |   |   engine       |   |   (Vue.js)    |   |   service      |   |      receiver  |
-| (Standardiste)|   | HEARTBEAT      |   | TRADING ENGINE |   | (Cockpit)     |   | EXCHANGE       |   |WEBHOOK RECEIVER|
-|               |   |                |   |                |   |               |   | GATEWAY        |   |                |
-+---------------+   +----------------+   +----------------+   +---------------+   +----------------+   +----------------+
-       ^                     |                     |                   ^                   ^                    ^
-       |                     |                     |                   |                   |                    |
-       +---------------------+---------------------+-------------------+----------------------------------------+
-                             |
-                      +-----------------+
-                      |     REDIS       |
-                      | (Communication  |
-                      |  inter-process) |
-                      | • heartbeat     |
-                      | • exchange_reqs |
-                      | • exchange_resp |
-                      | • websockets    |
-                      | • webhooks      |
-                      +-----------------+
+                      
++-----------------+         +---------------------------------------+
+|     REDIS       |----+----| Terminal 1                            |
+| (Communication  |    |    | > daphne ...                          |
+|  inter-process) |    |    | SERVEUR WEB & WEBSOCKET (Standardiste)|
+| • heartbeat     |    |    +---------------------------------------+
+| • exchange_reqs |    |    
+| • exchange_resp |    |    +---------------------------------------+
+| • websockets    |    +----| Terminal 2                            |
+| • webhooks      |    |    | > python manage.py run_heartbeat      |
++-----------------+    |    | HEARTBEAT                             |
+                       |    +---------------------------------------+
+                       |    
+                       |    +---------------------------------------+
+                       +----| Terminal 3                            |
+                       |    | > python manage.py run_trading_engine |
+                       |    | TRADING ENGINE                        |
+                       |    +---------------------------------------+
+                       |    
+                       |    +---------------------------------------+
+                       +----| Terminal 4                            |
+                       |    | > npm run dev                         |
+                       |    | FRONTEND (Vue.js) - (Cockpit)         |
+                       |    +---------------------------------------+
+                       |    
+                       |    +---------------------------------------+
+                       +----| Terminal 5                            |
+                       |    | > python manage.py run_exchange_service|
+                       |    | EXCHANGE GATEWAY                      |
+                       |    +---------------------------------------+
+                       |    
+                       |    +---------------------------------------+
+                       +----| Terminal 6                            |
+                       |    | > python manage.py run_webhook_receiver|
+                       |    | WEBHOOK RECEIVER                      |
+                       |    +---------------------------------------+
+                       |    
+                       |    +---------------------------------------+
+                       +----| Terminal 7                            |
+                            | (Réservé)                             |
+                            |                                       |
+                            +---------------------------------------+
 ```
 ```ascii
                     ARCHITECTURE COMPLÈTE ARISTOBOT3.1 - 6 TERMINAUX

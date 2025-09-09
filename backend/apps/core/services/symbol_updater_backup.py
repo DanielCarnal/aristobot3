@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Service de mise à jour des symboles - VERSION CORRIGÉE
-Corrige les erreurs PostgreSQL sur valeurs décimales trop grandes
-"""
 import asyncio
 import ccxt
 import ccxt.async_support as ccxt_async
@@ -17,45 +12,21 @@ logger = logging.getLogger(__name__)
 class SymbolUpdaterService:
     """
     Service pour mettre à jour les symboles disponibles sur les exchanges.
-    Version corrigée qui gère les limites PostgreSQL.
+    Utilise ccxt pour récupérer les informations de marché.
     """
-    
-    @staticmethod
-    def safe_decimal_value(value):
-        """
-        Filtre les valeurs décimales pour éviter les erreurs PostgreSQL
-        
-        PostgreSQL DecimalField(max_digits=20, decimal_places=8) ne peut pas 
-        stocker des valeurs > 10^12 (999999999999.99999999)
-        """
-        if value is None:
-            return None
-        try:
-            val = float(value)
-            # Limite PostgreSQL: valeur absolue < 10^12
-            if abs(val) > 999999999999:
-                logger.debug(f"Valeur trop grande ignorée: {val}")
-                return None
-            if val == 0:
-                return None  # Ignorer les zéros
-            return value
-        except (ValueError, TypeError, OverflowError):
-            logger.debug(f"Valeur invalide ignorée: {value}")
-            return None
     
     @staticmethod
     def update_exchange_symbols_sync(exchange_name: str) -> Dict:
         """
         Met à jour les symboles pour un exchange donné (version synchrone).
-        Version corrigée avec gestion des limites PostgreSQL.
+        Retourne un dictionnaire avec les statistiques de mise à jour.
         """
         stats = {
             'exchange': exchange_name,
             'added': 0,
             'updated': 0,
             'deactivated': 0,
-            'errors': [],
-            'filtered_values': 0
+            'errors': []
         }
         
         try:
@@ -95,29 +66,7 @@ class SymbolUpdaterService:
                             limits = market.get('limits', {})
                             precision = market.get('precision', {})
                             
-                            # Filtrer les valeurs avec logging
-                            min_amount = SymbolUpdaterService.safe_decimal_value(limits.get('amount', {}).get('min'))
-                            max_amount = SymbolUpdaterService.safe_decimal_value(limits.get('amount', {}).get('max'))
-                            min_price = SymbolUpdaterService.safe_decimal_value(limits.get('price', {}).get('min'))
-                            max_price = SymbolUpdaterService.safe_decimal_value(limits.get('price', {}).get('max'))
-                            min_cost = SymbolUpdaterService.safe_decimal_value(limits.get('cost', {}).get('min'))
-                            
-                            # Compter les valeurs filtrées
-                            original_values = [
-                                limits.get('amount', {}).get('min'),
-                                limits.get('amount', {}).get('max'),
-                                limits.get('price', {}).get('min'),
-                                limits.get('price', {}).get('max'),
-                                limits.get('cost', {}).get('min')
-                            ]
-                            filtered_values = [min_amount, max_amount, min_price, max_price, min_cost]
-                            filtered_count = sum(1 for orig, filt in zip(original_values, filtered_values) 
-                                               if orig is not None and filt is None)
-                            if filtered_count > 0:
-                                stats['filtered_values'] += filtered_count
-                                logger.debug(f"Symbole {symbol}: {filtered_count} valeurs filtrées")
-                            
-                            # Créer ou mettre à jour le symbole avec valeurs filtrées
+                            # Créer ou mettre à jour le symbole
                             obj, created = ExchangeSymbol.objects.update_or_create(
                                 exchange=exchange_name,
                                 symbol=symbol,
@@ -126,11 +75,11 @@ class SymbolUpdaterService:
                                     'base': market.get('base', ''),
                                     'quote': market.get('quote', ''),
                                     'active': True,
-                                    'min_amount': min_amount,
-                                    'max_amount': max_amount,
-                                    'min_price': min_price,
-                                    'max_price': max_price,
-                                    'min_cost': min_cost,
+                                    'min_amount': limits.get('amount', {}).get('min'),
+                                    'max_amount': limits.get('amount', {}).get('max'),
+                                    'min_price': limits.get('price', {}).get('min'),
+                                    'max_price': limits.get('price', {}).get('max'),
+                                    'min_cost': limits.get('cost', {}).get('min'),
                                     'amount_precision': precision.get('amount'),
                                     'price_precision': precision.get('price'),
                                     'raw_info': market,
@@ -156,7 +105,7 @@ class SymbolUpdaterService:
                     logger.info(
                         f"Mise à jour {exchange_name}: "
                         f"{stats['added']} ajoutés, {stats['updated']} mis à jour, "
-                        f"{deleted_count} supprimés, {stats['filtered_values']} valeurs filtrées"
+                        f"{deleted_count} supprimés"
                     )
                     
             finally:
@@ -173,16 +122,15 @@ class SymbolUpdaterService:
     @staticmethod
     async def update_exchange_symbols(exchange_name: str) -> Dict:
         """
-        Met à jour les symboles pour un exchange donné (version async).
-        Version corrigée avec gestion des limites PostgreSQL.
+        Met à jour les symboles pour un exchange donné.
+        Retourne un dictionnaire avec les statistiques de mise à jour.
         """
         stats = {
             'exchange': exchange_name,
             'added': 0,
             'updated': 0,
             'deactivated': 0,
-            'errors': [],
-            'filtered_values': 0
+            'errors': []
         }
         
         try:
@@ -222,29 +170,7 @@ class SymbolUpdaterService:
                             limits = market.get('limits', {})
                             precision = market.get('precision', {})
                             
-                            # Filtrer les valeurs avec logging
-                            min_amount = SymbolUpdaterService.safe_decimal_value(limits.get('amount', {}).get('min'))
-                            max_amount = SymbolUpdaterService.safe_decimal_value(limits.get('amount', {}).get('max'))
-                            min_price = SymbolUpdaterService.safe_decimal_value(limits.get('price', {}).get('min'))
-                            max_price = SymbolUpdaterService.safe_decimal_value(limits.get('price', {}).get('max'))
-                            min_cost = SymbolUpdaterService.safe_decimal_value(limits.get('cost', {}).get('min'))
-                            
-                            # Compter les valeurs filtrées
-                            original_values = [
-                                limits.get('amount', {}).get('min'),
-                                limits.get('amount', {}).get('max'),
-                                limits.get('price', {}).get('min'),
-                                limits.get('price', {}).get('max'),
-                                limits.get('cost', {}).get('min')
-                            ]
-                            filtered_values = [min_amount, max_amount, min_price, max_price, min_cost]
-                            filtered_count = sum(1 for orig, filt in zip(original_values, filtered_values) 
-                                               if orig is not None and filt is None)
-                            if filtered_count > 0:
-                                stats['filtered_values'] += filtered_count
-                                logger.debug(f"Symbole {symbol}: {filtered_count} valeurs filtrées")
-                            
-                            # Créer ou mettre à jour le symbole avec valeurs filtrées
+                            # Créer ou mettre à jour le symbole
                             obj, created = ExchangeSymbol.objects.update_or_create(
                                 exchange=exchange_name,
                                 symbol=symbol,
@@ -253,11 +179,11 @@ class SymbolUpdaterService:
                                     'base': market.get('base', ''),
                                     'quote': market.get('quote', ''),
                                     'active': True,
-                                    'min_amount': min_amount,
-                                    'max_amount': max_amount,
-                                    'min_price': min_price,
-                                    'max_price': max_price,
-                                    'min_cost': min_cost,
+                                    'min_amount': limits.get('amount', {}).get('min'),
+                                    'max_amount': limits.get('amount', {}).get('max'),
+                                    'min_price': limits.get('price', {}).get('min'),
+                                    'max_price': limits.get('price', {}).get('max'),
+                                    'min_cost': limits.get('cost', {}).get('min'),
                                     'amount_precision': precision.get('amount'),
                                     'price_precision': precision.get('price'),
                                     'raw_info': market,
@@ -283,7 +209,7 @@ class SymbolUpdaterService:
                     logger.info(
                         f"Mise à jour {exchange_name}: "
                         f"{stats['added']} ajoutés, {stats['updated']} mis à jour, "
-                        f"{deleted_count} supprimés, {stats['filtered_values']} valeurs filtrées"
+                        f"{deleted_count} supprimés"
                     )
                     
             finally:

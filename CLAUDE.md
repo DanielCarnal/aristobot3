@@ -1,7 +1,8 @@
-# Aristobot3 - Configuration Claude Code
+# Aristobot3_1 - Configuration Claude Code
 
 ## **Le projet**
-@Aristobot3.md
+@Aristobot3_1.md
+@Aristobot3.1_ExchangeGateway.md
 @IMPLEMENTATION_PLAN.md
 
 ### Imports de contexte
@@ -12,8 +13,9 @@
 @backend/requirements.txt
 @frontend/package.json
 ### **Services et logique métier**
-@backend/apps/core/services/ccxt_client.py     # Client CCXT
-@backend/apps/core/consumers.py                # WebSocket consumers
-@backend/apps/core/management/commands/run_heartbeat.py  # Service Heartbeat
+@backend/apps/core/services/exchange_client.py     # Client Exchange natif (remplace CCXT)
+@backend/apps/core/consumers.py                     # WebSocket consumers
+@backend/apps/core/management/commands/run_heartbeat.py              # Service Heartbeat (Terminal 2)
+@backend/apps/core/management/commands/run_native_exchange_service.py # Service Exchange natif (Terminal 5)
 
 Bot de trading crypto avec contexte technique complet chargé via imports.

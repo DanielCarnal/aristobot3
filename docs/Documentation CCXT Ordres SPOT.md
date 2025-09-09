@@ -378,3 +378,101 @@ Réessayer
 
 [Claude peut faire des erreurs.\
 Assurez-vous de vérifier ses réponses.](https://support.anthropic.com/en/articles/8525154-claude-is-providing-incorrect-or-misleading-responses-what-s-going-on)
+
+=================================================
+# ANALYSE FINALE - FAISABILITÉ CCXT APRÈS DÉCOUVERTES
+
+## 🤔 Investigation Sérieuse : CCXT Hack Possible ?
+
+### Découvertes sur les Paramètres Custom CCXT
+
+**CCXT supporte théoriquement** les paramètres exchange-spécifiques via `params` :
+```python
+exchange.createOrder(symbol, type, side, amount, price, params={
+    'tpslType': 'tpsl',           # ← NOS DÉCOUVERTES 
+    'planType': 'profit_plan',    # ← POURRAIENT MARCHER
+    'triggerPrice': 123374.05,    # ← AVEC CCXT
+    'presetStopLossPrice': 100942.41
+})
+```
+
+### Problèmes Identifiés
+
+**Issues GitHub révèlent blocages persistants :**
+- **#21487** : "params can only contain one of triggerPrice, stopLossPrice, takeProfitPrice"
+- **#20729** : API V2 Bitget non complètement supportée
+- **#24665** : TP/SL position orders problématiques
+
+**CCXT impose ses propres limitations** même quand l'exchange supporte nativement.
+
+## 💡 Hack CCXT Théoriquement Possible
+
+### Approche 1 : Injection Paramètres Natifs
+```python
+# Tenter nos paramètres découverts dans CCXT
+result = exchange.createOrder('BTC/USDT', 'limit', 'buy', 0.000018, 112158, {
+    'tpslType': 'normal',
+    'planType': 'normal_plan', 
+    'presetStopLossPrice': '100942.41',
+    'presetTakeProfitPrice': '123374.05'
+})
+```
+
+### Approche 2 : Override Méthode Interne
+```python
+# Monkey patch temporaire
+original_request = exchange._request
+
+def patched_request(path, api='public', method='GET', params={}, headers=None, body=None):
+    # Injecter nos paramètres découverts
+    if 'place-order' in path and 'tpslType' in params:
+        # Laisser passer nos paramètres natifs
+        pass
+    return original_request(path, api, method, params, headers, body)
+
+exchange._request = patched_request
+```
+
+## ⚖️ Évaluation Coût/Bénéfice
+
+### CCXT Hack
+**✅ Avantages :**
+- Conservation des 200+ exchanges
+- Logique existante préservée  
+- Une seule modification ponctuelle
+
+**❌ Inconvénients :**
+- **Hack fragile** : Vulnérable aux mises à jour CCXT
+- **Nos découvertes perdues** : 4 variantes non exploitables  
+- **Debugging complexe** : Erreurs dans les couches CCXT
+- **Performance dégradée** : Overhead abstraction maintenu
+- **Support limité** : Nos paramètres non documentés CCXT
+
+### API Native
+**✅ Avantages :**
+- **Contrôle total** : 4 variantes TP/SL complètes
+- **Code robuste** : Pas de dépendance externe fragile
+- **Performance optimale** : Accès direct sans overhead
+- **Évolutivité** : Adaptation immediate aux nouveautés exchange
+
+**❌ Inconvénients :**
+- **4 exchanges seulement** (vs 200+ CCXT)
+- **Développement clients** requis pour chaque exchange
+- **Maintenance signatures** API propres
+
+## 🎯 CONCLUSION TECHNIQUE
+
+**CCXT hack techniquement possible MAIS fortement déconseillé :**
+
+1. **Nos découvertes uniques** (`tpslType`, 4 variantes) seraient **sous-exploitées**
+2. **Fragilité extrême** : Hack cassé à chaque mise à jour CCXT  
+3. **Complexité de debug** : Erreurs dans couches d'abstraction
+4. **Performance dégradée** : Overhead CCXT maintenu
+
+**Migration native confirme sa supériorité** :
+- **100% de nos découvertes exploitées**
+- **Code robuste et prévisible**  
+- **Performance maximale**
+- **4 exchanges couvrent 95% besoins crypto trading**
+
+**VERDICT FINAL : Continuer migration native** - L'effort/bénéfice est sans appel. 🚀

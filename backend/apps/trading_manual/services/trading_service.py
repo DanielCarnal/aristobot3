@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from django.utils import timezone
 from asgiref.sync import sync_to_async
-from apps.core.services.ccxt_client import CCXTClient
+from apps.core.services.exchange_client import ExchangeClient as CCXTClient
 
 logger = logging.getLogger(__name__)
 
@@ -23,27 +23,41 @@ class TradingService:
         """Récupère le solde du broker"""
         return await self.ccxt_client.get_balance(self.broker.id)
     
-    async def get_available_symbols(self, filters=None, page=1, page_size=100):
-        """Récupère les symboles disponibles depuis CCXTClient avec filtrage"""
+    def get_available_symbols(self, filters=None, page=1, page_size=100):
+        """Récupère les symboles disponibles depuis la base de données PostgreSQL - VERSION SYNCHRONE"""
+        from apps.brokers.models import ExchangeSymbol
+        from django.db.models import Q
         
-        # Récupération depuis CCXTClient (pas de DB)
-        markets = await self.ccxt_client.get_markets(self.broker.id)
-        symbols = list(markets.keys())
+        # SOLUTION: Méthode synchrone classique, plus de sync_to_async !
+        # Construire la requête avec filtrage
+        queryset = ExchangeSymbol.objects.filter(
+            exchange__iexact=self.broker.exchange,
+            active=True,
+            type='spot'  # On ne récupère que les marchés spot pour le trading manuel
+        )
         
         # Filtrage par quote assets
-        if filters:
-            if not filters.get('all', False):
-                filtered_symbols = []
-                if filters.get('usdt', False):
-                    filtered_symbols.extend([s for s in symbols if s.endswith('/USDT')])
-                if filters.get('usdc', False):
-                    filtered_symbols.extend([s for s in symbols if s.endswith('/USDC')])
-                symbols = filtered_symbols
+        if filters and not filters.get('all', False):
+            quote_filters = Q()
+            if filters.get('usdt', False):
+                quote_filters |= Q(quote__iexact='USDT')
+            if filters.get('usdc', False):
+                quote_filters |= Q(quote__iexact='USDC')
             
-            # Filtrage par recherche
-            if filters.get('search'):
-                search_term = filters['search'].lower()
-                symbols = [s for s in symbols if search_term in s.lower()]
+            if quote_filters:
+                queryset = queryset.filter(quote_filters)
+        
+        # Filtrage par recherche
+        if filters and filters.get('search'):
+            search_term = filters['search'].lower()
+            queryset = queryset.filter(
+                Q(symbol__icontains=search_term) | 
+                Q(base__icontains=search_term) |
+                Q(quote__icontains=search_term)
+            )
+        
+        # Exécuter la requête et retourner la liste (synchrone = rapide!)
+        symbols = list(queryset.values_list('symbol', flat=True).order_by('symbol'))
         
         # Virtual scroll - pas de vraie pagination, on retourne tout
         total = len(symbols)

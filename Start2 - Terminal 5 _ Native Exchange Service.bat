@@ -1,4 +1,13 @@
 ::@echo off
+chcp 65001
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
+echo ===============================================
+echo    ARISTOBOT3.1 - Terminal 5 (Exchange Gateway)
+echo    Service: Native Exchange Service
+echo    Commande: run_native_exchange_service
+echo ===============================================
+
 REM Active conda et l'environnement
 call C:\ProgramData\anaconda3\Scripts\activate.bat
 call conda activate aristobot3
@@ -10,7 +19,9 @@ cd /d C:\Users\dac\Documents\Python\Django\Aristobot3\backend
 echo Dossier backend ouvert
 
 :RESTART
-python manage.py run_ccxt_service
+echo.
+echo [DEMARRAGE] Terminal 5 - Native Exchange Service
+python manage.py run_native_exchange_service --verbose
 
 
 REM -- Fin du processus run_heartbeatproposer redémarrage ou sortie --

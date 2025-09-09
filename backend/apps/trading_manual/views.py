@@ -118,9 +118,10 @@ class SymbolFilteredView(APIView):
             }
             
             trading_service = TradingService(request.user, broker)
-            result = asyncio.run(trading_service.get_available_symbols(
+            # PLUS BESOIN de asyncio.run() car get_available_symbols() est maintenant synchrone !
+            result = trading_service.get_available_symbols(
                 filters, data.get('page', 1), data.get('page_size', 100)
-            ))
+            )
             
             return Response(result)
         except Exception as e:

@@ -876,9 +876,15 @@ export default {
     }
     
     const loadSymbols = async () => {
-      if (!selectedBroker.value) return
+      console.log('🔍 loadSymbols - DEBUT - selectedBroker:', selectedBroker.value)
+      if (!selectedBroker.value) {
+        console.log('❌ loadSymbols - Pas de broker sélectionné')
+        return
+      }
       
       symbolsLoading.value = true
+      console.log('🔄 loadSymbols - symbolsLoading = true')
+      
       try {
         const params = new URLSearchParams({
           broker_id: selectedBroker.value,
@@ -889,12 +895,23 @@ export default {
           page_size: 200
         })
         
+        console.log('📡 loadSymbols - URL:', `/api/trading-manual/symbols/filtered/?${params}`)
+        console.log('📊 loadSymbols - Paramètres:', Object.fromEntries(params))
+        
         const response = await api.get(`/api/trading-manual/symbols/filtered/?${params}`)
+        console.log('✅ loadSymbols - Réponse reçue:', response.data)
+        
         symbols.value = response.data.symbols || []
+        console.log(`✅ loadSymbols - ${symbols.value.length} symboles chargés`)
+        
       } catch (err) {
+        console.error('❌ loadSymbols - Erreur:', err)
+        console.error('❌ loadSymbols - Response:', err.response?.data)
+        console.error('❌ loadSymbols - Status:', err.response?.status)
         error.value = 'Erreur chargement symboles: ' + err.message
       } finally {
         symbolsLoading.value = false
+        console.log('✅ loadSymbols - FIN - symbolsLoading = false')
       }
     }
     
@@ -1675,14 +1692,48 @@ export default {
         disconnectOpenOrdersWebSocket()
         disconnectNotificationsSocket()
         
-        // Charger les nouvelles données
-        await Promise.all([
-          loadPortfolio(),
-          loadExchangeInfo(),
-          loadSymbols(),
-          loadRecentTrades(),
-          loadOrdersForCurrentMode()
-        ])
+        // Charger les nouvelles données - SÉPARÉMENT pour debug
+        console.log('🔄 onBrokerChange - Début chargement données...')
+        
+        try {
+          console.log('🔄 onBrokerChange - loadPortfolio()...')
+          await loadPortfolio()
+          console.log('✅ onBrokerChange - loadPortfolio() OK')
+        } catch (err) {
+          console.error('❌ onBrokerChange - loadPortfolio() ERREUR:', err)
+        }
+        
+        try {
+          console.log('🔄 onBrokerChange - loadExchangeInfo()...')
+          await loadExchangeInfo()
+          console.log('✅ onBrokerChange - loadExchangeInfo() OK')
+        } catch (err) {
+          console.error('❌ onBrokerChange - loadExchangeInfo() ERREUR:', err)
+        }
+        
+        try {
+          console.log('🔄 onBrokerChange - loadSymbols()...')
+          await loadSymbols()
+          console.log('✅ onBrokerChange - loadSymbols() OK')
+        } catch (err) {
+          console.error('❌ onBrokerChange - loadSymbols() ERREUR:', err)
+        }
+        
+        try {
+          console.log('🔄 onBrokerChange - loadRecentTrades()...')
+          await loadRecentTrades()
+          console.log('✅ onBrokerChange - loadRecentTrades() OK')
+        } catch (err) {
+          console.error('❌ onBrokerChange - loadRecentTrades() ERREUR:', err)
+        }
+        
+        try {
+          console.log('🔄 onBrokerChange - loadOrdersForCurrentMode()...')
+          await loadOrdersForCurrentMode()
+          console.log('✅ onBrokerChange - loadOrdersForCurrentMode() OK')
+        } catch (err) {
+          console.error('❌ onBrokerChange - loadOrdersForCurrentMode() ERREUR:', err)
+        }
         
         // Charger les prix du portfolio après avoir chargé le portfolio
         await loadPortfolioPrices()

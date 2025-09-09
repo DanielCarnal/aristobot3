@@ -29,7 +29,12 @@
       "Bash(git push:*)",
       "WebFetch(domain:www.bitget.com)",
       "Bash(copy Aristobot3.md Aristobot3.1.md)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "mcp__context7__resolve-library-id",
+      "WebFetch(domain:wundertrading.com)",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(dir \"Start2 - \"*)"
     ],
     "deny": []
   }
