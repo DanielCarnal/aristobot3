@@ -83,19 +83,11 @@
                 </tbody>
               </table>
             </div>
-            
-            <h3 v-if="Object.keys(portfolio.positions).length > 0">Positions ouvertes</h3>
-            <div class="positions-list">
-              <div v-for="(amount, asset) in portfolio.positions" :key="asset" class="position-item">
-                <span class="asset">{{ asset }}:</span>
-                <span class="amount">{{ parseFloat(amount).toFixed(8) }}</span>
-              </div>
-            </div>
           </div>
         </div>
 
         <!-- Capacités exchange -->
-        <div class="section-card">
+        <div class="section-card exchange-capabilities">
           <h2>Capacités Exchange</h2>
           <div v-if="exchangeInfoLoading" class="loading">Chargement...</div>
           <div v-else-if="exchangeInfo">
@@ -563,7 +555,7 @@
         </div>
 
         <!-- Ordres avec toggle -->
-        <div class="section-card">
+        <div class="section-card orders-section">
           <div class="orders-header">
             <h2>{{ orderViewMode === 'open' ? 'Ordres ouverts' : 'Historique des ordres' }}</h2>
             <div class="orders-toggle">
@@ -625,7 +617,7 @@
         </div>
 
         <!-- Historique des trades récents -->
-        <div class="section-card">
+        <div class="section-card recent-trades">
           <h2>Trades récents</h2>
           <div v-if="tradesLoading" class="loading">Chargement...</div>
           <div v-else class="trades-list">
@@ -2203,24 +2195,27 @@ export default {
 /* Utilisation des variables CSS globales cohérentes avec les autres pages */
 
 .trading-manual {
-  padding: 1.5rem;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   background: var(--color-background);
   min-height: 100vh;
   color: var(--color-text);
   font-family: 'Segoe UI', -apple-system, system-ui, sans-serif;
+  box-sizing: border-box;
 }
 
 .header-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: var(--color-surface);
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--color-background), #2a2a2a);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
+  box-sizing: border-box;
 }
 
 .header-section h1 {
@@ -2289,25 +2284,112 @@ export default {
 
 .main-content {
   display: grid;
-  grid-template-columns: 25% 25% 50%;
-  gap: 2rem;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 1.5rem;
   min-height: 600px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 1rem;
 }
 
 .section-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  height: fit-content;
-  transition: all 0.3s ease;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  min-height: 400px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.portfolio-column, .symbols-column, .trading-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Styles spécifiques des colonnes - inspirés du Heartbeat */
+.portfolio-column .section-card {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-color: #00d4ff;
+}
+
+.symbols-column .section-card {
+  background: linear-gradient(135deg, #2e1a2e, #3e1a3e);
+  border-color: #ff0055;
+}
+
+.trading-column .section-card {
+  background: linear-gradient(135deg, #1a2e1a, #1e3e1e);
+  border-color: #00ff88;
+}
+
+.exchange-capabilities {
+  background: linear-gradient(135deg, #2e2e1a, #3e3e1e) !important;
+  border-color: #ffaa00 !important;
+}
+
+/* Styles des titres - inspirés du Heartbeat */
+.section-card h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.75rem;
+}
+
+/* Titres spécifiques par section avec couleurs néon */
+.portfolio-column h2 {
+  color: #00d4ff;
+}
+
+.symbols-column h2 {
+  color: #ff0055;
+}
+
+.trading-column h2 {
+  color: #00ff88;
+}
+
+.exchange-capabilities h2 {
+  color: #ffaa00;
 }
 
 
 .section-card:hover {
-  border-color: var(--color-primary);
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+/* Hover spécifique par section avec leurs couleurs */
+.portfolio-column .section-card:hover {
+  border-color: #00d4ff;
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+}
+
+.symbols-column .section-card:hover {
+  border-color: #ff0055;
+  box-shadow: 0 4px 12px rgba(255, 0, 85, 0.3);
+}
+
+.trading-column .section-card:hover {
+  border-color: #00ff88;
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.exchange-capabilities:hover {
+  border-color: #ffaa00 !important;
+  box-shadow: 0 4px 12px rgba(255, 170, 0, 0.3) !important;
+}
+
+/* Animation pour les éléments actifs */
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); }
+  50% { box-shadow: 0 0 15px rgba(0, 212, 255, 0.6); }
+  100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); }
 }
 
 .section-card h2 {
@@ -4347,10 +4429,48 @@ export default {
 }
 
 /* Responsive */
-@media (max-width: 900px) {
+/* Responsive Design - Écrans moyens à petits */
+@media (max-width: 1200px) {
   .main-content {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
+    width: 100%;
+  }
+  
+  /* Ordre d'affichage vertical demandé selon spécifications */
+  .portfolio-column {
+    order: 1; /* Portfolio en premier */
+  }
+  
+  .symbols-column {
+    order: 2; /* Symboles disponibles en deuxième */
+  }
+  
+  .trading-column {
+    order: 3; /* Passer un ordre en troisième */
+  }
+  
+  /* Contrôle précis des sections individuelles */
+  .section-card {
+    width: 100%;
+  }
+  
+  /* Sections dans trading-column - ordre spécifique demandé */
+  .trading-column .section-card:first-child {
+    order: 1; /* Passer un ordre */
+  }
+  
+  .orders-section {
+    order: 4; /* Ordres ouverts après "Passer un ordre" */
+  }
+  
+  .recent-trades {
+    order: 5; /* Trades récents */
+  }
+  
+  .exchange-capabilities {
+    order: 6; /* Capacités exchange en dernier */
   }
 }
 
@@ -4452,4 +4572,78 @@ export default {
 }
 
 /* === Zone notifications supprimée === */
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+  }
+  
+  /* Ordre d'affichage vertical selon spécifications */
+  .portfolio-column {
+    order: 1; /* Portfolio en premier */
+  }
+  
+  .symbols-column {
+    order: 2; /* Symboles disponibles en deuxième */
+  }
+  
+  .trading-column {
+    order: 3; /* Passer un ordre en troisième */
+  }
+  
+  /* Sections individuelles avec ordre spécifique */
+  .section-card {
+    width: 100%;
+    min-height: auto;
+  }
+  
+  /* Sections dans trading-column - ordre demandé */
+  .trading-column .section-card:first-child {
+    order: 1; /* Passer un ordre */
+  }
+  
+  .orders-section {
+    order: 4; /* Ordres ouverts */
+  }
+  
+  .recent-trades {
+    order: 5; /* Trades récents */
+  }
+  
+  .exchange-capabilities {
+    order: 6; /* Capacités exchange en dernier */
+  }
+}
+
+@media (max-width: 768px) {
+  .header-section {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .trading-manual {
+    padding: 0.5rem 1rem;
+  }
+  
+  .section-card {
+    padding: 0.75rem;
+    min-height: 300px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .radio-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
 </style>

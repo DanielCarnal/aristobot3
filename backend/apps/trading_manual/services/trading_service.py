@@ -86,24 +86,30 @@ class TradingService:
             errors.append(f"Symbole {symbol} invalide ou inaccessible: {str(e)}")
             return {'valid': False, 'errors': errors}
         
-        # Vérifier la balance suffisante
+        # Vérifier la balance suffisante - CORRIGÉ FORMAT NATIF
         try:
             balance = await self.ccxt_client.get_balance(self.broker.id)
             
             if side == 'buy':
-                # Pour un achat, vérifier USDT disponible - convertir tout en float
+                # Pour un achat, vérifier USDT disponible - FORMAT NATIF
                 used_price = float(price if price else current_price)
                 quantity_float = float(quantity)
                 required_amount = quantity_float * used_price
-                available_usdt = float(balance.get('free', {}).get('USDT', 0))
+                
+                # FORMAT NATIF: balance['USDT']['available']
+                usdt_data = balance.get('USDT', {})
+                available_usdt = float(usdt_data.get('available', 0)) if isinstance(usdt_data, dict) else 0
                 
                 if required_amount > available_usdt:
                     errors.append(f"Balance USDT insuffisante: {available_usdt:.2f} < {required_amount:.2f}")
             
             elif side == 'sell':
-                # Pour une vente, vérifier l'asset disponible - convertir en float
+                # Pour une vente, vérifier l'asset disponible - FORMAT NATIF
                 asset = symbol.split('/')[0]  # BTC pour BTC/USDT
-                available_asset = float(balance.get('free', {}).get(asset, 0))
+                
+                # FORMAT NATIF: balance[asset]['available']
+                asset_data = balance.get(asset, {})
+                available_asset = float(asset_data.get('available', 0)) if isinstance(asset_data, dict) else 0
                 quantity_float = float(quantity)
                 
                 if quantity_float > available_asset:

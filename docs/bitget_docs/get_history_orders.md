@@ -40,6 +40,63 @@ Returns an array of historical orders with the same structure as Get Current Ord
 - `filled`: Completely executed orders
 - `cancelled`: Cancelled orders
 
+
+## Response Parameter
+Parameter	Type	Description
+userId	String	User id
+symbol	String	Trading pair name
+orderId	String	Order ID
+clientOid	String	Client Order ID
+price	String	Order price
+size	String	Amount
+(orderType = limit means base coin; orderType = market means quote coin)
+orderType	String	Order type
+limit Limit price
+market Market price
+side	String	Direction
+status	String	Order status
+live:unfilled;
+partially_filled:partially filled;
+filled:filled;
+cancelled:cancelled;
+priceAvg	String	Average fill price
+baseVolume	String	Filled volume (base coin)
+quoteVolume	String	Filled volume (quote coin)
+enterPointSource	String	Client
+WEB WEB Client
+APP APP Client
+API API Client
+SYS SYS Client
+ANDROID ANDROID Client
+IOS IOS Client
+orderSource	String	Order source
+normal Normal order
+market Market order
+spot_trader_buy Elite spot trade to buy (elite traders)
+spot_follower_buy Copy trade to buy (followers)
+spot_trader_sell Elite spot trade to sell (elite traders)
+spot_follower_sell Copy trade to sell (followers)
+cTime	String	Creation time, Unix millisecond timestamp, e.g. 1690196141868
+uTime	String	Update time, Unix millisecond timestamp, e.g. 1690196141868
+feeDetail	String	Fee details. If there is a "newFees" field, then "newFees" represents the fee details. If not, the remaining information is the fee details.
+> newFees	String	Fee details for "newFees".
+>> c	String	Amount deducted by coupons, unit：currency obtained from the transaction.
+>> d	String	Amount deducted in BGB (Bitget Coin), unit：BGB
+>> r	String	If the BGB balance is insufficient to cover the fees, the remaining amount is deducted from the currency obtained from the transaction.
+>> t	String	The total fee amount to be paid, unit ：currency obtained from the transaction.
+>> deduction	String	Ignore.
+>> totalDeductionFee	String	Ignore.
+> BGB	String	If there is no "newFees" field, this data represents earlier historical data. This key represents the currency used for fee deduction (it is not fixed; if BGB deduction is enabled, it's BGB, otherwise, it's the currency obtained from the transaction).
+>> deduction	String	Whether there is a fee deduction.
+>> feeCoinCode	String	Transaction fee coin code
+>> totalDeductionFee	String	Deduction amount unit： BGB
+>> totalFee	String	The total fee amount to be paid, unit：currency obtained from the transaction.
+triggerPrice	String	spot tpsl trigger price
+tpslType	String	normal spot order
+tpsl spot tpsl order
+cancelReason	String	Cancel reason
+normal_cancel: Normal cancel
+stp_cancel: Cancelled by STP
 ## Important Notes
 
 ### Query Scope

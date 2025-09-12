@@ -634,6 +634,16 @@ class BitgetNativeClient(BaseExchangeClient):
             # Transformation des ordres (format unifié)
             orders = []
             for order_data in response_data.get('data', []):
+                # CORRECTION: Sérialiser datetime en ISO string pour compatibilité JSON
+                created_at_timestamp = order_data.get('cTime')
+                created_at_str = None
+                if created_at_timestamp:
+                    try:
+                        dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
+                        created_at_str = dt.isoformat()
+                    except (ValueError, TypeError):
+                        created_at_str = None
+                
                 order = {
                     'order_id': order_data.get('orderId'),
                     'symbol': order_data.get('symbol'),
@@ -644,7 +654,7 @@ class BitgetNativeClient(BaseExchangeClient):
                     'filled': float(order_data.get('fillSize', 0)),
                     'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
                     'status': order_data.get('status', 'unknown'),
-                    'created_at': datetime.fromtimestamp(int(order_data.get('cTime', 0)) / 1000) if order_data.get('cTime') else None
+                    'created_at': created_at_str  # ISO string au lieu de datetime object
                 }
                 orders.append(order)
             
@@ -703,6 +713,16 @@ class BitgetNativeClient(BaseExchangeClient):
             # Transformation (même logique que get_open_orders)
             orders = []
             for order_data in response_data.get('data', []):
+                # CORRECTION: Sérialiser datetime en ISO string pour compatibilité JSON
+                created_at_timestamp = order_data.get('cTime')
+                created_at_str = None
+                if created_at_timestamp:
+                    try:
+                        dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
+                        created_at_str = dt.isoformat()
+                    except (ValueError, TypeError):
+                        created_at_str = None
+                
                 order = {
                     'order_id': order_data.get('orderId'),
                     'symbol': order_data.get('symbol'),
@@ -713,7 +733,7 @@ class BitgetNativeClient(BaseExchangeClient):
                     'filled': float(order_data.get('fillSize', 0)),
                     'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
                     'status': order_data.get('status', 'unknown'),
-                    'created_at': datetime.fromtimestamp(int(order_data.get('cTime', 0)) / 1000) if order_data.get('cTime') else None
+                    'created_at': created_at_str  # ISO string au lieu de datetime object
                 }
                 orders.append(order)
             

@@ -18,6 +18,24 @@ class Trade(models.Model):
         ('webhook', 'Webhook TradingView'),
         ('strategy', 'Strategie Automatique'),
         ('backtest', 'Backtest'),
+        ('terminal7', 'Terminal 7 (Auto-detection)'),
+    ]
+    
+    SOURCE_CHOICES = [
+        ('manual', 'Saisie Manuelle'),
+        ('trading_manual', 'Trading Manuel'),
+        ('webhook', 'Webhook'),
+        ('strategy', 'Strategie'),
+        ('terminal7', 'Terminal 7'),
+        ('backtest', 'Backtest'),
+    ]
+    
+    PNL_CALCULATION_METHODS = [
+        ('none', 'Aucun'),
+        ('manual', 'Manuel'),
+        ('price_averaging', 'Prix Moyen'),
+        ('fifo', 'FIFO'),
+        ('user_choice', 'Choix Utilisateur'),
     ]
     
     SIDE_CHOICES = [
@@ -39,12 +57,14 @@ class Trade(models.Model):
         ('filled', 'Execute'),
         ('cancelled', 'Annule'),
         ('failed', 'Echec'),
+        ('completed', 'Termine'),  # Terminal 7
     ]
     
     # Identification
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     broker = models.ForeignKey('brokers.Broker', on_delete=models.CASCADE)
     trade_type = models.CharField(max_length=20, choices=TRADE_TYPES, default='manual')
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
     
     # Details de l'ordre
     symbol = models.CharField(max_length=20)  # Ex: "BTC/USDT"
@@ -70,6 +90,30 @@ class Trade(models.Model):
     # Identifiants exchange
     exchange_order_id = models.CharField(max_length=100, null=True, blank=True)
     
+    # === CHAMPS TERMINAL 7 ===
+    # Statut ordre sur l'exchange
+    exchange_order_status = models.CharField(max_length=50, null=True, blank=True)
+    
+    # ID client ordre pour tracking
+    exchange_client_order_id = models.CharField(max_length=100, null=True, blank=True)
+    
+    # P&L calcule par Terminal 7
+    realized_pnl = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    pnl_calculation_method = models.CharField(
+        max_length=20, 
+        choices=PNL_CALCULATION_METHODS, 
+        default='none'
+    )
+    
+    # Prix moyen d'achat pour calcul P&L
+    avg_buy_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    
+    # Quantite de position apres ce trade
+    position_quantity_after = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    
+    # Donnees brutes de l'exchange pour audit
+    raw_order_data = models.JSONField(null=True, blank=True)
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     executed_at = models.DateTimeField(null=True, blank=True)
@@ -84,6 +128,11 @@ class Trade(models.Model):
             models.Index(fields=['user', 'broker', 'symbol']),
             models.Index(fields=['user', 'trade_type', 'status']),
             models.Index(fields=['created_at']),
+            # Index Terminal 7
+            models.Index(fields=['source']),
+            models.Index(fields=['exchange_order_id']),
+            models.Index(fields=['executed_at']),
+            models.Index(fields=['user', 'broker', 'symbol', 'side']),  # Pour position tracking
         ]
         
     def __str__(self):

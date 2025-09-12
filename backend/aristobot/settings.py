@@ -84,7 +84,7 @@ DATABASES = {
         'NAME': 'aristobot3',
         'USER': 'postgres',
         'PASSWORD': 'aristobot',
-        'HOST': 'localhost',
+        'HOST': '10.9.0.99',
         'PORT': '5432',
     }
 }

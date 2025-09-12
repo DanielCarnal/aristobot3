@@ -483,3 +483,164 @@ class TradingNotificationsConsumer(AsyncWebsocketConsumer):
         """Retourne un timestamp Unix en millisecondes"""
         from datetime import datetime
         return int(datetime.now().timestamp() * 1000)
+
+
+class Terminal7MonitoringConsumer(AsyncWebsocketConsumer):
+    """
+    Consumer WebSocket pour Terminal 7 - Order Monitor Service
+    Gère les notifications d'ordres détectés automatiquement et les statistiques P&L
+    """
+    
+    async def connect(self):
+        """Connexion WebSocket pour le monitoring Terminal 7"""
+        try:
+            # Vérifier l'authentification
+            user = self.scope["user"]
+            if user.is_anonymous:
+                logger.warning("❌ Connexion WS Terminal 7 refusée - utilisateur non authentifié")
+                await self.close()
+                return
+            
+            self.user = user
+            
+            # Groupes pour Terminal 7
+            self.user_group_name = f"trading_manual_{user.id}"  # Notifications user spécifiques
+            self.monitoring_group_name = "terminal7_monitoring"  # Monitoring global
+            
+            # Rejoindre les groupes
+            await self.channel_layer.group_add(
+                self.user_group_name,
+                self.channel_name
+            )
+            await self.channel_layer.group_add(
+                self.monitoring_group_name,
+                self.channel_name
+            )
+            
+            # Accepter la connexion
+            await self.accept()
+            
+            logger.info(f"✅ WebSocket Terminal 7 connecté pour user {user.id}")
+            
+            # Envoyer message de confirmation
+            await self.send(text_data=json.dumps({
+                'type': 'connection_status',
+                'status': 'connected',
+                'service': 'terminal7',
+                'message': 'Terminal 7 monitoring connecté',
+                'timestamp': self._get_timestamp()
+            }))
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur connexion WebSocket Terminal 7: {e}")
+            await self.close()
+    
+    async def disconnect(self, close_code):
+        """Déconnexion WebSocket Terminal 7"""
+        try:
+            if hasattr(self, 'user_group_name'):
+                await self.channel_layer.group_discard(
+                    self.user_group_name,
+                    self.channel_name
+                )
+            if hasattr(self, 'monitoring_group_name'):
+                await self.channel_layer.group_discard(
+                    self.monitoring_group_name,
+                    self.channel_name
+                )
+            logger.info(f"🔌 WebSocket Terminal 7 déconnecté - user {getattr(self.user, 'id', 'unknown')}")
+        except Exception as e:
+            logger.error(f"❌ Erreur déconnexion WebSocket Terminal 7: {e}")
+    
+    async def receive(self, text_data):
+        """Messages reçus du client Terminal 7"""
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'ping':
+                await self.send(text_data=json.dumps({
+                    'type': 'pong',
+                    'timestamp': self._get_timestamp()
+                }))
+            elif message_type == 'request_stats':
+                # Le frontend demande les statistiques actuelles
+                await self.send_current_stats()
+            else:
+                logger.info(f"📨 Message Terminal 7 reçu: {data}")
+                
+        except json.JSONDecodeError:
+            logger.error("❌ Format JSON invalide Terminal 7")
+        except Exception as e:
+            logger.error(f"❌ Erreur message Terminal 7: {e}")
+    
+    # === Handlers Terminal 7 ===
+    
+    async def order_executed_notification(self, event):
+        """Notification d'ordre détecté et traité par Terminal 7"""
+        await self.send(text_data=json.dumps({
+            'type': 'order_executed_notification',
+            'source': event['source'],
+            'trade_id': event['trade_id'],
+            'broker_id': event['broker_id'],
+            'broker_name': event['broker_name'],
+            'symbol': event['symbol'],
+            'side': event['side'],
+            'quantity': event['quantity'],
+            'price': event['price'],
+            'realized_pnl': event['realized_pnl'],
+            'total_fees': event['total_fees'],
+            'calculation_method': event['calculation_method'],
+            'timestamp': event['timestamp']
+        }))
+        
+        logger.info(f"🤖 Terminal 7 notification envoyée - Trade {event['trade_id']}")
+    
+    async def pnl_update(self, event):
+        """Mise à jour P&L globale Terminal 7"""
+        await self.send(text_data=json.dumps({
+            'type': 'pnl_update',
+            'broker_id': event['broker_id'],
+            'broker_name': event['broker_name'],
+            'trade_count': event['trade_count'],
+            'broker_total_pnl': event['broker_total_pnl'],
+            'last_trade': event['last_trade'],
+            'global_stats': event['global_stats'],
+            'timestamp': event['timestamp']
+        }))
+        
+        logger.info(f"📊 Terminal 7 P&L update - Broker {event['broker_id']}")
+    
+    async def terminal7_status_update(self, event):
+        """Mise à jour statut Terminal 7"""
+        await self.send(text_data=json.dumps({
+            'type': 'terminal7_status_update',
+            'status': event['status'],
+            'message': event['message'],
+            'brokers_active': event.get('brokers_active', 0),
+            'brokers_total': event.get('brokers_total', 0),
+            'uptime': event.get('uptime'),
+            'timestamp': event['timestamp']
+        }))
+        
+        logger.info(f"🔧 Terminal 7 status update: {event['status']}")
+    
+    async def send_current_stats(self):
+        """Envoie les statistiques actuelles Terminal 7"""
+        try:
+            # TODO: Récupérer les stats de Terminal 7 via une API ou cache Redis
+            # Pour l'instant, message de base
+            await self.send(text_data=json.dumps({
+                'type': 'current_stats',
+                'service': 'terminal7',
+                'status': 'running',
+                'message': 'Terminal 7 monitoring actif',
+                'timestamp': self._get_timestamp()
+            }))
+        except Exception as e:
+            logger.error(f"❌ Erreur envoi stats Terminal 7: {e}")
+    
+    def _get_timestamp(self):
+        """Retourne un timestamp Unix en millisecondes"""
+        from datetime import datetime
+        return int(datetime.now().timestamp() * 1000)

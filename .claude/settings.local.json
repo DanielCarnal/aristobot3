@@ -34,7 +34,7 @@
       "WebFetch(domain:wundertrading.com)",
       "mcp__context7__get-library-docs",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(dir \"Start2 - \"*)"
+      "Bash(dir \"Start2 - \":*)"
     ],
     "deny": []
   }

@@ -41,7 +41,11 @@ from asgiref.sync import sync_to_async
 from apps.brokers.models import Broker
 from .redis_fallback import get_redis_client
 from .base_exchange_client import BaseExchangeClient, ExchangeClientFactory
+
+# Import des clients natifs pour enregistrement automatique
 from .bitget_native_client import BitgetNativeClient
+from .binance_native_client import BinanceNativeClient
+from .kraken_native_client import KrakenNativeClient
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
