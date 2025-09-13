@@ -790,21 +790,15 @@ class BinanceNativeClient(BaseExchangeClient):
                 'limit': min(limit, 500)  # Limite max Binance
             }
             
-            # Signature requise
+            # Signature avec nouvelle méthode
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-            headers = self._sign_request('GET', '/api/v3/allOrders', query_string)
+            headers, signed_params = self._sign_request('GET', '/api/v3/allOrders', query_string)
             
-            path = f'/api/v3/allOrders?{query_string}'
-            url = f"{self.base_url}{path}&signature={headers.get('signature', '')}"
-            
-            # Headers finaux
-            final_headers = {
-                'X-MBX-APIKEY': self.api_key,
-                'Content-Type': 'application/json'
-            }
+            # URL avec paramètres signés
+            url = f"{self.base_url}/api/v3/allOrders?{signed_params}"
             
             await self._create_session()
-            async with self.session.get(url, headers=final_headers) as response:
+            async with self.session.get(url, headers=headers) as response:
                 data = await response.json()
                 
                 if response.status != 200:
