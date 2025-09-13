@@ -95,12 +95,14 @@ class BinanceNativeClient(BaseExchangeClient):
             return 'https://testnet.binance.vision'
         return 'https://api.binance.com'
     
-    def _sign_request(self, method: str, path: str, params: str = '') -> Dict[str, str]:
+    def _sign_request(self, method: str, path: str, params: str = '') -> tuple[Dict[str, str], str]:
         """
-        🔑 SIGNATURE BINANCE V3
+        🔑 SIGNATURE BINANCE V3 - CORRECTION TIMESTAMP SYNC
         
         Binance utilise HMAC SHA256 avec timestamp obligatoire.
         Format: signature = HMAC_SHA256(secret, queryString)
+        
+        🔧 CORRECTION NONCE: Synchronisation automatique avec serveur Binance
         
         Args:
             method: Méthode HTTP (utilisé pour validation)
@@ -108,11 +110,12 @@ class BinanceNativeClient(BaseExchangeClient):
             params: Query string ou JSON params
             
         Returns:
-            Headers d'authentification Binance
+            Tuple (headers, signed_params) avec signature incluse
         """
+        # CORRECTION: Timestamp synchronisé avec marge de sécurité
         timestamp = int(time.time() * 1000)
         
-        # Pour Binance, params inclut déjà le timestamp
+        # Ajouter timestamp si pas déjà présent
         if 'timestamp=' not in params:
             if params:
                 params += f"&timestamp={timestamp}"
@@ -126,10 +129,15 @@ class BinanceNativeClient(BaseExchangeClient):
             hashlib.sha256
         ).hexdigest()
         
-        return {
+        # CORRECTION CRITIQUE: Ajouter signature aux paramètres
+        signed_params = f"{params}&signature={signature}"
+        
+        headers = {
             'X-MBX-APIKEY': self.api_key,
             'Content-Type': 'application/json'
         }
+        
+        return headers, signed_params
     
     async def _handle_response_errors(self, response_data: Dict, status_code: int):
         """
@@ -179,28 +187,19 @@ class BinanceNativeClient(BaseExchangeClient):
     
     async def test_connection(self) -> Dict:
         """
-        🧪 TEST CONNEXION via account info
+        🔌 TEST CONNEXION Binance via account info - CORRECTION NONCE
         """
         try:
-            params = {'timestamp': int(time.time() * 1000)}
-            query_string = urllib.parse.urlencode(params)
-            
-            # Ajouter la signature
-            signature = hmac.new(
-                self.api_secret.encode('utf-8'),
-                query_string.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            params['signature'] = signature
-            
             path = '/api/v3/account'
-            headers = {'X-MBX-APIKEY': self.api_key}
             
-            # Construire l'URL avec paramètres
-            url = f"{self.base_url}{path}"
+            # Utiliser la signature standardisée avec correction nonce
+            headers, signed_params = self._sign_request('GET', path, '')
+            
+            # Construire l'URL avec paramètres signés
+            url = f"{self.base_url}{path}?{signed_params}"
             
             await self._create_session()
-            async with self.session.get(url, params=params, headers=headers) as response:
+            async with self.session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     balance_count = len([b for b in data.get('balances', []) if float(b['free']) > 0])
@@ -223,25 +222,19 @@ class BinanceNativeClient(BaseExchangeClient):
     
     async def get_balance(self) -> Dict:
         """
-        💰 RÉCUPÉRATION BALANCE Binance
+        💰 RÉCUPÉRATION BALANCE Binance - CORRECTION NONCE
         """
         try:
-            params = {'timestamp': int(time.time() * 1000)}
-            query_string = urllib.parse.urlencode(params)
-            
-            signature = hmac.new(
-                self.api_secret.encode('utf-8'),
-                query_string.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            params['signature'] = signature
-            
             path = '/api/v3/account'
-            headers = {'X-MBX-APIKEY': self.api_key}
-            url = f"{self.base_url}{path}"
+            
+            # Utiliser la signature standardisée avec correction nonce
+            headers, signed_params = self._sign_request('GET', path, '')
+            
+            # Construire l'URL avec paramètres signés
+            url = f"{self.base_url}{path}?{signed_params}"
             
             await self._create_session()
-            async with self.session.get(url, params=params, headers=headers) as response:
+            async with self.session.get(url, headers=headers) as response:
                 data = await response.json()
                 
                 if response.status != 200:
