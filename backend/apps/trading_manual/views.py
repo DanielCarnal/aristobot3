@@ -4,6 +4,7 @@ ViewSets et APIs pour Trading Manuel - Module 3
 """
 import asyncio
 import logging
+import time
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -691,3 +692,249 @@ class PortfolioPricesView(APIView):
                 {'error': f'Erreur récupération prix: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class PositionsView(APIView):
+    """
+    🎯 API POSITIONS P&L - Données Terminal 7
+    
+    Sert les positions calculées automatiquement par Terminal 7 avec P&L en temps réel.
+    Source: Trades avec source='order_monitor' enrichis par Terminal 7.
+    
+    📊 FONCTIONNALITÉS:
+    - Positions actives avec P&L calculé
+    - Historique des positions fermées
+    - Calculs automatiques price averaging → FIFO
+    - Intégration WebSocket temps réel
+    """
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        GET /api/trading-manual/positions/?broker_id=X&status=active|closed|all
+        
+        Récupère les positions P&L calculées par Terminal 7
+        """
+        broker_id = request.GET.get('broker_id')
+        position_status = request.GET.get('status', 'active')  # active, closed, all
+        limit = int(request.GET.get('limit', 50))
+        
+        if not broker_id:
+            return Response({'error': 'broker_id requis'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            broker = Broker.objects.get(id=broker_id, user=request.user)
+        except Broker.DoesNotExist:
+            return Response({'error': 'Broker introuvable'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            # Récupérer les positions calculées par Terminal 7
+            positions_data = self._get_terminal7_positions(
+                request.user, broker, position_status, limit
+            )
+            
+            logger.info(f"📊 Positions Terminal 7 pour {request.user.username}: "
+                       f"{positions_data['count']} positions ({position_status})")
+            
+            return Response(positions_data)
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération positions P&L: {e}")
+            return Response(
+                {'error': f'Erreur récupération positions: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _get_terminal7_positions(self, user, broker, position_status, limit):
+        """
+        🧮 POSITIONS P&L TERMINAL 7
+        
+        Récupère et calcule les positions basées sur les trades Terminal 7.
+        Logique: 1 position = ensemble de trades order_monitor pour un symbole.
+        """
+        from django.db.models import Q, Sum, Avg, Max, Min, Count
+        from collections import defaultdict
+        from decimal import Decimal
+        
+        # Base queryset: trades Terminal 7 uniquement
+        base_queryset = Trade.objects.filter(
+            user=user,
+            broker=broker,
+            source='order_monitor'  # Trades détectés par Terminal 7
+        ).select_related('broker')
+        
+        # Grouper par symbole pour calculer les positions
+        symbols = base_queryset.values_list('symbol', flat=True).distinct()
+        
+        positions = []
+        for symbol in symbols:
+            # Trades pour ce symbole
+            symbol_trades = base_queryset.filter(symbol=symbol).order_by('executed_at')
+            
+            if not symbol_trades.exists():
+                continue
+                
+            # Calculer la position nette
+            position_data = self._calculate_symbol_position(symbol_trades, symbol)
+            
+            # Filtrer selon le status demandé
+            if position_status == 'active' and position_data['net_quantity'] == 0:
+                continue
+            elif position_status == 'closed' and position_data['net_quantity'] != 0:
+                continue
+            
+            positions.append(position_data)
+        
+        # Trier par P&L ou date
+        positions.sort(key=lambda x: x['last_trade_date'], reverse=True)
+        
+        # Appliquer limite
+        positions = positions[:limit]
+        
+        # Statistiques globales
+        total_realized_pnl = sum(pos['realized_pnl'] for pos in positions)
+        active_positions = len([p for p in positions if p['net_quantity'] != 0])
+        
+        return {
+            'success': True,
+            'positions': positions,
+            'count': len(positions),
+            'statistics': {
+                'total_realized_pnl': float(total_realized_pnl),
+                'active_positions': active_positions,
+                'closed_positions': len(positions) - active_positions,
+                'broker_name': broker.name,
+                'broker_exchange': broker.exchange
+            },
+            'metadata': {
+                'status_filter': position_status,
+                'limit_applied': limit,
+                'calculation_method': 'terminal7_price_averaging',
+                'timestamp': int(time.time() * 1000)
+            }
+        }
+    
+    def _calculate_symbol_position(self, symbol_trades, symbol):
+        """
+        🧮 CALCUL POSITION INDIVIDUELLE
+        
+        Calcule les métriques P&L pour un symbole basé sur les trades Terminal 7.
+        Utilise la logique price averaging → FIFO intégrée dans Terminal 7.
+        """
+        from decimal import Decimal
+        import time
+        
+        # Métriques de base
+        trades_list = list(symbol_trades)
+        total_trades = len(trades_list)
+        
+        if not trades_list:
+            return self._empty_position(symbol)
+        
+        # Calculs agrégés via Terminal 7
+        net_quantity = Decimal('0')
+        total_buy_quantity = Decimal('0')
+        total_sell_quantity = Decimal('0')
+        total_buy_value = Decimal('0')
+        total_sell_value = Decimal('0')
+        total_fees = Decimal('0')
+        
+        # P&L basé sur Terminal 7
+        realized_pnl = Decimal('0')
+        first_trade_date = None
+        last_trade_date = None
+        
+        for trade in trades_list:
+            quantity = trade.filled_quantity or trade.quantity
+            price = trade.filled_price or trade.price or Decimal('0')
+            fees = trade.fees or Decimal('0')
+            
+            # Dates
+            trade_date = trade.executed_at or trade.created_at
+            if not first_trade_date or trade_date < first_trade_date:
+                first_trade_date = trade_date
+            if not last_trade_date or trade_date > last_trade_date:
+                last_trade_date = trade_date
+            
+            # Accumulations
+            total_fees += fees
+            
+            if trade.side == 'buy':
+                net_quantity += quantity
+                total_buy_quantity += quantity
+                total_buy_value += quantity * price
+            else:  # sell
+                net_quantity -= quantity
+                total_sell_quantity += quantity
+                total_sell_value += quantity * price
+            
+            # P&L calculé par Terminal 7 (si disponible)
+            if trade.realized_pnl is not None:
+                realized_pnl += trade.realized_pnl
+        
+        # Prix moyens
+        avg_buy_price = total_buy_value / total_buy_quantity if total_buy_quantity > 0 else Decimal('0')
+        avg_sell_price = total_sell_value / total_sell_quantity if total_sell_quantity > 0 else Decimal('0')
+        
+        # Si Terminal 7 n'a pas calculé le P&L, fallback manuel
+        if realized_pnl == 0 and total_sell_quantity > 0:
+            # Simple: (prix vente moyen - prix achat moyen) * quantité vendue
+            realized_pnl = (avg_sell_price - avg_buy_price) * total_sell_quantity - total_fees
+        
+        # P&L calculation method (Terminal 7 intelligent)
+        pnl_method = 'terminal7_automatic'
+        latest_trade = max(trades_list, key=lambda t: t.executed_at or t.created_at)
+        if latest_trade.pnl_calculation_method != 'none':
+            pnl_method = latest_trade.pnl_calculation_method
+        
+        # Statut position
+        position_status = 'active' if abs(net_quantity) > Decimal('0.00000001') else 'closed'
+        
+        return {
+            'symbol': symbol,
+            'net_quantity': float(net_quantity),
+            'position_status': position_status,
+            
+            # Métriques de trading
+            'total_trades': total_trades,
+            'total_buy_quantity': float(total_buy_quantity),
+            'total_sell_quantity': float(total_sell_quantity),
+            'avg_buy_price': float(avg_buy_price),
+            'avg_sell_price': float(avg_sell_price),
+            
+            # P&L Terminal 7
+            'realized_pnl': float(realized_pnl),
+            'total_fees': float(total_fees),
+            'pnl_calculation_method': pnl_method,
+            
+            # Dates
+            'first_trade_date': first_trade_date.isoformat() if first_trade_date else None,
+            'last_trade_date': last_trade_date.isoformat() if last_trade_date else None,
+            
+            # Métadonnées
+            'net_profit_percentage': float((realized_pnl / total_buy_value) * 100) if total_buy_value > 0 else 0.0,
+            'is_profitable': realized_pnl > 0,
+            'source': 'terminal7_order_monitor'
+        }
+    
+    def _empty_position(self, symbol):
+        """Position vide pour consistance API"""
+        return {
+            'symbol': symbol,
+            'net_quantity': 0.0,
+            'position_status': 'closed',
+            'total_trades': 0,
+            'total_buy_quantity': 0.0,
+            'total_sell_quantity': 0.0,
+            'avg_buy_price': 0.0,
+            'avg_sell_price': 0.0,
+            'realized_pnl': 0.0,
+            'total_fees': 0.0,
+            'pnl_calculation_method': 'none',
+            'first_trade_date': None,
+            'last_trade_date': None,
+            'net_profit_percentage': 0.0,
+            'is_profitable': False,
+            'source': 'terminal7_order_monitor'
+        }

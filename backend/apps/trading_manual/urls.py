@@ -34,4 +34,7 @@ urlpatterns = [
     path('closed-orders/', views.ClosedOrdersView.as_view(), name='closed-orders'),
     path('cancel-order/', views.CancelOrderView.as_view(), name='cancel-order'),
     path('edit-order/', views.EditOrderView.as_view(), name='edit-order'),
+    
+    # Positions P&L Terminal 7
+    path('positions/', views.PositionsView.as_view(), name='positions'),
 ]

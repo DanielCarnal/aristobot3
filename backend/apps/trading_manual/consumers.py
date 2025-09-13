@@ -640,6 +640,67 @@ class Terminal7MonitoringConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"❌ Erreur envoi stats Terminal 7: {e}")
     
+    # === NOUVEAUX HANDLERS SOLUTION 2 - POSITIONS P&L ===
+    
+    async def position_pnl_update(self, event):
+        """
+        🔔 NOTIFICATION POSITION P&L UPDATE - Solution 2
+        
+        Handler pour les mises à jour de positions P&L calculées par Terminal 7.
+        Intégration Solution 2 Phase 2 - Backend API positions.
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'position_pnl_update',
+            'source': event['source'],
+            'broker_id': event['broker_id'],
+            'position_data': event['position_data'],
+            'timestamp': event['timestamp']
+        }))
+        
+        position_symbol = event['position_data'].get('symbol', 'Unknown')
+        position_pnl = event['position_data'].get('realized_pnl', 0)
+        logger.info(f"📊 Position P&L update envoyée - {position_symbol}: {position_pnl}")
+    
+    async def positions_batch_update(self, event):
+        """
+        📊 NOTIFICATION POSITIONS BATCH UPDATE - Solution 2
+        
+        Handler pour les mises à jour batch de toutes les positions.
+        Déclenche rafraîchissement complet onglet Positions P&L.
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'positions_batch_update',
+            'source': event['source'],
+            'broker_id': event['broker_id'],
+            'positions_count': event['positions_count'],
+            'positions': event['positions'],
+            'statistics': event['statistics'],
+            'timestamp': event['timestamp']
+        }))
+        
+        logger.info(f"📊 Positions batch update envoyée - Broker {event['broker_id']}, "
+                   f"Count: {event['positions_count']}")
+    
+    async def new_trade_detected(self, event):
+        """
+        🆕 NOTIFICATION NOUVEAU TRADE DÉTECTÉ - Solution 2
+        
+        Notification lorsque Terminal 7 détecte un nouvel ordre.
+        Frontend Trading Manual onglet Positions doit se rafraîchir.
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'new_trade_detected',
+            'source': event['source'],
+            'broker_id': event['broker_id'],
+            'trade_data': event['trade_data'],
+            'action_required': event['action_required'],
+            'timestamp': event['timestamp']
+        }))
+        
+        trade_symbol = event['trade_data'].get('symbol', 'Unknown')
+        trade_side = event['trade_data'].get('side', 'Unknown')
+        logger.info(f"🆕 Nouveau trade détecté notification - {trade_symbol} {trade_side}")
+    
     def _get_timestamp(self):
         """Retourne un timestamp Unix en millisecondes"""
         from datetime import datetime

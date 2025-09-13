@@ -554,29 +554,110 @@
           </div>
         </div>
 
-        <!-- Ordres avec toggle -->
+        <!-- Ordres + Positions avec toggle 3 onglets - INTÉGRATION TERMINAL 7 -->
         <div class="section-card orders-section">
           <div class="orders-header">
-            <h2>{{ orderViewMode === 'open' ? 'Ordres ouverts' : 'Historique des ordres' }}</h2>
-            <div class="orders-toggle">
+            <h2>{{ getSectionTitle() }}</h2>
+            <div class="orders-toggle three-tabs">
               <button 
-                :class="['toggle-btn', { 'active': orderViewMode === 'open' }]"
-                @click="orderViewMode = 'open'; loadOrdersForCurrentMode()"
+                :class="['toggle-btn tab-open', { 'active': orderViewMode === 'open' }]"
+                @click="switchToTab('open')"
               >
-                Ordres ouverts
+                📋 Ordres ouverts
               </button>
               <button 
-                :class="['toggle-btn', { 'active': orderViewMode === 'history' }]"
-                @click="orderViewMode = 'history'; loadOrdersForCurrentMode()"
+                :class="['toggle-btn tab-positions', { 'active': orderViewMode === 'positions' }]"
+                @click="switchToTab('positions')"
               >
-                Historique
+                💰 Positions P&L
+              </button>
+              <button 
+                :class="['toggle-btn tab-history', { 'active': orderViewMode === 'history' }]"
+                @click="switchToTab('history')"
+              >
+                📚 Historique
               </button>
             </div>
           </div>
-          <div v-if="ordersLoading" class="loading">Chargement...</div>
-          <div v-else-if="currentOrdersList.length === 0" class="no-orders">
-            {{ orderViewMode === 'open' ? 'Aucun ordre ouvert' : 'Aucun ordre dans l\'historique' }}
+          <div v-if="getCurrentLoadingState()" class="loading">
+            <div class="loading-spinner-container">
+              <div class="spinner-inline"></div>
+              {{ getLoadingMessage() }}
+            </div>
           </div>
+          <div v-else-if="currentOrdersList.length === 0" class="no-orders">
+            <div class="no-data-illustration">
+              <div class="no-data-icon">{{ getEmptyStateIcon() }}</div>
+              <p class="no-data-message">{{ getEmptyMessage() }}</p>
+              <p class="no-data-hint">{{ getEmptyStateHint() }}</p>
+            </div>
+          </div>
+          <!-- AFFICHAGE POSITIONS P&L (Terminal 7) - OPTIMISÉ UX -->
+          <div v-else-if="orderViewMode === 'positions'" class="positions-list enhanced">
+            <div v-for="position in currentOrdersList" :key="position.id" 
+                 :class="['position-item', getPositionClass(position)]">
+              
+              <!-- Header avec P&L proéminent -->
+              <div class="position-header enhanced">
+                <div class="position-main-info">
+                  <span class="position-symbol-enhanced">{{ position.symbol }}</span>
+                  <span class="position-side-badge" :class="position.side">
+                    {{ position.side?.toUpperCase() }}
+                  </span>
+                </div>
+                <div class="position-pnl-container">
+                  <span :class="['position-pnl-enhanced', getPnlClass(position.realized_pnl)]">
+                    {{ formatPnL(position.realized_pnl) }}
+                  </span>
+                  <span class="pnl-percentage" :class="getPnlClass(position.realized_pnl)">
+                    {{ calculatePnlPercentage(position) }}
+                  </span>
+                </div>
+              </div>
+              
+              <!-- Détails enrichis -->
+              <div class="position-details-enhanced">
+                <div class="position-trade-metrics">
+                  <div class="metric-item">
+                    <span class="metric-label">Quantité:</span>
+                    <span class="metric-value">{{ formatQuantity(position.quantity) }}</span>
+                  </div>
+                  <div class="metric-item">
+                    <span class="metric-label">Prix moyen:</span>
+                    <span class="metric-value">${{ position.price?.toFixed(2) || '0.00' }}</span>
+                  </div>
+                  <div class="metric-item">
+                    <span class="metric-label">Frais:</span>
+                    <span class="metric-value">${{ position.total_fees?.toFixed(2) || '0.00' }}</span>
+                  </div>
+                </div>
+                
+                <!-- Barre de progression P&L -->
+                <div class="pnl-progress-bar">
+                  <div class="pnl-bar-background">
+                    <div class="pnl-bar-fill" 
+                         :class="getPnlClass(position.realized_pnl)"
+                         :style="{ width: Math.min(Math.abs(calculatePnlPercentageRaw(position)) * 2, 100) + '%' }">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Footer avec métadonnées -->
+              <div class="position-footer-enhanced">
+                <div class="position-meta">
+                  <span class="position-time">{{ formatTimestamp(position.executed_at) }}</span>
+                  <span class="position-method-badge" :class="position.source">
+                    {{ getSourceLabel(position.source) }}
+                  </span>
+                </div>
+                <div class="position-calculation">
+                  <span class="calculation-method">{{ position.pnl_calculation_method || 'Terminal 7' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- AFFICHAGE ORDRES CLASSIQUE -->
           <div v-else class="orders-list">
             <div v-for="order in currentOrdersList" :key="order.id" class="order-item">
               <div class="order-header">
@@ -589,7 +670,7 @@
                   <span class="order-amount">{{ parseFloat(order.amount).toFixed(8) }}</span>
                   <span class="order-price" v-if="order.price">@ {{ parseFloat(order.price).toFixed(2) }}</span>
                 </div>
-                <div class="order-actions">
+                <div class="order-actions" v-if="orderViewMode === 'open'">
                   <button 
                     @click="cancelOrder(order.id, order.symbol)" 
                     class="btn-cancel"
@@ -778,11 +859,13 @@ export default {
     const recentTrades = ref([])
     const tradesLoading = ref(false)
     
-    // Ordres
+    // Ordres + Positions - ARCHITECTURE TERMINAL 7 INTÉGRÉE
     const openOrders = ref([])
     const closedOrders = ref([])
-    const orderViewMode = ref('open') // 'open' ou 'history'
+    const positions = ref([])  // NOUVEAU: positions temps réel avec P&L Terminal 7
+    const orderViewMode = ref('open') // 'open', 'positions', 'history' 
     const ordersLoading = ref(false)
+    const positionsLoading = ref(false)  // NOUVEAU: loading positions
     
     // WebSocket pour notifications de trading (uniquement pour trade-summary maintenant)
     const notificationSocket = ref(null)  // WebSocket pour notifications
@@ -1635,9 +1718,37 @@ export default {
       }
     }
     
+    // NOUVELLE FONCTION: Chargement Positions P&L Terminal 7
+    const loadPositions = async () => {
+      if (!selectedBroker.value) {
+        console.log('❌ loadPositions: pas de broker sélectionné')
+        return
+      }
+      
+      console.log('🐎 loadPositions: chargement positions P&L Terminal 7 pour broker', selectedBroker.value)
+      positionsLoading.value = true
+      try {
+        // API endpoint pour récupérer les trades avec P&L calculé par Terminal 7
+        const url = `/api/trading-manual/positions/?broker_id=${selectedBroker.value}&limit=50`
+        console.log('📡 API URL positions:', url)
+        const response = await api.get(url)
+        console.log('📨 Réponse API positions:', response.data)
+        positions.value = response.data.positions || []
+        console.log('📋 Positions définies:', positions.value.length, 'positions avec P&L')
+      } catch (err) {
+        console.error('❌ Erreur chargement positions:', err)
+        console.error('📄 Détails erreur:', err.response?.data || err.message)
+        positions.value = []
+      } finally {
+        positionsLoading.value = false
+      }
+    }
+    
     const loadOrdersForCurrentMode = async () => {
       if (orderViewMode.value === 'open') {
         await loadOpenOrders()
+      } else if (orderViewMode.value === 'positions') {
+        await loadPositions()  // NOUVEAU: chargement positions Terminal 7
       } else {
         // Mode historique: charger les ordres ouverts ET fermés
         ordersLoading.value = true
@@ -2024,6 +2135,167 @@ export default {
       }
     })
     
+    // === FONCTIONS UX ENHANCED - SOLUTION 2 PHASE 3 ===
+    
+    const switchToTab = async (tabName) => {
+      orderViewMode.value = tabName
+      await loadOrdersForCurrentMode()
+    }
+    
+    const loadOrdersForCurrentMode = async () => {
+      if (!selectedBroker.value) return
+      
+      try {
+        if (orderViewMode.value === 'open') {
+          ordersLoading.value = true
+          connectOpenOrdersWebSocket()
+        } else if (orderViewMode.value === 'positions') {
+          positionsLoading.value = true
+          await loadPositions()
+        } else if (orderViewMode.value === 'history') {
+          ordersLoading.value = true
+          await loadClosedOrders()
+        }
+      } catch (error) {
+        console.error('Erreur chargement onglet:', error)
+      }
+    }
+    
+    const loadPositions = async () => {
+      try {
+        positionsLoading.value = true
+        const response = await api.get(`/api/trading-manual/positions/?broker_id=${selectedBroker.value}&status=all&limit=50`)
+        
+        if (response.data.success) {
+          positions.value = response.data.positions
+          console.log('✅ Positions chargées:', positions.value.length)
+        } else {
+          console.error('Erreur API positions:', response.data.error)
+          error.value = 'Erreur chargement positions: ' + response.data.error
+        }
+      } catch (err) {
+        console.error('Erreur positions:', err)
+        error.value = 'Erreur chargement positions'
+      } finally {
+        positionsLoading.value = false
+      }
+    }
+    
+    const loadClosedOrders = async () => {
+      try {
+        ordersLoading.value = true
+        const response = await api.post('/api/trading-manual/orders-history/', {
+          broker_id: selectedBroker.value,
+          limit: 50
+        })
+        closedOrders.value = response.data.orders || []
+      } catch (err) {
+        console.error('Erreur historique:', err)
+        error.value = 'Erreur chargement historique'
+      } finally {
+        ordersLoading.value = false
+      }
+    }
+    
+    // Fonctions pour l'UX améliorée des positions
+    const getPositionClass = (position) => {
+      const pnl = position.realized_pnl || 0
+      if (pnl > 0) return 'profit-position'
+      if (pnl < 0) return 'loss-position'
+      return 'neutral-position'
+    }
+    
+    const getPnlClass = (pnl) => {
+      if (pnl > 0) return 'profit'
+      if (pnl < 0) return 'loss'
+      return 'neutral'
+    }
+    
+    const formatPnL = (pnl) => {
+      if (!pnl) return '$0.00'
+      const formatted = Math.abs(pnl).toFixed(2)
+      return pnl > 0 ? `+$${formatted}` : `-$${formatted}`
+    }
+    
+    const formatQuantity = (quantity) => {
+      if (!quantity) return '0'
+      return parseFloat(quantity).toFixed(8).replace(/\.?0+$/, '')
+    }
+    
+    const calculatePnlPercentage = (position) => {
+      const percentage = calculatePnlPercentageRaw(position)
+      if (percentage === 0) return '0.0%'
+      return percentage > 0 ? `+${percentage.toFixed(1)}%` : `${percentage.toFixed(1)}%`
+    }
+    
+    const calculatePnlPercentageRaw = (position) => {
+      if (!position.price || !position.quantity || !position.realized_pnl) return 0
+      const invested = position.price * position.quantity
+      return (position.realized_pnl / invested) * 100
+    }
+    
+    const getSourceLabel = (source) => {
+      switch (source) {
+        case 'order_monitor': return '🤖 Auto'
+        case 'manual': return '👤 Manuel'
+        case 'trading_manual': return '👤 Manuel'
+        case 'webhook': return '🔗 Webhook'
+        case 'strategy': return '🧠 Stratégie'
+        default: return source || 'Inconnu'
+      }
+    }
+    
+    // Fonctions pour les états vides et les messages
+    const getCurrentLoadingState = () => {
+      if (orderViewMode.value === 'open') return ordersLoading.value
+      if (orderViewMode.value === 'positions') return positionsLoading.value
+      if (orderViewMode.value === 'history') return ordersLoading.value
+      return false
+    }
+    
+    const getLoadingMessage = () => {
+      if (orderViewMode.value === 'open') return 'Chargement ordres ouverts...'
+      if (orderViewMode.value === 'positions') return 'Chargement positions P&L...'
+      if (orderViewMode.value === 'history') return 'Chargement historique...'
+      return 'Chargement...'
+    }
+    
+    const getEmptyMessage = () => {
+      if (orderViewMode.value === 'open') return 'Aucun ordre ouvert'
+      if (orderViewMode.value === 'positions') return 'Aucune position détectée'
+      if (orderViewMode.value === 'history') return 'Aucun historique'
+      return 'Aucun élément'
+    }
+    
+    const getEmptyStateIcon = () => {
+      if (orderViewMode.value === 'open') return '📋'
+      if (orderViewMode.value === 'positions') return '💰'
+      if (orderViewMode.value === 'history') return '📚'
+      return '📄'
+    }
+    
+    const getEmptyStateHint = () => {
+      if (orderViewMode.value === 'open') return 'Les ordres que vous passez apparaîtront ici'
+      if (orderViewMode.value === 'positions') return 'Terminal 7 détecte automatiquement vos positions'
+      if (orderViewMode.value === 'history') return 'L\'historique de vos trades s\'affichera ici'
+      return ''
+    }
+    
+    const getSectionTitle = () => {
+      if (orderViewMode.value === 'open') return 'Ordres ouverts'
+      if (orderViewMode.value === 'positions') return 'Positions P&L (Terminal 7)'
+      if (orderViewMode.value === 'history') return 'Historique des trades'
+      return 'Trading'
+    }
+    
+    // Computed pour la liste courante unifiée
+    const currentOrdersList = computed(() => {
+      if (orderViewMode.value === 'open') return openOrders.value
+      if (orderViewMode.value === 'positions') return positions.value
+      if (orderViewMode.value === 'history') return closedOrders.value
+      return []
+    })
+    
     // Initialisation
     onMounted(() => {
       console.log('🔄 onMounted - selectedSymbol initial:', selectedSymbol.value)
@@ -2104,6 +2376,45 @@ export default {
       }
     }
 
+    // === NOUVELLES FONCTIONS COMPUTED 3 ONGLETS ===
+    
+    // Liste actuelle selon le mode (open/positions/history)
+    const currentOrdersList = computed(() => {
+      if (orderViewMode.value === 'open') {
+        return openOrders.value
+      } else if (orderViewMode.value === 'positions') {
+        return positions.value  // NOUVEAU: positions avec P&L Terminal 7
+      } else {
+        // Historique = ordres ouverts + fermés
+        return [...openOrders.value, ...closedOrders.value].sort((a, b) => {
+          return (b.timestamp || 0) - (a.timestamp || 0)
+        })
+      }
+    })
+    
+    // Fonctions helper pour l'interface
+    const getSectionTitle = () => {
+      if (orderViewMode.value === 'open') return 'Ordres ouverts'
+      if (orderViewMode.value === 'positions') return 'Positions P&L (Terminal 7)'
+      return 'Historique des ordres'
+    }
+    
+    const getCurrentLoadingState = () => {
+      if (orderViewMode.value === 'positions') return positionsLoading.value
+      return ordersLoading.value
+    }
+    
+    const getLoadingMessage = () => {
+      if (orderViewMode.value === 'positions') return 'Chargement positions P&L...'
+      return 'Chargement...'
+    }
+    
+    const getEmptyMessage = () => {
+      if (orderViewMode.value === 'open') return 'Aucun ordre ouvert'
+      if (orderViewMode.value === 'positions') return 'Aucune position avec P&L calculé'
+      return 'Aucun ordre dans l\'historique'
+    }
+    
     // Nettoyage
     onUnmounted(() => {
       disconnectTradingSocket()
@@ -2146,8 +2457,10 @@ export default {
       tradesLoading,
       openOrders,
       closedOrders,
+      positions,  // NOUVEAU: positions Terminal 7
       orderViewMode,
       ordersLoading,
+      positionsLoading,  // NOUVEAU: loading positions
       orderActionLoading,
       currentOrdersList,
       canValidate,
@@ -2167,6 +2480,7 @@ export default {
       editOrder,
       loadOpenOrders,
       loadClosedOrders,
+      loadPositions,  // NOUVEAU: fonction chargement positions
       loadOrdersForCurrentMode,
       showOrderTypeModal,
       currentOrderType,
@@ -2185,6 +2499,11 @@ export default {
       calculatePortfolioTotal,
       formatValue,
       formatPrice,
+      // NOUVELLES FONCTIONS 3 ONGLETS
+      getSectionTitle,
+      getCurrentLoadingState,
+      getLoadingMessage,
+      getEmptyMessage,
       clearExecutionResult
     }
   }
@@ -4428,7 +4747,551 @@ export default {
   box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
-/* Responsive */
+/* === NOUVEAUX STYLES POUR 3 ONGLETS SOLUTION 2 === */
+/* Système d'onglets pour Ordres ouverts / Positions P&L / Historique */
+
+.orders-toggle {
+  display: flex;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 212, 255, 0.1);
+}
+
+/* Support pour 3 onglets (open/positions/history) */
+.orders-toggle.three-tabs .toggle-btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: #1a1a1a;
+  color: #888;
+  border: 1px solid #333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-align: center;
+  border-radius: 0;
+}
+
+.toggle-btn:first-child {
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+}
+
+.toggle-btn:not(:first-child):not(:last-child) {
+  border-left: none;
+  border-right: none;
+}
+
+.toggle-btn:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.toggle-btn.active {
+  background: linear-gradient(135deg, #00d4ff, #0099cc);
+  color: white;
+  border-color: #00d4ff;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+}
+
+.toggle-btn:hover:not(.active) {
+  background: #2a2a2a;
+  color: #00d4ff;
+  border-color: #444;
+}
+
+/* === STYLES POSITIONS P&L TERMINAL 7 === */
+
+.positions-list {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-background);
+}
+
+.positions-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.positions-list::-webkit-scrollbar-track {
+  background: var(--color-background);
+  border-radius: 3px;
+}
+
+.positions-list::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.position-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  background: var(--color-surface);
+}
+
+.position-item:hover {
+  background: var(--color-background);
+  border-color: var(--color-primary);
+  transform: translateX(2px);
+}
+
+.position-item:last-child {
+  border-bottom: none;
+}
+
+.position-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.position-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.position-symbol {
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+}
+
+.position-side {
+  font-weight: 600;
+  text-align: center;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.position-side.buy {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+}
+
+.position-side.sell {
+  background: rgba(255, 0, 85, 0.1);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.position-details {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.position-pnl {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 80px;
+}
+
+.position-pnl-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.position-pnl-percent {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* Couleurs P&L */
+.profit {
+  color: var(--color-success);
+}
+
+.loss {
+  color: var(--color-danger);
+}
+
+.neutral {
+  color: var(--color-text-secondary);
+}
+
+.position-method {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--color-primary);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Animation pour les positions qui se mettent à jour */
+.position-item.updating {
+  animation: positionUpdate 1s ease-in-out;
+}
+
+@keyframes positionUpdate {
+  0% { background: var(--color-surface); }
+  50% { background: rgba(0, 212, 255, 0.1); }
+  100% { background: var(--color-surface); }
+}
+
+/* Message si pas de positions */
+.no-positions {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  padding: 2rem;
+  background: var(--color-background);
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+
+.no-positions .icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.5;
+}
+
+/* === ENHANCED UX STYLES - SOLUTION 2 PHASE 3 === */
+
+/* Onglets avec icônes et différenciation visuelle */
+.three-tabs .toggle-btn {
+  position: relative;
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.three-tabs .tab-open.active {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 212, 255, 0.05));
+  border-color: var(--color-primary);
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+}
+
+.three-tabs .tab-positions.active {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 255, 136, 0.05));
+  border-color: var(--color-success);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+}
+
+.three-tabs .tab-history.active {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+}
+
+/* États de chargement améliorés */
+.loading-spinner-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+}
+
+.spinner-inline {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 212, 255, 0.3);
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* États vides améliorés */
+.no-data-illustration {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+.no-data-message {
+  color: var(--color-text);
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.no-data-hint {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Positions Enhanced - Layout et visibilité */
+.positions-list.enhanced {
+  gap: 1rem;
+}
+
+.position-item {
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.position-item.profit-position {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.08), rgba(0, 255, 136, 0.02));
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 255, 136, 0.1);
+}
+
+.position-item.loss-position {
+  background: linear-gradient(135deg, rgba(255, 0, 85, 0.08), rgba(255, 0, 85, 0.02));
+  border: 1px solid rgba(255, 0, 85, 0.2);
+  box-shadow: 0 2px 8px rgba(255, 0, 85, 0.1);
+}
+
+.position-item.neutral-position {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.position-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Header Enhanced */
+.position-header.enhanced {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.position-main-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.position-symbol-enhanced {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.5px;
+}
+
+.position-side-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.position-side-badge.buy {
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--color-success);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.position-side-badge.sell {
+  background: rgba(255, 0, 85, 0.2);
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.position-pnl-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.position-pnl-enhanced {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.position-pnl-enhanced.profit {
+  color: var(--color-success);
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.position-pnl-enhanced.loss {
+  color: var(--color-danger);
+  text-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+}
+
+.position-pnl-enhanced.neutral {
+  color: var(--color-text-secondary);
+}
+
+.pnl-percentage {
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.pnl-percentage.profit {
+  color: var(--color-success);
+}
+
+.pnl-percentage.loss {
+  color: var(--color-danger);
+}
+
+/* Détails Enhanced */
+.position-details-enhanced {
+  padding: 1rem 1.25rem;
+}
+
+.position-trade-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric-label {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.metric-value {
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Barre de progression P&L */
+.pnl-progress-bar {
+  margin-top: 0.75rem;
+}
+
+.pnl-bar-background {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pnl-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.pnl-bar-fill.profit {
+  background: linear-gradient(90deg, rgba(0, 255, 136, 0.5), var(--color-success));
+}
+
+.pnl-bar-fill.loss {
+  background: linear-gradient(90deg, rgba(255, 0, 85, 0.5), var(--color-danger));
+}
+
+/* Footer Enhanced */
+.position-footer-enhanced {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.position-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.position-time {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+}
+
+.position-method-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.position-method-badge.order_monitor {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--color-primary);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.position-method-badge.manual {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.position-calculation {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.calculation-method {
+  font-family: 'Courier New', monospace;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* Responsive Design - Écrans moyens à petits */
 @media (max-width: 1200px) {
   .main-content {
