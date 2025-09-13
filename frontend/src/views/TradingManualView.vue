@@ -2142,25 +2142,6 @@ export default {
       await loadOrdersForCurrentMode()
     }
     
-    const loadOrdersForCurrentMode = async () => {
-      if (!selectedBroker.value) return
-      
-      try {
-        if (orderViewMode.value === 'open') {
-          ordersLoading.value = true
-          connectOpenOrdersWebSocket()
-        } else if (orderViewMode.value === 'positions') {
-          positionsLoading.value = true
-          await loadPositions()
-        } else if (orderViewMode.value === 'history') {
-          ordersLoading.value = true
-          await loadClosedOrders()
-        }
-      } catch (error) {
-        console.error('Erreur chargement onglet:', error)
-      }
-    }
-    
     const loadPositions = async () => {
       try {
         positionsLoading.value = true
