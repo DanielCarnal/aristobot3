@@ -565,23 +565,10 @@ class Command(BaseCommand):
             limit = self.history_limit
         
         try:
-            # METHODE 1: Utilisation directe du NativeExchangeManager (optimal)
-            if self.exchange_manager and hasattr(self.exchange_manager, '_handle_action'):
-                result = await self.exchange_manager._handle_action(
-                    'fetch_closed_orders',
-                    {'broker_id': broker_id, 'limit': limit}
-                )
-                
-                if result.get('success'):
-                    return result.get('data', [])
-                else:
-                    raise Exception(f"Terminal 5 error: {result.get('error')}")
-            
-            # METHODE 2: Fallback via Redis (comme ExchangeClient)
-            else:
-                from apps.core.services.exchange_client import ExchangeClient
-                client = ExchangeClient()
-                return await client.fetch_closed_orders(broker_id, limit=limit)
+            # CORRECTION: Utiliser ExchangeClient pour uniformité avec Terminal 5
+            from apps.core.services.exchange_client import ExchangeClient
+            client = ExchangeClient()
+            return await client.fetch_closed_orders(broker_id, limit=limit)
                 
         except Exception as e:
             logger.error(f"Erreur recuperation history orders broker {broker_id}: {e}")
