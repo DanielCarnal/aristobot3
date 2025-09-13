@@ -929,6 +929,57 @@ async def _send_alert(self, message: str, level: str = 'info'):
 - [ ] Notifications WebSocket opérationnelles
 - [ ] Statistiques Dashboard complètes
 
+## 🔧 ACTIONS TERMINAL 5 MISSING - IMPLÉMENTÉES ✅
+
+### PROBLÈME IDENTIFIÉ
+Lors de la migration CCXT → Native Exchange, deux actions critiques ont été oubliées :
+- `test_connection` : Test connexion API keys pour User Account
+- `load_markets` : Chargement marchés en arrière-plan avec progression WebSocket
+
+### SOLUTION IMPLÉMENTÉE ✅
+
+#### NativeExchangeManager Extensions
+```python
+# Nouvelles actions dans _handle_action()
+elif action == 'test_connection':
+    result = await self._handle_test_connection(params)
+    return result
+
+elif action == 'load_markets':
+    result = await self._handle_load_markets(params)
+    return result
+
+# Nouvelles méthodes implémentées:
+async def _handle_test_connection(params) -> Dict
+async def _handle_load_markets(params) -> Dict
+async def _load_markets_for_broker(broker_id: int)
+async def _save_markets_to_db(exchange_name: str, markets: Dict)
+async def _notify_markets_loaded(broker_id, count, exchange_name)
+async def _notify_markets_error(broker_id, error_message)
+```
+
+#### ExchangeClient Extensions
+```python
+# Nouvelles méthodes publiques
+async def test_connection(broker_id: int) -> Dict
+async def load_markets(broker_id: int) -> Dict
+```
+
+#### WebSocket Consumer
+```python
+# UserAccountConsumer ajouté
+class UserAccountConsumer(AsyncWebsocketConsumer):
+    async def markets_loaded(self, event)
+    async def markets_error(self, event)
+```
+
+### VALIDATION
+- ✅ Actions intégrées dans NativeExchangeManager._handle_action()
+- ✅ Interface ExchangeClient compatible avec l'existant
+- ✅ WebSocket notifications pour User Account
+- ✅ Sauvegarde DB via ExchangeSymbol (table partagée)
+- ✅ Script de test complet: `test_missing_actions.py`
+
 ## 🎯 RÉSUMÉ EXÉCUTIF
 
 **Terminal 7** transforme la surveillance manuelle des ordres en un système automatisé intelligent :

@@ -430,6 +430,16 @@ class NativeExchangeManager:
                 broker_count = len(self._brokers_cache)
                 return {'success': True, 'data': {'loaded_brokers': broker_count}}
             
+            elif action == 'test_connection':
+                # Test connexion API keys pour User Account
+                result = await self._handle_test_connection(params)
+                return result
+            
+            elif action == 'load_markets':
+                # Chargement marchés en arrière-plan pour User Account
+                result = await self._handle_load_markets(params)
+                return result
+            
             else:
                 return {'success': False, 'error': f'Action inconnue: {action}'}
                 
@@ -564,6 +574,251 @@ class NativeExchangeManager:
             
         except Exception as e:
             logger.error(f"❌ Erreur préchargement brokers: {e}")
+    
+    async def _handle_test_connection(self, params: Dict) -> Dict:
+        """
+        🔌 HANDLER TEST CONNEXION - POUR USER ACCOUNT
+        
+        Teste la connexion API keys d'un broker via client natif.
+        Utilisé par User Account pour valider les credentials.
+        """
+        broker_id = params.get('broker_id')
+        if not broker_id:
+            return {'success': False, 'error': 'broker_id requis'}
+        
+        logger.info(f"🔌 Test connexion broker {broker_id}")
+        
+        try:
+            # Récupération du client exchange (création temporaire si nécessaire)
+            client = await self._get_exchange_client(broker_id)
+            if not client:
+                return {
+                    'success': False, 
+                    'error': f'Impossible de créer client pour broker {broker_id}'
+                }
+            
+            # Test connexion via balance (minimal)
+            balance_result = await client.get_balance()
+            
+            if balance_result['success']:
+                # Extraction d'un échantillon de balances pour confirmation
+                balances = balance_result.get('balances', {})
+                sample_balances = {}
+                
+                # Prendre les 3 premières balances non nulles
+                count = 0
+                for asset, balance_info in balances.items():
+                    if count >= 3:
+                        break
+                    if balance_info.get('total', 0) > 0:
+                        sample_balances[asset] = {
+                            'free': balance_info.get('free', 0),
+                            'total': balance_info.get('total', 0)
+                        }
+                        count += 1
+                
+                # Déclencher chargement marchés en arrière-plan si connexion OK
+                asyncio.create_task(self._load_markets_for_broker(broker_id))
+                
+                logger.info(f"✅ Test connexion réussi pour broker {broker_id}")
+                return {
+                    'success': True,
+                    'connected': True,
+                    'balance_sample': sample_balances,
+                    'markets_loading': True
+                }
+            else:
+                logger.warning(f"❌ Test connexion échoué pour broker {broker_id}: {balance_result.get('error')}")
+                return {
+                    'success': True,  # Pas d'erreur système
+                    'connected': False,
+                    'error': balance_result.get('error', 'Connexion échouée')
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur test connexion broker {broker_id}: {e}")
+            return {
+                'success': True,  # Pas d'erreur système Redis
+                'connected': False,
+                'error': str(e)
+            }
+    
+    async def _handle_load_markets(self, params: Dict) -> Dict:
+        """
+        📊 HANDLER CHARGEMENT MARCHÉS - POUR USER ACCOUNT
+        
+        Lance le chargement des marchés en arrière-plan pour un broker.
+        Utilisé par User Account bouton "[MAJ Paires]".
+        """
+        broker_id = params.get('broker_id')
+        if not broker_id:
+            return {'success': False, 'error': 'broker_id requis'}
+        
+        logger.info(f"🔄 Chargement manuel marchés broker {broker_id}")
+        
+        try:
+            # Lancer chargement en arrière-plan
+            asyncio.create_task(self._load_markets_for_broker(broker_id))
+            
+            return {
+                'success': True,
+                'message': 'Chargement des marchés démarré en arrière-plan',
+                'loading': True
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur démarrage chargement marchés broker {broker_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    async def _load_markets_for_broker(self, broker_id: int):
+        """
+        📊 CHARGEMENT MARCHÉS EN ARRIÈRE-PLAN
+        
+        Charge les marchés pour un broker spécifique avec notifications WebSocket.
+        Appelé par test_connection (auto) et load_markets (manuel).
+        """
+        logger.info(f"📊 Début chargement marchés broker {broker_id}")
+        
+        try:
+            # Récupération du client exchange
+            client = await self._get_exchange_client(broker_id)
+            if not client:
+                await self._notify_markets_error(broker_id, "Client exchange indisponible")
+                return
+            
+            # Récupération info broker pour notifications
+            broker_info = await self._get_broker_info(broker_id)
+            if not broker_info:
+                await self._notify_markets_error(broker_id, "Informations broker non trouvées")
+                return
+            
+            # Récupération des marchés via client natif
+            logger.info(f"📊 Récupération marchés {broker_info['exchange']}...")
+            markets_result = await client.get_markets()
+            
+            if not markets_result['success']:
+                await self._notify_markets_error(broker_id, markets_result.get('error', 'Erreur récupération marchés'))
+                return
+            
+            markets = markets_result.get('markets', {})
+            logger.info(f"📊 {len(markets)} marchés récupérés pour {broker_info['exchange']}")
+            
+            # Sauvegarde en DB
+            await self._save_markets_to_db(broker_info['exchange'], markets)
+            
+            # Notification succès
+            await self._notify_markets_loaded(broker_id, len(markets), broker_info['exchange'])
+            
+            logger.info(f"✅ Chargement marchés terminé pour broker {broker_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur chargement marchés broker {broker_id}: {e}")
+            await self._notify_markets_error(broker_id, str(e))
+    
+    async def _save_markets_to_db(self, exchange_name: str, markets: Dict):
+        """
+        💾 SAUVEGARDE MARCHÉS EN BASE DE DONNÉES
+        
+        Sauvegarde les marchés dans la table ExchangeSymbol partagée.
+        """
+        try:
+            from apps.brokers.models import ExchangeSymbol
+            
+            @sync_to_async
+            def save_markets_sync():
+                # Supprimer anciens marchés pour cet exchange
+                deleted_count = ExchangeSymbol.objects.filter(exchange=exchange_name).delete()[0]
+                logger.info(f"💾 {deleted_count} anciens marchés supprimés pour {exchange_name}")
+                
+                # Créer nouveaux marchés
+                symbols_to_create = []
+                for symbol, market_info in markets.items():
+                    symbols_to_create.append(ExchangeSymbol(
+                        exchange=exchange_name,
+                        symbol=symbol,
+                        base_asset=market_info.get('base', ''),
+                        quote_asset=market_info.get('quote', ''),
+                        is_active=market_info.get('active', True),
+                        market_type=market_info.get('type', 'spot'),
+                        price_precision=market_info.get('precision', {}).get('price', 8),
+                        amount_precision=market_info.get('precision', {}).get('amount', 8),
+                        min_amount=market_info.get('limits', {}).get('amount', {}).get('min', 0),
+                        max_amount=market_info.get('limits', {}).get('amount', {}).get('max')
+                    ))
+                
+                # Bulk create par batches de 500
+                created_count = 0
+                for i in range(0, len(symbols_to_create), 500):
+                    batch = symbols_to_create[i:i+500]
+                    ExchangeSymbol.objects.bulk_create(batch)
+                    created_count += len(batch)
+                
+                return created_count
+            
+            count = await save_markets_sync()
+            logger.info(f"💾 {count} marchés sauvegardés en DB pour {exchange_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur sauvegarde marchés {exchange_name}: {e}")
+            raise
+    
+    async def _notify_markets_loaded(self, broker_id: int, market_count: int, exchange_name: str):
+        """
+        📢 NOTIFICATION MARCHÉS CHARGÉS VIA WEBSOCKET
+        
+        Notifie User Account que les marchés sont chargés avec succès.
+        """
+        try:
+            from channels.layers import get_channel_layer
+            
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                await channel_layer.group_send(
+                    "user_account_updates",
+                    {
+                        'type': 'markets_loaded',
+                        'broker_id': broker_id,
+                        'exchange_name': exchange_name,
+                        'market_count': market_count,
+                        'status': 'success',
+                        'timestamp': int(time.time() * 1000)
+                    }
+                )
+                
+                logger.info(f"📢 Notification envoyée: {market_count} marchés chargés pour {exchange_name} (broker {broker_id})")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur notification marchés chargés: {e}")
+    
+    async def _notify_markets_error(self, broker_id: int, error_message: str):
+        """
+        📢 NOTIFICATION ERREUR CHARGEMENT MARCHÉS
+        
+        Notifie User Account d'une erreur de chargement des marchés.
+        """
+        try:
+            from channels.layers import get_channel_layer
+            
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                await channel_layer.group_send(
+                    "user_account_updates",
+                    {
+                        'type': 'markets_error',
+                        'broker_id': broker_id,
+                        'error': error_message,
+                        'status': 'error',
+                        'timestamp': int(time.time() * 1000)
+                    }
+                )
+                
+                logger.warning(f"📢 Notification erreur envoyée pour broker {broker_id}: {error_message}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur notification erreur marchés: {e}")
     
     def _update_avg_response_time(self, response_time: float):
         """

@@ -293,6 +293,30 @@ class ExchangeClient:
         }
         return await self._send_request('fetch_tickers', params)
     
+    # === NOUVELLES MÉTHODES USER ACCOUNT ===
+    
+    async def test_connection(self, broker_id: int) -> Dict:
+        """
+        🔌 TEST CONNEXION - NOUVEAU POUR USER ACCOUNT
+        
+        Teste la connexion API keys d'un broker via clients natifs.
+        Utilisé par User Account pour valider les credentials.
+        """
+        logger.info(f"🔌 ExchangeClient.test_connection: broker {broker_id}")
+        params = {'broker_id': broker_id}
+        return await self._send_request('test_connection', params)
+    
+    async def load_markets(self, broker_id: int) -> Dict:
+        """
+        📊 CHARGEMENT MARCHÉS - NOUVEAU POUR USER ACCOUNT
+        
+        Lance le chargement des marchés en arrière-plan pour un broker.
+        Utilisé par User Account bouton "[MAJ Paires]".
+        """
+        logger.info(f"📊 ExchangeClient.load_markets: broker {broker_id}")
+        params = {'broker_id': broker_id}
+        return await self._send_request('load_markets', params)
+    
     # === WRAPPERS RÉTROCOMPATIBILITÉ (identique CCXTClient) ===
     
     async def place_stop_loss_order(self, broker_id: int, symbol: str, 
