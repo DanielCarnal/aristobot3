@@ -2142,22 +2142,6 @@ export default {
       await loadOrdersForCurrentMode()
     }
     
-    const loadClosedOrders = async () => {
-      try {
-        ordersLoading.value = true
-        const response = await api.post('/api/trading-manual/orders-history/', {
-          broker_id: selectedBroker.value,
-          limit: 50
-        })
-        closedOrders.value = response.data.orders || []
-      } catch (err) {
-        console.error('Erreur historique:', err)
-        error.value = 'Erreur chargement historique'
-      } finally {
-        ordersLoading.value = false
-      }
-    }
-    
     // Fonctions pour l'UX améliorée des positions
     const getPositionClass = (position) => {
       const pnl = position.realized_pnl || 0
