@@ -903,17 +903,6 @@ export default {
              !executionLoading.value  // NOUVEAU: Désactivé pendant l'exécution
     })
     
-    const currentOrdersList = computed(() => {
-      if (orderViewMode.value === 'open') {
-        return openOrders.value
-      } else {
-        // Historique = ordres ouverts + ordres fermés
-        return [...openOrders.value, ...closedOrders.value].sort((a, b) => {
-          // Trier par timestamp décroissant (plus récent en premier)
-          return (b.timestamp || 0) - (a.timestamp || 0)
-        })
-      }
-    })
     
     // Méthodes
     const loadBrokers = async () => {
@@ -2235,10 +2224,16 @@ export default {
     
     // Computed pour la liste courante unifiée
     const currentOrdersList = computed(() => {
-      if (orderViewMode.value === 'open') return openOrders.value
-      if (orderViewMode.value === 'positions') return positions.value
-      if (orderViewMode.value === 'history') return closedOrders.value
-      return []
+      if (orderViewMode.value === 'open') {
+        return openOrders.value
+      } else if (orderViewMode.value === 'positions') {
+        return positions.value  // NOUVEAU: positions avec P&L Terminal 7
+      } else {
+        // Historique = ordres ouverts + fermés triés par timestamp
+        return [...openOrders.value, ...closedOrders.value].sort((a, b) => {
+          return (b.timestamp || 0) - (a.timestamp || 0)
+        })
+      }
     })
     
     // Initialisation
@@ -2321,44 +2316,6 @@ export default {
       }
     }
 
-    // === NOUVELLES FONCTIONS COMPUTED 3 ONGLETS ===
-    
-    // Liste actuelle selon le mode (open/positions/history)
-    const currentOrdersList = computed(() => {
-      if (orderViewMode.value === 'open') {
-        return openOrders.value
-      } else if (orderViewMode.value === 'positions') {
-        return positions.value  // NOUVEAU: positions avec P&L Terminal 7
-      } else {
-        // Historique = ordres ouverts + fermés
-        return [...openOrders.value, ...closedOrders.value].sort((a, b) => {
-          return (b.timestamp || 0) - (a.timestamp || 0)
-        })
-      }
-    })
-    
-    // Fonctions helper pour l'interface
-    const getSectionTitle = () => {
-      if (orderViewMode.value === 'open') return 'Ordres ouverts'
-      if (orderViewMode.value === 'positions') return 'Positions P&L (Terminal 7)'
-      return 'Historique des ordres'
-    }
-    
-    const getCurrentLoadingState = () => {
-      if (orderViewMode.value === 'positions') return positionsLoading.value
-      return ordersLoading.value
-    }
-    
-    const getLoadingMessage = () => {
-      if (orderViewMode.value === 'positions') return 'Chargement positions P&L...'
-      return 'Chargement...'
-    }
-    
-    const getEmptyMessage = () => {
-      if (orderViewMode.value === 'open') return 'Aucun ordre ouvert'
-      if (orderViewMode.value === 'positions') return 'Aucune position avec P&L calculé'
-      return 'Aucun ordre dans l\'historique'
-    }
     
     // Nettoyage
     onUnmounted(() => {
