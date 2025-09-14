@@ -2406,6 +2406,16 @@ export default {
       getCurrentLoadingState,
       getLoadingMessage,
       getEmptyMessage,
+      switchToTab,  // FONCTION MANQUANTE pour les clics onglets
+      // FONCTIONS UX POSITIONS P&L
+      getPositionClass,
+      getPnlClass,
+      formatPnL,
+      formatQuantity,
+      calculatePnlPercentage,
+      getSourceLabel,
+      getEmptyStateIcon,
+      getEmptyStateHint,
       clearExecutionResult
     }
   }
