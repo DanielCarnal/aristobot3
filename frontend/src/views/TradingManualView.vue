@@ -2142,26 +2142,6 @@ export default {
       await loadOrdersForCurrentMode()
     }
     
-    const loadPositions = async () => {
-      try {
-        positionsLoading.value = true
-        const response = await api.get(`/api/trading-manual/positions/?broker_id=${selectedBroker.value}&status=all&limit=50`)
-        
-        if (response.data.success) {
-          positions.value = response.data.positions
-          console.log('✅ Positions chargées:', positions.value.length)
-        } else {
-          console.error('Erreur API positions:', response.data.error)
-          error.value = 'Erreur chargement positions: ' + response.data.error
-        }
-      } catch (err) {
-        console.error('Erreur positions:', err)
-        error.value = 'Erreur chargement positions'
-      } finally {
-        positionsLoading.value = false
-      }
-    }
-    
     const loadClosedOrders = async () => {
       try {
         ordersLoading.value = true
