@@ -131,6 +131,9 @@
                 <button @click="updateSymbols(broker)" class="btn btn-sm">
                   MAJ Paires
                 </button>
+                <button @click="showExchangeCapabilities(broker)" class="btn btn-sm btn-info">
+                  🔧 Capacités
+                </button>
               </td>
             </tr>
           </tbody>
@@ -272,6 +275,139 @@
       </div>
     </div>
     
+    <!-- Modal Capacites Exchange -->
+    <div v-if="showCapabilitiesModal" class="modal">
+      <div class="modal-content capabilities-modal">
+        <h3>Capacités - {{ selectedBrokerCapabilities?.broker_name }}</h3>
+        
+        <div v-if="capabilitiesLoading" class="loading">
+          <div class="spinner"></div>
+          <p>Chargement des capacités...</p>
+        </div>
+        
+        <div v-else-if="selectedBrokerCapabilities" class="capabilities-content">
+          <!-- En-tête avec informations et bouton toggle -->
+          <div class="capabilities-header">
+            <div class="broker-info">
+              <strong>{{ selectedBrokerCapabilities.broker_name }}</strong> 
+              ({{ selectedBrokerCapabilities.exchange.toUpperCase() }})
+              <span v-if="selectedBrokerCapabilities.total_capabilities" class="capability-count">
+                - {{ selectedBrokerCapabilities.total_capabilities }} capacités
+              </span>
+            </div>
+            <button @click="toggleAllCapabilities" class="btn btn-sm btn-info">
+              {{ showAllCapabilities ? '📋 Mode essentiel' : '🔍 Voir tout' }}
+            </button>
+          </div>
+
+          <!-- Mode normal - Vue essentielle -->
+          <div v-if="!showAllCapabilities" class="capabilities-grid compact">
+            <!-- Types de Trading -->
+            <div class="capability-section">
+              <h4>Trading</h4>
+              <div class="capability-item" :title="getCapabilityExplanation('spot_trading')">
+                <span class="capability-label">Spot:</span>
+                <span :class="selectedBrokerCapabilities.spot_trading ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.spot_trading ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('futures_trading')">
+                <span class="capability-label">Futures:</span>
+                <span :class="selectedBrokerCapabilities.futures_trading ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.futures_trading ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('margin_trading')">
+                <span class="capability-label">Margin:</span>
+                <span :class="selectedBrokerCapabilities.margin_trading ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.margin_trading ? '✅' : '❌' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Types d'ordres -->
+            <div class="capability-section">
+              <h4>Ordres</h4>
+              <div class="capability-item" :title="getCapabilityExplanation('market_orders')">
+                <span class="capability-label">Market:</span>
+                <span :class="selectedBrokerCapabilities.market_orders ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.market_orders ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('limit_orders')">
+                <span class="capability-label">Limite:</span>
+                <span :class="selectedBrokerCapabilities.limit_orders ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.limit_orders ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('stop_orders')">
+                <span class="capability-label">Stop:</span>
+                <span :class="selectedBrokerCapabilities.stop_orders ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.stop_orders ? '✅' : '❌' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Données -->
+            <div class="capability-section">
+              <h4>Données</h4>
+              <div class="capability-item" :title="getCapabilityExplanation('fetch_balance')">
+                <span class="capability-label">Balance:</span>
+                <span :class="selectedBrokerCapabilities.fetch_balance ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.fetch_balance ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('fetch_ticker')">
+                <span class="capability-label">Prix:</span>
+                <span :class="selectedBrokerCapabilities.fetch_ticker ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.fetch_ticker ? '✅' : '❌' }}
+                </span>
+              </div>
+              <div class="capability-item" :title="getCapabilityExplanation('websocket')">
+                <span class="capability-label">WebSocket:</span>
+                <span :class="selectedBrokerCapabilities.websocket ? 'enabled' : 'disabled'">
+                  {{ selectedBrokerCapabilities.websocket ? '✅' : '❌' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode complet - Toutes les capacités par catégorie -->
+          <div v-else class="capabilities-full">
+            <div v-for="(category, categoryKey) in selectedBrokerCapabilities.categories" 
+                 :key="categoryKey" 
+                 class="capability-category">
+              <h4 class="category-title">
+                {{ category.name }} 
+                <span class="category-count">({{ Object.keys(category.capabilities).length }})</span>
+              </h4>
+              <div class="capability-list">
+                <div v-for="(value, key) in category.capabilities" 
+                     :key="key" 
+                     class="capability-item-full"
+                     :title="getCapabilityExplanation(key)">
+                  <span class="capability-name">{{ key }}</span>
+                  <span class="capability-value" :class="getCapabilityStatusClass(value)">
+                    {{ getCapabilityStatus(value) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else-if="capabilitiesError" class="alert error">
+          {{ capabilitiesError }}
+        </div>
+        
+        <div class="modal-actions">
+          <button @click="closeCapabilitiesModal" class="btn btn-secondary">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+    
     <!-- Bouton sauvegarder -->
     <div class="actions">
       <button @click="savePreferences" class="btn btn-primary">
@@ -309,6 +445,13 @@ const showTestModal = ref(false)
 const testingBroker = ref(null)
 const testResult = ref(null)
 const testInProgress = ref(false)
+
+// Variables pour modal capacités
+const showCapabilitiesModal = ref(false)
+const selectedBrokerCapabilities = ref(null)
+const capabilitiesLoading = ref(false)
+const capabilitiesError = ref(null)
+const showAllCapabilities = ref(false)
 const showAddBroker = computed({
   get: () => showBrokerModal.value,
   set: (val) => {
@@ -557,6 +700,135 @@ function resetBrokerForm() {
     is_testnet: false
   }
 }
+
+// === NOUVELLES FONCTIONS POUR CAPACITÉS ===
+
+async function showExchangeCapabilities(broker) {
+  capabilitiesLoading.value = true
+  capabilitiesError.value = null
+  selectedBrokerCapabilities.value = null
+  showCapabilitiesModal.value = true
+  showAllCapabilities.value = false  // Reset au mode normal
+  
+  await loadCapabilities(broker, false)
+}
+
+async function loadCapabilities(broker, showAll = false) {
+  capabilitiesLoading.value = true
+  capabilitiesError.value = null
+  
+  try {
+    const params = showAll ? '?all=true' : ''
+    const response = await api.get(`/api/brokers/${broker.id}/capabilities/${params}`)
+    selectedBrokerCapabilities.value = response.data
+    showAllCapabilities.value = showAll
+  } catch (error) {
+    console.error('Erreur récupération capacités:', error)
+    capabilitiesError.value = 'Erreur lors de la récupération des capacités'
+  } finally {
+    capabilitiesLoading.value = false
+  }
+}
+
+async function toggleAllCapabilities() {
+  if (selectedBrokerCapabilities.value) {
+    const broker = brokers.value.find(b => b.exchange === selectedBrokerCapabilities.value.exchange)
+    if (broker) {
+      await loadCapabilities(broker, !showAllCapabilities.value)
+    }
+  }
+}
+
+function closeCapabilitiesModal() {
+  showCapabilitiesModal.value = false
+  selectedBrokerCapabilities.value = null
+  capabilitiesError.value = null
+  showAllCapabilities.value = false
+}
+
+// Dictionnaire des explications pour les tooltips
+const capabilityExplanations = {
+  // Trading Types
+  'spot': 'Trading spot standard - achat/vente immédiate d\'actifs',
+  'future': 'Contrats à terme - positions avec effet de levier',
+  'margin': 'Trading sur marge - emprunter pour amplifier les positions',
+  'option': 'Options financières - droits d\'achat/vente à prix fixé',
+  'swap': 'Contrats swap perpétuels - positions avec financement',
+  
+  // Market Data
+  'fetchTicker': 'Prix en temps réel - dernier prix, volume, variations',
+  'fetchOrderBook': 'Carnet d\'ordres - liste des offres d\'achat/vente',
+  'fetchOHLCV': 'Données bougies - Open/High/Low/Close/Volume historiques',
+  'fetchTrades': 'Historique des transactions - trades récents du marché',
+  'fetchMyTrades': 'Mes transactions - historique personnel des trades',
+  
+  // Account
+  'fetchBalance': 'Solde du compte - fonds disponibles par devise',
+  'fetchTradingFee': 'Frais de trading - commission par transaction',
+  'fetchFundingHistory': 'Historique financement - coûts des positions',
+  'fetchLedger': 'Journal du compte - mouvements de fonds détaillés',
+  
+  // Orders
+  'createMarketOrder': 'Ordres au marché - exécution immédiate au prix actuel',
+  'createLimitOrder': 'Ordres limités - exécution à prix spécifié ou mieux',
+  'createStopOrder': 'Ordres stop - déclenchés à un prix seuil',
+  'createStopLimitOrder': 'Stop limit - ordre limité déclenché par prix seuil',
+  'cancelOrder': 'Annulation d\'ordres - supprimer ordres en attente',
+  'editOrder': 'Modification d\'ordres - changer prix/quantité des ordres',
+  'fetchOrders': 'Tous les ordres - historique complet des ordres',
+  'fetchOpenOrders': 'Ordres ouverts - ordres en attente d\'exécution',
+  'fetchClosedOrders': 'Ordres fermés - ordres exécutés ou annulés',
+  
+  // WebSocket
+  'ws': 'WebSocket - flux de données en temps réel',
+  'watchTicker': 'Ticker temps réel - prix via WebSocket',
+  'watchOrderBook': 'Carnet temps réel - ordres via WebSocket',
+  'watchTrades': 'Trades temps réel - transactions via WebSocket',
+  'watchMyTrades': 'Mes trades temps réel - transactions personnelles live',
+  'watchOrders': 'Ordres temps réel - statut des ordres via WebSocket',
+  'watchBalance': 'Solde temps réel - mise à jour automatique du solde',
+  
+  // Advanced
+  'sandbox': 'Mode test - environnement de développement sans argent réel',
+  'CORS': 'CORS support - accès depuis navigateur web autorisé',
+  'publicAPI': 'API publique - accès aux données de marché sans authentification',
+  'privateAPI': 'API privée - accès au compte avec clés d\'authentification',
+  
+  // Interface simplifiée
+  'spot_trading': 'Trading spot standard',
+  'futures_trading': 'Contrats à terme', 
+  'margin_trading': 'Trading sur marge',
+  'market_orders': 'Ordres au marché',
+  'limit_orders': 'Ordres limités',
+  'stop_orders': 'Ordres stop',
+  'stop_limit_orders': 'Ordres stop-limit',
+  'fetch_balance': 'Consultation solde',
+  'fetch_ticker': 'Prix temps réel',
+  'fetch_order_book': 'Carnet d\'ordres',
+  'fetch_ohlcv': 'Données bougies',
+  'fetch_orders': 'Historique ordres',
+  'fetch_open_orders': 'Ordres ouverts',
+  'cancel_order': 'Annulation ordres',
+  'websocket': 'Flux temps réel'
+}
+
+function getCapabilityExplanation(key) {
+  return capabilityExplanations[key] || 'Fonctionnalité spécifique à l\'exchange'
+}
+
+function getCapabilityStatus(value) {
+  if (value === true) return '✅ Disponible'
+  if (value === false) return '❌ Indisponible'
+  if (value === 'emulated') return '🔄 Émulé'
+  return `📍 ${value}`
+}
+
+function getCapabilityStatusClass(value) {
+  if (value === true) return 'capability-available'
+  if (value === false) return 'capability-unavailable' 
+  if (value === 'emulated') return 'capability-emulated'
+  return 'capability-other'
+}
 </script>
 
 <style scoped>
@@ -757,6 +1029,17 @@ input:checked + .slider:before {
   font-size: 0.875rem;
 }
 
+.btn-info {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-background);
+}
+
+.btn-info:hover {
+  background: var(--color-primary-dark);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
 .badge {
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
@@ -890,5 +1173,251 @@ input:checked + .slider:before {
   display: flex;
   justify-content: flex-end;
   margin-top: 2rem;
+}
+
+/* === STYLES POUR MODAL CAPACITÉS === */
+
+.capabilities-modal {
+  max-width: 900px;
+  width: 95%;
+  max-height: 90vh;
+}
+
+.capabilities-content {
+  padding: 1rem 0;
+}
+
+/* En-tête avec bouton toggle */
+.capabilities-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+
+.broker-info {
+  flex: 1;
+}
+
+.capability-count {
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+  font-weight: normal;
+}
+
+/* Mode compact - Vue essentielle */
+.capabilities-grid.compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.capabilities-grid.compact .capability-section {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.capabilities-grid.compact .capability-section h4 {
+  color: var(--color-primary);
+  margin: 0 0 0.8rem 0;
+  font-size: 1em;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.3rem;
+}
+
+.capabilities-grid.compact .capability-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  cursor: help;
+  transition: background-color 0.2s ease;
+}
+
+.capabilities-grid.compact .capability-item:hover {
+  background-color: rgba(0, 212, 255, 0.05);
+  border-radius: 0.25rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.capability-label {
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 0.9em;
+}
+
+.capability-item .enabled {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.capability-item .disabled {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* Mode complet - Toutes les capacités */
+.capabilities-full {
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-background);
+}
+
+.capability-category {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.capability-category:last-child {
+  border-bottom: none;
+}
+
+.category-title {
+  color: var(--color-primary);
+  margin: 0 0 1rem 0;
+  font-size: 1.1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-count {
+  color: var(--color-text-secondary);
+  font-size: 0.8em;
+  font-weight: normal;
+  background: rgba(0, 212, 255, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.capability-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.5rem;
+}
+
+.capability-item-full {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.capability-item-full:hover {
+  background-color: rgba(0, 212, 255, 0.05);
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.capability-name {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8em;
+  color: var(--color-text);
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.capability-value {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+
+/* Classes de statut */
+.capability-available {
+  color: var(--color-success);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.capability-unavailable {
+  color: var(--color-danger);
+  background: rgba(255, 0, 85, 0.1);
+}
+
+.capability-emulated {
+  color: #ffa500;
+  background: rgba(255, 165, 0, 0.1);
+}
+
+.capability-other {
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Tooltips natifs */
+[title] {
+  position: relative;
+}
+
+[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-background);
+  border: 1px solid var(--color-primary);
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  z-index: 1000;
+  font-size: 0.8em;
+  color: var(--color-text);
+  max-width: 250px;
+  white-space: normal;
+  word-wrap: break-word;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[title]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--color-primary);
+  z-index: 1000;
+}
+
+/* Loading spinner */
+.loading {
+  text-align: center;
+  padding: 2rem;
+}
+
+.loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-border);
+  border-top: 4px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

@@ -140,6 +140,126 @@ class BrokerViewSet(viewsets.ModelViewSet):
             'message': f'Mise a jour des paires de trading pour {broker.exchange} lancee en arriere-plan'
         })
     
+    @action(detail=True, methods=['get'])
+    def capabilities(self, request, pk=None):
+        """Récupère les capacités CCXT natives d'un broker"""
+        broker = self.get_object()
+        show_all = request.query_params.get('all', 'false').lower() == 'true'
+        
+        try:
+            # Utiliser CCXT déjà importé
+            exchange_class = getattr(ccxt, broker.exchange)
+            instance = exchange_class()
+            
+            if show_all:
+                # Retourner TOUTES les capacités avec catégorisation
+                all_capabilities = dict(instance.has)
+                
+                # Catégoriser les capacités
+                categories = {
+                    'trading': {
+                        'name': 'Trading',
+                        'capabilities': {}
+                    },
+                    'orders': {
+                        'name': 'Gestion ordres', 
+                        'capabilities': {}
+                    },
+                    'market_data': {
+                        'name': 'Données marché',
+                        'capabilities': {}
+                    },
+                    'account': {
+                        'name': 'Compte',
+                        'capabilities': {}
+                    },
+                    'websocket': {
+                        'name': 'WebSocket',
+                        'capabilities': {}
+                    },
+                    'advanced': {
+                        'name': 'Avancé',
+                        'capabilities': {}
+                    },
+                    'other': {
+                        'name': 'Autres',
+                        'capabilities': {}
+                    }
+                }
+                
+                # Classification automatique
+                for key, value in all_capabilities.items():
+                    if key in ['spot', 'future', 'margin', 'option', 'swap']:
+                        categories['trading']['capabilities'][key] = value
+                    elif key.startswith('create') or key.startswith('cancel') or key.startswith('edit') or 'Order' in key:
+                        categories['orders']['capabilities'][key] = value
+                    elif key.startswith('fetch') and not key.startswith('fetchBalance'):
+                        categories['market_data']['capabilities'][key] = value
+                    elif key in ['fetchBalance', 'fetchMyTrades', 'fetchTradingFee', 'fetchTradingFees']:
+                        categories['account']['capabilities'][key] = value
+                    elif key.startswith('ws') or 'websocket' in key.lower():
+                        categories['websocket']['capabilities'][key] = value
+                    elif key in ['sandbox', 'CORS', 'publicAPI', 'privateAPI']:
+                        categories['advanced']['capabilities'][key] = value
+                    else:
+                        categories['other']['capabilities'][key] = value
+                
+                # Supprimer les catégories vides
+                categories = {k: v for k, v in categories.items() if v['capabilities']}
+                
+                response_data = {
+                    'exchange': broker.exchange,
+                    'name': broker.name,
+                    'broker_name': broker.name,
+                    'show_all': True,
+                    'total_capabilities': len(all_capabilities),
+                    'categories': categories
+                }
+            else:
+                # Mode normal - capacités essentielles seulement
+                capabilities = {
+                    'exchange': broker.exchange,
+                    'name': broker.name,
+                    'broker_name': broker.name,
+                    'show_all': False,
+                    
+                    # Types de Trading
+                    'spot_trading': instance.has.get('spot', True),
+                    'futures_trading': instance.has.get('future', False),
+                    'margin_trading': instance.has.get('margin', False),
+                    
+                    # Types d'ordres
+                    'market_orders': instance.has.get('createMarketOrder', False),
+                    'limit_orders': instance.has.get('createLimitOrder', False),
+                    'stop_orders': instance.has.get('createStopOrder', False),
+                    'stop_limit_orders': instance.has.get('createStopLimitOrder', False),
+                    
+                    # Données de marché
+                    'fetch_balance': instance.has.get('fetchBalance', False),
+                    'fetch_ticker': instance.has.get('fetchTicker', False),
+                    'fetch_order_book': instance.has.get('fetchOrderBook', False),
+                    'fetch_ohlcv': instance.has.get('fetchOHLCV', False),
+                    
+                    # Gestion ordres
+                    'fetch_orders': instance.has.get('fetchOrders', False),
+                    'fetch_open_orders': instance.has.get('fetchOpenOrders', False),
+                    'cancel_order': instance.has.get('cancelOrder', False),
+                    
+                    # Fonctionnalités avancées
+                    'websocket': instance.has.get('ws', False),
+                    'sandbox': instance.has.get('sandbox', False),
+                }
+                response_data = capabilities
+            
+            logger.info(f"Capacités récupérées pour {broker.exchange}: {len(response_data)} propriétés (show_all={show_all})")
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"Erreur récupération capacités {broker.exchange}: {e}")
+            return Response({
+                'error': f'Erreur récupération capacités: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
     @action(detail=True, methods=['post'])
     def set_default(self, request, pk=None):
         """Definit un broker comme broker par defaut"""

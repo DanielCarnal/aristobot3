@@ -2,7 +2,6 @@
 
 ## **Le projet**
 @Aristobot3_1.md
-@Aristobot3.1_ExchangeGateway.md
 @IMPLEMENTATION_PLAN.md
 
 ### Imports de contexte

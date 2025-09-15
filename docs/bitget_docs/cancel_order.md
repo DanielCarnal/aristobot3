@@ -1,6 +1,6 @@
 # Cancel Order - Bitget Spot Trading API
 
-**Rate limit:** 10 requests/second/UID
+**Frequency limit:** 10 times/1s (UID)
 
 ## Description
 
@@ -31,7 +31,7 @@ curl -X POST "https://api.bitget.com/api/v2/spot/trade/cancel-order" \
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `symbol` | String | Yes | Trading pair name, e.g. BTCUSDT. It is not required when `tpslType` is `tpsl` |
-| `tpslType` | String | No | Order type, default: `normal`<br>• `normal`: spot order<br>• `tpsl`: spot TP/SL order |
+| `tpslType` | String | No | Order type, default: `normal`<br>• `normal`: spot order<br>• `tpsl`: spot tpsl order |
 | `orderId` | String | No | Order ID. Either `orderId` or `clientOid` is required. It's required when `tpslType` is `tpsl` |
 | `clientOid` | String | No | Client Order ID. Either `orderId` or `clientOid` is required |
 
@@ -73,11 +73,11 @@ curl -X POST "https://api.bitget.com/api/v2/spot/trade/cancel-order" \
 2. **TP/SL Orders (`tpslType=tpsl`)**:
    - `symbol` parameter is not required
    - `orderId` is mandatory for TP/SL orders
-   - Used for take profit and stop loss orders
+   - Used for spot tpsl orders
 
 ### Rate Limits
 
-- **10 requests per second per UID**
+- **Frequency limit: 10 times/1s (UID)**
 
 ### Use Cases
 

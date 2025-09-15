@@ -1,6 +1,6 @@
 # Cancel Order by Symbol - Bitget Spot Trading API
 
-**Rate limit:** 5 requests/second/UID
+**Frequency limit:** 5 times/1s (UID)
 
 ## Description
 
@@ -12,35 +12,33 @@ Cancel order by symbol
 
 ### Request Example
 
-```bash
+```
 curl -X POST "https://api.bitget.com/api/v2/spot/trade/cancel-symbol-order" \
--H "ACCESS-KEY:*******" \
--H "ACCESS-SIGN:*" \
--H "ACCESS-PASSPHRASE:*" \
--H "ACCESS-TIMESTAMP:1659076670000" \
--H "locale:en-US" \
--H "Content-Type: application/json" \
--d '{
-  "symbol": "BTCUSDT"
-}'
+   -H "ACCESS-KEY:*******" \
+   -H "ACCESS-SIGN:*" \
+   -H "ACCESS-PASSPHRASE:*" \
+   -H "ACCESS-TIMESTAMP:1659076670000" \
+   -H "locale:en-US" \
+   -H "Content-Type: application/json" \
+   -d '{"symbol": "BTCUSDT"}'
 ```
 
 ## Request Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `symbol` | String | Yes | Trading pair name, e.g. BTCUSDT |
+| symbol | String | Yes | Trading pair name, e.g. BTCUSDT |
 
 ## Response Example
 
-```json
+```
 {
-  "code": "00000",
-  "msg": "success",
-  "requestTime": 1698313139948,
-  "data": {
-    "symbol": "BGBUSDT"
-  }
+    "code": "00000",
+    "msg": "success",
+    "requestTime": 1698313139948,
+    "data": {
+        "symbol": "BGBUSDT"
+    }
 }
 ```
 
@@ -48,7 +46,7 @@ curl -X POST "https://api.bitget.com/api/v2/spot/trade/cancel-symbol-order" \
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `symbol` | String | Cancelled symbol (This request is executed asynchronously. If you need to know the result, please query the Get History Orders endpoint.) |
+| symbol | String | Cancelled symbol (This request is executed asynchronously. If you need to know the result, please query the Get History Orders endpoint.) |
 
 ## Important Notes
 
@@ -69,7 +67,7 @@ curl -X POST "https://api.bitget.com/api/v2/spot/trade/cancel-symbol-order" \
 
 ### Rate Limits
 
-- **5 requests per second per UID**
+- **5 times/1s (UID)**
 
 ### Use Cases
 

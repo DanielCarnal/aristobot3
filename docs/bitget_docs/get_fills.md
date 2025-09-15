@@ -1,10 +1,10 @@
 # Get Fills - Bitget Spot Trading API
 
-**Rate limit:** 20 requests/second/UID
+**Frequency limit:** 10 times/1s (UID)
 
 ## Description
 
-Get Fills (Trade executions and individual fill records)
+Get Fills (It only supports to get the data within 90 days. The older data can be downloaded from web)
 
 ## HTTP Request
 
@@ -14,24 +14,24 @@ Get Fills (Trade executions and individual fill records)
 
 ```bash
 curl "https://api.bitget.com/api/v2/spot/trade/fills?symbol=BTCUSDT&startTime=1659036670000&endTime=1659076670000&limit=20" \
--H "ACCESS-KEY:*******" \
--H "ACCESS-SIGN:*" \
--H "ACCESS-PASSPHRASE:*" \
--H "ACCESS-TIMESTAMP:1659076670000" \
--H "locale:en-US" \
--H "Content-Type: application/json"
+  -H "ACCESS-KEY:your apiKey" \
+  -H "ACCESS-SIGN:*" \
+  -H "ACCESS-PASSPHRASE:*" \
+  -H "ACCESS-TIMESTAMP:1659076670000" \
+  -H "locale:en-US" \
+  -H "Content-Type: application/json"
 ```
 
 ## Request Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `symbol` | String | No | Trading pair |
+| `symbol` | String | No | Trading pair name |
 | `orderId` | String | No | Order ID |
-| `startTime` | String | No | The record start time for the query. Unix millisecond timestamp |
-| `endTime` | String | No | The end time of the record for the query. Unix millisecond timestamp |
-| `idLessThan` | String | No | Requests the content on the page before this ID (older data), the value input should be the fillId |
-| `limit` | String | No | Limit number default 100 max 100 |
+| `startTime` | String | No | The start time of the orders, i.e. to get orders after that timestamp Unix millisecond timestamp, e.g. 1690196141868. (For Managed Sub-Account, the StartTime cannot be earlier than the binding time) |
+| `endTime` | String | No | The end time of a fulfilled order, i.e., get orders prior to that timestamp Unix millisecond timestamp, e.g. 1690196141868 The interval between startTime and endTime must not exceed 90 days. |
+| `limit` | String | No | Number of results returned: Default: 100, max 100 |
+| `idLessThan` | String | No | Requests the content on the page before this ID (older data), the value input should be the tradeId of the corresponding interface. |
 
 ## Response Example
 
@@ -39,18 +39,27 @@ curl "https://api.bitget.com/api/v2/spot/trade/fills?symbol=BTCUSDT&startTime=16
 {
   "code": "00000",
   "msg": "success",
-  "requestTime": 1695808949356,
+  "requestTime": 1695865274510,
   "data": [
     {
-      "fillId": "1234567890",
-      "orderId": "987654321",
+      "userId": "**********",
       "symbol": "BTCUSDT",
+      "orderId": "12345678910",
+      "tradeId": "12345678910",
+      "orderType": "market",
       "side": "buy",
-      "fillPrice": "45000.50",
-      "fillQuantity": "0.001",
-      "fillTime": "1690196141868",
-      "feeCcy": "BGB",
-      "fees": "-0.045"
+      "priceAvg": "13000",
+      "size": "0.0007",
+      "amount": "9.1",
+      "feeDetail": {
+        "deduction": "no",
+        "feeCoin": "BTC",
+        "totalDeductionFee": "",
+        "totalFee": "-0.0000007"
+      },
+      "tradeScope": "taker",
+      "cTime": "1695865232579",
+      "uTime": "1695865233027"
     }
   ]
 }
@@ -60,107 +69,79 @@ curl "https://api.bitget.com/api/v2/spot/trade/fills?symbol=BTCUSDT&startTime=16
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fillId` | String | Fill ID (unique identifier for each trade execution) |
-| `orderId` | String | Order ID |
+| `userId` | String | Account ID |
 | `symbol` | String | Trading pair name |
-| `side` | String | Order direction (`buy` or `sell`) |
-| `fillPrice` | String | Execution price for this fill |
-| `fillQuantity` | String | Executed quantity for this fill (in base currency) |
-| `fillTime` | String | Execution time, Unix millisecond timestamp |
-| `feeCcy` | String | Fee currency |
-| `fees` | String | Fee amount (negative value indicates fee paid) |
+| `orderId` | String | Order ID |
+| `tradeId` | String | Transaction id |
+| `orderType` | String | Order type |
+| `side` | String | Order direction |
+| `priceAvg` | String | Filled price |
+| `size` | String | Filled quantity |
+| `amount` | String | Total trading amount |
+| `cTime` | String | Creation time Unix second timestamp, e.g. 1622697148 |
+| `uTime` | String | Update time Unix second timestamp, e.g. 1622697148 |
+| `tradeScope` | String | Trader tag taker Taker maker Maker |
+| `feeDetail` | Object | Transaction fee breakdown |
+| `feeDetail.deduction` | String | Discount or not |
+| `feeDetail.feeCoin` | String | Transaction fee coin |
+| `feeDetail.totalDeductionFee` | String | Total transaction fee discount |
+| `feeDetail.totalFee` | String | Total transaction fee |
 
 ## Important Notes
 
-### Fill vs Order Difference
+### Data Availability
+- Only supports data retrieval within 90 days
+- Older data can be downloaded from the web interface
 
-- **Orders**: Individual trading instructions you place
-- **Fills**: Individual executions that make up an order
-- **One Order** can have **multiple Fills** if partially executed
-
-### Fill Records
-
-- Each fill represents a single trade execution
-- Large orders may be split into multiple fills
-- Each fill has its own execution price and quantity
-- Useful for detailed trade analysis and fee calculation
-
-### Time Range
-
-- **Maximum time range**: 90 days
-- **Default behavior**: Returns recent fills if no time range specified
+### Time Range Constraints
+- The interval between `startTime` and `endTime` must not exceed 90 days
+- For Managed Sub-Account, the `startTime` cannot be earlier than the binding time
 
 ### Pagination
-
-- **Default limit**: 100 fills
-- **Maximum limit**: 100 fills per request
-- Use `idLessThan` with `fillId` for pagination
-
-### Fee Information
-
-- **`feeCcy`**: Currency in which fees are paid (often BGB for discounts)
-- **`fees`**: Negative values indicate fees paid, positive values indicate rebates
-- Fees are per fill, not per order
+- Default limit: 100 results
+- Maximum limit: 100 results per request
+- Use `idLessThan` parameter with `tradeId` for pagination to get older data
 
 ### Rate Limits
+- **10 requests per second per UID**
 
-- **20 requests per second per UID**
+### Fee Information
+- `feeDetail.totalFee`: Negative values typically indicate fees paid
+- `feeDetail.deduction`: Indicates if fee discount was applied
+- `feeDetail.feeCoin`: The cryptocurrency used to pay fees
+- `feeDetail.totalDeductionFee`: Amount of fee discount received
+
+### Trade Scope
+- `taker`: Order that took liquidity from the order book
+- `maker`: Order that added liquidity to the order book
 
 ### Use Cases
 
-1. **Detailed Trade Analysis**: Analyze execution quality and slippage
-2. **Fee Calculation**: Calculate total trading costs per order
-3. **Performance Metrics**: Measure execution efficiency
-4. **Compliance Reporting**: Detailed trade records for regulatory purposes
-5. **Order Reconstruction**: Understand how large orders were executed
+1. **Trade History Analysis**: Review all fill executions for trading analysis
+2. **Fee Calculation**: Calculate total trading costs and fee structures
+3. **Performance Tracking**: Monitor execution prices and trading performance
+4. **Compliance Reporting**: Generate detailed trade records for regulatory purposes
+5. **Order Reconstruction**: Understand how orders were filled in the market
 
-### Query Patterns
+### Query Examples
 
 ```bash
-# Get all recent fills
-GET /api/v2/spot/trade/fills
-
-# Get fills for specific symbol
+# Get recent fills for a specific symbol
 GET /api/v2/spot/trade/fills?symbol=BTCUSDT
 
-# Get fills for specific order
-GET /api/v2/spot/trade/fills?orderId=123456789
+# Get fills for a specific order
+GET /api/v2/spot/trade/fills?orderId=12345678910
 
-# Get fills in time range
-GET /api/v2/spot/trade/fills?startTime=1690000000000&endTime=1690086400000
+# Get fills within a time range
+GET /api/v2/spot/trade/fills?startTime=1659036670000&endTime=1659076670000
 
-# Paginate through fills
-GET /api/v2/spot/trade/fills?idLessThan=987654321&limit=50
-```
+# Get fills with pagination
+GET /api/v2/spot/trade/fills?idLessThan=12345678910&limit=50
 
-### Best Practices
-
-1. **Time Filtering**: Use time ranges for better performance
-2. **Symbol Filtering**: Filter by trading pair when analyzing specific markets
-3. **Order-Specific Queries**: Use `orderId` to get fills for specific orders
-4. **Fee Tracking**: Sum up fees across all fills for total cost analysis
-5. **Execution Analysis**: Use fill data to analyze order execution quality
-
-### Example: Calculating Total Order Cost
-
-```javascript
-// Get all fills for an order
-const fills = await getFills({ orderId: "123456789" });
-
-// Calculate total executed quantity
-const totalQuantity = fills.reduce((sum, fill) => 
-  sum + parseFloat(fill.fillQuantity), 0);
-
-// Calculate average execution price
-const totalValue = fills.reduce((sum, fill) => 
-  sum + (parseFloat(fill.fillPrice) * parseFloat(fill.fillQuantity)), 0);
-const avgPrice = totalValue / totalQuantity;
-
-// Calculate total fees
-const totalFees = fills.reduce((sum, fill) => 
-  sum + Math.abs(parseFloat(fill.fees)), 0);
+# Get fills for multiple parameters
+GET /api/v2/spot/trade/fills?symbol=BTCUSDT&startTime=1659036670000&limit=20
 ```
 
 ---
 
-*Documentation extracted from: https://www.bitget.com/api-doc/spot/trade/Get-Fills*
+*Documentation based on official Bitget API specifications*

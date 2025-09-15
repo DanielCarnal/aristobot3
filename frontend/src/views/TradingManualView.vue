@@ -86,136 +86,8 @@
           </div>
         </div>
 
-        <!-- Capacités exchange -->
-        <div class="section-card exchange-capabilities">
-          <h2>Capacités Exchange</h2>
-          <div v-if="exchangeInfoLoading" class="loading">Chargement...</div>
-          <div v-else-if="exchangeInfo">
-            <p><strong>{{ exchangeInfo.name }}</strong> ({{ exchangeInfo.exchange }})</p>
-            <div class="capabilities-grid">
-              <!-- Capacités principales -->
-              <div class="capability-section">
-                <h4>Types de Trading</h4>
-                <div class="capability-item">
-                  <span class="capability-label">Spot Trading:</span>
-                  <span :class="exchangeInfo.spot_trading ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.spot_trading ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Futures:</span>
-                  <span :class="exchangeInfo.futures_trading ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.futures_trading ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Margin:</span>
-                  <span :class="exchangeInfo.margin_trading ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.margin_trading ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Types d'ordres -->
-              <div class="capability-section">
-                <h4>Types d'Ordres</h4>
-                <div class="capability-item clickable" @click="openOrderTypeModal('market')">
-                  <span class="capability-label">Market:</span>
-                  <span :class="exchangeInfo.market_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.market_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item clickable" @click="openOrderTypeModal('limit')">
-                  <span class="capability-label">Limite:</span>
-                  <span :class="exchangeInfo.limit_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.limit_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item clickable" @click="openOrderTypeModal('stop')">
-                  <span class="capability-label">Stop:</span>
-                  <span :class="exchangeInfo.stop_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.stop_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item clickable" @click="openOrderTypeModal('stop_limit')">
-                  <span class="capability-label">Stop Limite:</span>
-                  <span :class="exchangeInfo.stop_limit_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.stop_limit_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Données de marché -->
-              <div class="capability-section">
-                <h4>Données de Marché</h4>
-                <div class="capability-item">
-                  <span class="capability-label">Balance:</span>
-                  <span :class="exchangeInfo.fetch_balance ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_balance ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Prix (Ticker):</span>
-                  <span :class="exchangeInfo.fetch_ticker ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_ticker ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Order Book:</span>
-                  <span :class="exchangeInfo.fetch_order_book ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_order_book ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">OHLCV:</span>
-                  <span :class="exchangeInfo.fetch_ohlcv ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_ohlcv ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Gestion des ordres -->
-              <div class="capability-section">
-                <h4>Gestion des Ordres</h4>
-                <div class="capability-item">
-                  <span class="capability-label">Lister ordres:</span>
-                  <span :class="exchangeInfo.fetch_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Ordres ouverts:</span>
-                  <span :class="exchangeInfo.fetch_open_orders ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.fetch_open_orders ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Annuler ordre:</span>
-                  <span :class="exchangeInfo.cancel_order ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.cancel_order ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Fonctionnalités avancées -->
-              <div class="capability-section">
-                <h4>Fonctionnalités</h4>
-                <div class="capability-item">
-                  <span class="capability-label">WebSocket:</span>
-                  <span :class="exchangeInfo.websocket ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.websocket ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-                <div class="capability-item">
-                  <span class="capability-label">Sandbox:</span>
-                  <span :class="exchangeInfo.sandbox ? 'enabled' : 'disabled'">
-                    {{ exchangeInfo.sandbox ? 'Oui' : 'Non' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- SECTION CAPACITÉS ÉCHANGES SUPPRIMÉE -->
+        <!-- 🔧 Désormais disponible dans Mon Compte → Bouton "Capacités" -->
       </div>
 
       <!-- Colonne 2: Symboles et filtres -->
@@ -557,19 +429,13 @@
         <!-- Ordres + Positions avec toggle 3 onglets - INTÉGRATION TERMINAL 7 -->
         <div class="section-card orders-section">
           <div class="orders-header">
-            <h2>{{ getSectionTitle() }}</h2>
-            <div class="orders-toggle three-tabs">
+            <h2>Positions</h2>
+            <div class="orders-toggle two-tabs">
               <button 
                 :class="['toggle-btn tab-open', { 'active': orderViewMode === 'open' }]"
                 @click="switchToTab('open')"
               >
                 📋 Ordres ouverts
-              </button>
-              <button 
-                :class="['toggle-btn tab-positions', { 'active': orderViewMode === 'positions' }]"
-                @click="switchToTab('positions')"
-              >
-                💰 Positions P&L
               </button>
               <button 
                 :class="['toggle-btn tab-history', { 'active': orderViewMode === 'history' }]"
@@ -592,108 +458,159 @@
               <p class="no-data-hint">{{ getEmptyStateHint() }}</p>
             </div>
           </div>
-          <!-- AFFICHAGE POSITIONS P&L (Terminal 7) - OPTIMISÉ UX -->
-          <div v-else-if="orderViewMode === 'positions'" class="positions-list enhanced">
-            <div v-for="position in currentOrdersList" :key="position.id" 
-                 :class="['position-item', getPositionClass(position)]">
-              
-              <!-- Header avec P&L proéminent -->
-              <div class="position-header enhanced">
-                <div class="position-main-info">
-                  <span class="position-symbol-enhanced">{{ position.symbol }}</span>
-                  <span class="position-side-badge" :class="position.side">
-                    {{ position.side?.toUpperCase() }}
-                  </span>
-                </div>
-                <div class="position-pnl-container">
-                  <span :class="['position-pnl-enhanced', getPnlClass(position.realized_pnl)]">
-                    {{ formatPnL(position.realized_pnl) }}
-                  </span>
-                  <span class="pnl-percentage" :class="getPnlClass(position.realized_pnl)">
-                    {{ calculatePnlPercentage(position) }}
-                  </span>
-                </div>
-              </div>
-              
-              <!-- Détails enrichis -->
-              <div class="position-details-enhanced">
-                <div class="position-trade-metrics">
-                  <div class="metric-item">
-                    <span class="metric-label">Quantité:</span>
-                    <span class="metric-value">{{ formatQuantity(position.quantity) }}</span>
-                  </div>
-                  <div class="metric-item">
-                    <span class="metric-label">Prix moyen:</span>
-                    <span class="metric-value">${{ position.price?.toFixed(2) || '0.00' }}</span>
-                  </div>
-                  <div class="metric-item">
-                    <span class="metric-label">Frais:</span>
-                    <span class="metric-value">${{ position.total_fees?.toFixed(2) || '0.00' }}</span>
-                  </div>
-                </div>
-                
-                <!-- Barre de progression P&L -->
-                <div class="pnl-progress-bar">
-                  <div class="pnl-bar-background">
-                    <div class="pnl-bar-fill" 
-                         :class="getPnlClass(position.realized_pnl)"
-                         :style="{ width: Math.min(Math.abs(calculatePnlPercentageRaw(position)) * 2, 100) + '%' }">
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Footer avec métadonnées -->
-              <div class="position-footer-enhanced">
-                <div class="position-meta">
-                  <span class="position-time">{{ formatTimestamp(position.executed_at) }}</span>
-                  <span class="position-method-badge" :class="position.source">
-                    {{ getSourceLabel(position.source) }}
-                  </span>
-                </div>
-                <div class="position-calculation">
-                  <span class="calculation-method">{{ position.pnl_calculation_method || 'Terminal 7' }}</span>
-                </div>
+          <!-- AFFICHAGE UNIFORME ORDRES SUR UNE LIGNE AVEC TYPE -->
+          <div v-else class="orders-list unified">
+            <!-- En-tête pour identifier les colonnes -->
+            <div class="order-item-header">
+              <span class="order-datetime">Date/Heure</span>
+              <span class="order-side">Side</span>
+              <span class="order-type">Type</span>
+              <span class="order-symbol">Symbole</span>
+              <span class="order-quantity">Quantité</span>
+              <span class="order-price">Prix</span>
+              <span class="order-total">Total</span>
+              <span class="order-status">Status</span>
+              <span class="order-actions" v-if="orderViewMode === 'open'">Actions</span>
+            </div>
+            
+            <div v-for="order in currentOrdersList" :key="order.id" class="order-item-unified">
+              <span class="order-datetime">{{ formatOrderDateTime(order) }}</span>
+              <span :class="['order-side', order.side]">{{ order.side.toUpperCase() }}</span>
+              <span :class="['order-type', formatOrderType(order).class]">{{ formatOrderType(order).label }}</span>
+              <span class="order-symbol">{{ order.symbol }}</span>
+              <span class="order-quantity">{{ parseFloat(order.amount || order.quantity || 0).toFixed(8) }}</span>
+              <span class="order-price">{{ formatOrderDisplayPrice(order) }}</span>
+              <span class="order-total">${{ formatOrderTotal(order) }}</span>
+              <span :class="['order-status', order.status]">{{ order.status?.toUpperCase() || 'UNKNOWN' }}</span>
+              <div class="order-actions" v-if="orderViewMode === 'open'">
+                <button 
+                  @click="cancelOrder(order.id, order.symbol)" 
+                  class="btn-cancel-mini"
+                  :disabled="orderActionLoading"
+                  title="Annuler"
+                >
+                  ❌
+                </button>
+                <button 
+                  @click="editOrder(order)" 
+                  class="btn-edit-mini"
+                  :disabled="orderActionLoading"
+                  title="Modifier"
+                >
+                  ✏️
+                </button>
               </div>
             </div>
           </div>
-          <!-- AFFICHAGE ORDRES CLASSIQUE -->
-          <div v-else class="orders-list">
-            <div v-for="order in currentOrdersList" :key="order.id" class="order-item">
-              <div class="order-header">
-                <span :class="['order-side', order.side]">{{ order.side.toUpperCase() }}</span>
-                <span class="order-symbol">{{ order.symbol }}</span>
-                <span class="order-type">{{ order.type }}</span>
-              </div>
-              <div class="order-details">
-                <div class="order-amounts">
-                  <span class="order-amount">{{ parseFloat(order.amount).toFixed(8) }}</span>
-                  <span class="order-price" v-if="order.price">@ {{ parseFloat(order.price).toFixed(2) }}</span>
-                </div>
-                <div class="order-actions" v-if="orderViewMode === 'open'">
-                  <button 
-                    @click="cancelOrder(order.id, order.symbol)" 
-                    class="btn-cancel"
-                    :disabled="orderActionLoading"
-                    title="Annuler l'ordre"
-                  >
-                    ❌
-                  </button>
-                  <button 
-                    @click="editOrder(order)" 
-                    class="btn-edit"
-                    :disabled="orderActionLoading"
-                    title="Modifier l'ordre"
-                  >
-                    ✏️
-                  </button>
-                </div>
-              </div>
-              <div class="order-status">
-                <span class="order-filled">{{ parseFloat(order.filled || 0).toFixed(8) }} / {{ parseFloat(order.amount).toFixed(8) }}</span>
-                <span class="order-timestamp">{{ formatTimestamp(order.timestamp) }}</span>
+        </div>
+
+        <!-- Section Ordres Ouverts - NOUVELLE SECTION -->
+        <div class="section-card orders-section">
+          <div class="orders-header">
+            <h2>Ordres</h2>
+            <div class="orders-toggle">
+              <button 
+                :class="['toggle-btn', { active: orderViewMode === 'open' }]"
+                @click="orderViewMode = 'open'; loadOrdersForCurrentMode()"
+              >
+                Ouverts
+              </button>
+              <button 
+                :class="['toggle-btn', { active: orderViewMode === 'history' }]"
+                @click="orderViewMode = 'history'; loadOrdersForCurrentMode()"
+              >
+                Historique
+              </button>
+            </div>
+          </div>
+
+          <div v-if="ordersLoading" class="loading">Chargement ordres...</div>
+          
+          <div v-else-if="currentOrdersList.length > 0" class="orders-container">
+            <!-- En-tête des colonnes -->
+            <div class="order-item-header">
+              <span>Symbole</span>
+              <span>Type</span>
+              <span>Side</span>
+              <span>Quantité</span>
+              <span>Prix/Trigger</span>
+              <span>Total</span>
+              <span>Status</span>
+              <span>Créé</span>
+              <span>Actions</span>
+            </div>
+
+            <!-- Liste des ordres -->
+            <div 
+              v-for="order in currentOrdersList" 
+              :key="order.id || order.order_id" 
+              class="order-item-unified"
+              :class="{ 'new-order': isNewOrder(order) }"
+            >
+              <!-- Symbole -->
+              <span class="order-symbol">{{ order.symbol || 'N/A' }}</span>
+              
+              <!-- Type avec style -->
+              <span :class="['order-type', formatOrderType(order).class]">
+                {{ formatOrderType(order).label }}
+              </span>
+              
+              <!-- Side -->
+              <span :class="['order-side', order.side?.toLowerCase()]">
+                {{ (order.side || 'N/A').toUpperCase() }}
+              </span>
+              
+              <!-- Quantité -->
+              <span class="order-quantity">
+                {{ formatOrderQuantity(order) }}
+              </span>
+              
+              <!-- Prix/Trigger avec CORRECTION TRIGGER -->
+              <span class="order-price">
+                {{ formatOrderDisplayPrice(order) }}
+              </span>
+              
+              <!-- Total avec CORRECTION TRIGGER -->
+              <span class="order-total">
+                ${{ formatOrderTotal(order) }}
+              </span>
+              
+              <!-- Status -->
+              <span :class="['order-status', 'status-' + (order.status || 'unknown').toLowerCase()]">
+                {{ (order.status || 'unknown').toUpperCase() }}
+              </span>
+              
+              <!-- Date création -->
+              <span class="order-created">
+                {{ formatTimestamp(order.created_at || order.cTime) }}
+              </span>
+              
+              <!-- Actions -->
+              <div class="order-actions">
+                <button 
+                  v-if="orderViewMode === 'open'"
+                  @click="cancelOrder(order.id || order.order_id, order.symbol)"
+                  class="action-btn cancel-btn"
+                  :disabled="orderActionLoading"
+                  title="Annuler l'ordre"
+                >
+                  ❌
+                </button>
+                <button 
+                  v-if="orderViewMode === 'open'"
+                  @click="editOrder(order)"
+                  class="action-btn edit-btn"
+                  :disabled="orderActionLoading"
+                  title="Modifier l'ordre"
+                >
+                  ✏️
+                </button>
               </div>
             </div>
+          </div>
+          
+          <div v-else class="no-orders">
+            <p>{{ orderViewMode === 'open' ? 'Aucun ordre ouvert' : 'Aucun ordre dans l\'historique' }}</p>
           </div>
         </div>
 
@@ -703,9 +620,27 @@
           <div v-if="tradesLoading" class="loading">Chargement...</div>
           <div v-else class="trades-list">
             <div v-for="trade in recentTrades" :key="trade.id" class="trade-item">
-              <span :class="['trade-side', trade.side]">{{ trade.side.toUpperCase() }}</span>
+              <!-- Date et heure -->
+              <span class="trade-datetime">
+                {{ formatTradeDateTime(trade.created_at) }}
+              </span>
+              <!-- Side (BUY/SELL) -->
+              <span :class="['trade-side', trade.side]">
+                {{ trade.side.toUpperCase() }}
+              </span>
+              <!-- Symbole -->
               <span class="trade-symbol">{{ trade.symbol }}</span>
+              <!-- Quantité -->
               <span class="trade-quantity">{{ trade.quantity }}</span>
+              <!-- Prix -->
+              <span class="trade-price">
+                {{ trade.price ? `$${parseFloat(trade.price).toFixed(2)}` : '-' }}
+              </span>
+              <!-- Montant total -->
+              <span class="trade-amount">
+                {{ formatTradeAmount(trade) }}
+              </span>
+              <!-- Status -->
               <span :class="['trade-status', trade.status]">{{ trade.status }}</span>
             </div>
           </div>
@@ -862,10 +797,8 @@ export default {
     // Ordres + Positions - ARCHITECTURE TERMINAL 7 INTÉGRÉE
     const openOrders = ref([])
     const closedOrders = ref([])
-    const positions = ref([])  // NOUVEAU: positions temps réel avec P&L Terminal 7
-    const orderViewMode = ref('open') // 'open', 'positions', 'history' 
+    const orderViewMode = ref('open') // 'open', 'history' 
     const ordersLoading = ref(false)
-    const positionsLoading = ref(false)  // NOUVEAU: loading positions
     
     // WebSocket pour notifications de trading (uniquement pour trade-summary maintenant)
     const notificationSocket = ref(null)  // WebSocket pour notifications
@@ -901,6 +834,16 @@ export default {
     const canExecute = computed(() => {
       return validation.value && validation.value.valid && !validationExpired.value &&
              !executionLoading.value  // NOUVEAU: Désactivé pendant l'exécution
+    })
+
+    // Propriété calculée pour la liste d'ordres courante - ARCHITECTURE TERMINAL 7
+    const currentOrdersList = computed(() => {
+      if (orderViewMode.value === 'open') {
+        return openOrders.value || []
+      } else if (orderViewMode.value === 'history') {
+        return closedOrders.value || []
+      }
+      return []
     })
     
     
@@ -1131,6 +1074,9 @@ export default {
     const selectSymbol = async (symbol) => {
       selectedSymbol.value = symbol
       tradeForm.symbol = symbol
+      
+      // PERSISTENCE: Sauvegarder le symbole sélectionné
+      localStorage.setItem('selectedSymbol', symbol)
       
       // Reset prix et afficher loading immédiatement
       currentPrice.value = null
@@ -1542,6 +1488,137 @@ export default {
     const clearError = () => {
       error.value = ''
     }
+
+    // NOUVELLES FONCTIONS FORMATAGE ORDRES - CORRECTION CRITIQUE TRIGGER
+    
+    // Fonction pour formater le total d'un ordre - CORRECTION TRIGGER
+    const formatOrderTotal = (order) => {
+      const amount = order.amount || order.quantity || order.size || 0
+      // CORRECTION CRITIQUE: Pour ordres TRIGGER, utiliser trigger_price si price absent
+      let price = order.price || order.priceAvg || 0
+      
+      // Logique spéciale pour ordres TRIGGER/TP/SL basée sur API Bitget
+      if (!price || price === 0) {
+        const orderType = (order.type || order.order_type || order.orderType || '').toLowerCase()
+        const tpslType = order.tpslType || 'normal'
+        
+        if (orderType === 'trigger' && order.trigger_price) {
+          price = order.trigger_price
+        } else if (orderType === 'trigger' && order.triggerPrice) {
+          price = order.triggerPrice
+        } else if (order.presetStopLossPrice) {
+          price = order.presetStopLossPrice
+        } else if (order.presetTakeProfitPrice) {
+          price = order.presetTakeProfitPrice
+        } else if (order.preset_stop_loss_price) {
+          price = order.preset_stop_loss_price
+        } else if (order.preset_take_profit_price) {
+          price = order.preset_take_profit_price
+        }
+      }
+      
+      if (!amount || !price) return '0.00'
+      try {
+        const total = parseFloat(amount) * parseFloat(price)
+        return total.toFixed(2)
+      } catch (error) {
+        return '0.00'
+      }
+    }
+
+    // Fonction pour formater l'affichage du prix avec indicateurs - NOUVEAU
+    const formatOrderDisplayPrice = (order) => {
+      let price = order.price || order.priceAvg || 0
+      
+      // Logique spéciale pour ordres TRIGGER/TP/SL basée sur structure Bitget
+      if (!price || price === 0) {
+        const orderType = (order.type || order.order_type || order.orderType || '').toLowerCase()
+        const tpslType = order.tpslType || 'normal'
+        
+        if (orderType === 'trigger' && order.trigger_price) {
+          return `${parseFloat(order.trigger_price).toFixed(2)} (T)`  // (T) = Trigger
+        } else if (orderType === 'trigger' && order.triggerPrice) {
+          return `${parseFloat(order.triggerPrice).toFixed(2)} (T)`   // Format API Bitget
+        } else if (order.presetStopLossPrice) {
+          return `${parseFloat(order.presetStopLossPrice).toFixed(2)} (SL)` // Format API Bitget
+        } else if (order.presetTakeProfitPrice) {
+          return `${parseFloat(order.presetTakeProfitPrice).toFixed(2)} (TP)` // Format API Bitget
+        } else if (order.preset_stop_loss_price) {
+          return `${parseFloat(order.preset_stop_loss_price).toFixed(2)} (SL)`
+        } else if (order.preset_take_profit_price) {
+          return `${parseFloat(order.preset_take_profit_price).toFixed(2)} (TP)`
+        }
+      }
+      
+      if (!price) return '-'
+      return parseFloat(price).toFixed(2)
+    }
+
+    // Fonction pour formater le type d'ordre avec classes CSS
+    const formatOrderType = (order) => {
+      const orderType = order.type || order.order_type || order.orderType || 'unknown'
+      const tpslType = order.tpslType || 'normal'
+      
+      const type_map = {
+        'market': { label: 'MARKET', class: 'type-market' },
+        'limit': { label: 'LIMIT', class: 'type-limit' },
+        'stop_loss': { label: 'STOP LOSS', class: 'type-stop-loss' },
+        'take_profit': { label: 'TAKE PROFIT', class: 'type-take-profit' },
+        'stop_limit': { label: 'STOP LIMIT', class: 'type-stop-limit' },
+        'sl_tp_combo': { label: 'SL+TP', class: 'type-combo' },
+        'stop': { label: 'STOP', class: 'type-stop-loss' },
+        'take_profit_limit': { label: 'TP LIMIT', class: 'type-take-profit' },
+        'stop_loss_limit': { label: 'SL LIMIT', class: 'type-stop-loss' },
+        'oco': { label: 'OCO', class: 'type-combo' },
+        'trigger': { label: 'TRIGGER', class: 'type-trigger' },
+        'unknown': { label: 'AUTRE', class: 'type-unknown' }
+      }
+      
+      const normalized_type = String(orderType).toLowerCase()
+      
+      // Détecter les ordres TP/SL de Bitget
+      if (tpslType === 'tpsl') {
+        return { label: 'TP/SL', class: 'type-tpsl' }
+      }
+      
+      return type_map[normalized_type] || type_map['unknown']
+    }
+
+    // Fonction pour formater la quantité
+    const formatOrderQuantity = (order) => {
+      const quantity = order.amount || order.quantity || order.size || 0
+      if (!quantity) return '-'
+      return parseFloat(quantity).toFixed(8).replace(/\.?0+$/, '')
+    }
+
+    // Fonction pour détecter les nouveaux ordres (animation)
+    const isNewOrder = (order) => {
+      const orderTime = new Date(order.created_at || order.cTime || 0).getTime()
+      const now = Date.now()
+      return (now - orderTime) < 10000 // Nouveau si moins de 10 secondes
+    }
+
+    // Fonction pour formater la date/heure d'un ordre
+    const formatOrderDateTime = (order) => {
+      const timestamp = order.timestamp || order.created_at || order.cTime
+      if (!timestamp) return '-'
+      
+      try {
+        const date = new Date(parseInt(timestamp) > 1e12 ? parseInt(timestamp) : parseInt(timestamp) * 1000)
+        const now = new Date()
+        const diffInHours = (now - date) / (1000 * 60 * 60)
+        
+        if (diffInHours < 24) {
+          return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        } else {
+          return date.toLocaleDateString('fr-FR', { 
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+          })
+        }
+      } catch (error) {
+        return '-'
+      }
+    }
     
     // Fonctions pour gérer les ordres ouverts
     const connectOpenOrdersWebSocket = () => {
@@ -1660,6 +1737,7 @@ export default {
     const loadOpenOrders = async () => {
       if (!selectedBroker.value) {
         console.log('❌ loadOpenOrders: pas de broker sélectionné')
+        ordersLoading.value = false
         return
       }
       
@@ -1676,14 +1754,17 @@ export default {
         console.error('❌ Erreur chargement ordres ouverts:', err)
         console.error('📄 Détails erreur:', err.response?.data || err.message)
         openOrders.value = []
+        error.value = `Erreur chargement ordres: ${err.response?.data?.error || err.message}`
       } finally {
         ordersLoading.value = false
+        console.log('✅ loadOpenOrders: ordersLoading mis à false')
       }
     }
     
     const loadClosedOrders = async () => {
       if (!selectedBroker.value) {
         console.log('❌ loadClosedOrders: pas de broker sélectionné')
+        ordersLoading.value = false
         return
       }
       
@@ -1702,53 +1783,21 @@ export default {
         console.error('❌ Erreur chargement ordres fermés:', err)
         console.error('📄 Détails erreur:', err.response?.data || err.message)
         closedOrders.value = []
+        error.value = `Erreur chargement historique: ${err.response?.data?.error || err.message}`
       } finally {
         ordersLoading.value = false
+        console.log('✅ loadClosedOrders: ordersLoading mis à false')
       }
     }
     
     // NOUVELLE FONCTION: Chargement Positions P&L Terminal 7
-    const loadPositions = async () => {
-      if (!selectedBroker.value) {
-        console.log('❌ loadPositions: pas de broker sélectionné')
-        return
-      }
-      
-      console.log('🐎 loadPositions: chargement positions P&L Terminal 7 pour broker', selectedBroker.value)
-      positionsLoading.value = true
-      try {
-        // API endpoint pour récupérer les trades avec P&L calculé par Terminal 7
-        const url = `/api/trading-manual/positions/?broker_id=${selectedBroker.value}&limit=50`
-        console.log('📡 API URL positions:', url)
-        const response = await api.get(url)
-        console.log('📨 Réponse API positions:', response.data)
-        positions.value = response.data.positions || []
-        console.log('📋 Positions définies:', positions.value.length, 'positions avec P&L')
-      } catch (err) {
-        console.error('❌ Erreur chargement positions:', err)
-        console.error('📄 Détails erreur:', err.response?.data || err.message)
-        positions.value = []
-      } finally {
-        positionsLoading.value = false
-      }
-    }
     
     const loadOrdersForCurrentMode = async () => {
       if (orderViewMode.value === 'open') {
         await loadOpenOrders()
-      } else if (orderViewMode.value === 'positions') {
-        await loadPositions()  // NOUVEAU: chargement positions Terminal 7
       } else {
-        // Mode historique: charger les ordres ouverts ET fermés
-        ordersLoading.value = true
-        try {
-          await Promise.all([
-            loadOpenOrders(),
-            loadClosedOrders()
-          ])
-        } finally {
-          ordersLoading.value = false
-        }
+        // Mode historique: charger seulement les ordres fermés
+        await loadClosedOrders()
       }
     }
     
@@ -1765,6 +1814,7 @@ export default {
         symbols.value = []
         selectedSymbol.value = ''
         tradeForm.symbol = ''  // Cohérence avec selectedSymbol
+        localStorage.removeItem('selectedSymbol')  // Nettoyer la persistance
         tradeForm.quantity = null    // Reset form complet
         tradeForm.price = null
         tradeForm.total_value = null
@@ -1772,6 +1822,8 @@ export default {
         priceTimestamp.value = null
         recentTrades.value = []
         openOrders.value = []
+        closedOrders.value = []       // Reset ordres fermés
+        ordersLoading.value = false   // Reset état chargement ordres
         calculatedTrade.value = null  // Reset données calculées
         validation.value = null       // Reset validation
         executionResult.value = null  // Reset résultat exécution
@@ -1829,6 +1881,15 @@ export default {
         
         // Charger les prix du portfolio après avoir chargé le portfolio
         await loadPortfolioPrices()
+        
+        // Restaurer le symbole sélectionné depuis localStorage après chargement des symboles
+        const savedSymbol = localStorage.getItem('selectedSymbol')
+        if (savedSymbol && symbols.value.some(s => s.symbol === savedSymbol)) {
+          console.log('🔄 onBrokerChange - Restauration symbole depuis localStorage:', savedSymbol)
+          selectedSymbol.value = savedSymbol
+          tradeForm.symbol = savedSymbol
+          await loadCurrentPrice()
+        }
         
         // Reconnecter les WebSockets
         connectTradingSocket()
@@ -2181,66 +2242,103 @@ export default {
     
     // Fonctions pour les états vides et les messages
     const getCurrentLoadingState = () => {
-      if (orderViewMode.value === 'open') return ordersLoading.value
-      if (orderViewMode.value === 'positions') return positionsLoading.value
-      if (orderViewMode.value === 'history') return ordersLoading.value
-      return false
+      return ordersLoading.value
     }
     
     const getLoadingMessage = () => {
       if (orderViewMode.value === 'open') return 'Chargement ordres ouverts...'
-      if (orderViewMode.value === 'positions') return 'Chargement positions P&L...'
       if (orderViewMode.value === 'history') return 'Chargement historique...'
       return 'Chargement...'
     }
     
     const getEmptyMessage = () => {
       if (orderViewMode.value === 'open') return 'Aucun ordre ouvert'
-      if (orderViewMode.value === 'positions') return 'Aucune position détectée'
       if (orderViewMode.value === 'history') return 'Aucun historique'
       return 'Aucun élément'
     }
     
     const getEmptyStateIcon = () => {
       if (orderViewMode.value === 'open') return '📋'
-      if (orderViewMode.value === 'positions') return '💰'
       if (orderViewMode.value === 'history') return '📚'
       return '📄'
     }
     
     const getEmptyStateHint = () => {
       if (orderViewMode.value === 'open') return 'Les ordres que vous passez apparaîtront ici'
-      if (orderViewMode.value === 'positions') return 'Terminal 7 détecte automatiquement vos positions'
       if (orderViewMode.value === 'history') return 'L\'historique de vos trades s\'affichera ici'
       return ''
     }
     
     const getSectionTitle = () => {
       if (orderViewMode.value === 'open') return 'Ordres ouverts'
-      if (orderViewMode.value === 'positions') return 'Positions P&L (Terminal 7)'
       if (orderViewMode.value === 'history') return 'Historique des trades'
       return 'Trading'
     }
-    
-    // Computed pour la liste courante unifiée
-    const currentOrdersList = computed(() => {
-      if (orderViewMode.value === 'open') {
-        return openOrders.value
-      } else if (orderViewMode.value === 'positions') {
-        return positions.value  // NOUVEAU: positions avec P&L Terminal 7
-      } else {
-        // Historique = ordres ouverts + fermés triés par timestamp
-        return [...openOrders.value, ...closedOrders.value].sort((a, b) => {
-          return (b.timestamp || 0) - (a.timestamp || 0)
-        })
+
+    // Fonctions de formatage pour l'historique des trades
+    const formatTradeDateTime = (dateString) => {
+      if (!dateString) return '-'
+      try {
+        const date = new Date(dateString)
+        const now = new Date()
+        const diffInHours = (now - date) / (1000 * 60 * 60)
+        
+        if (diffInHours < 24) {
+          // Aujourd'hui : afficher seulement l'heure
+          return date.toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          })
+        } else {
+          // Plus ancien : afficher date + heure
+          return date.toLocaleDateString('fr-FR', { 
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit', 
+            minute: '2-digit'
+          })
+        }
+      } catch (error) {
+        return '-'
       }
-    })
+    }
+
+    const formatTradeAmount = (trade) => {
+      if (!trade.quantity || !trade.price) return '-'
+      try {
+        const amount = parseFloat(trade.quantity) * parseFloat(trade.price)
+        return `$${amount.toFixed(2)}`
+      } catch (error) {
+        return '-'
+      }
+    }
+
+
+    // Fonction pour restaurer et charger le symbole
+    const restoreSelectedSymbol = async () => {
+      const savedSymbol = localStorage.getItem('selectedSymbol')
+      if (savedSymbol && selectedBroker.value) {
+        selectedSymbol.value = savedSymbol
+        tradeForm.symbol = savedSymbol
+        console.log('✅ Symbole restauré:', savedSymbol)
+        
+        // Charger le prix du symbole restauré
+        await loadCurrentPrice()
+      }
+    }
     
     // Initialisation
     onMounted(() => {
       console.log('🔄 onMounted - selectedSymbol initial:', selectedSymbol.value)
-      console.log('🔄 onMounted - localStorage check:', localStorage.getItem('selectedSymbol'))
-      console.log('🔄 onMounted - sessionStorage check:', sessionStorage.getItem('selectedSymbol'))
+      
+      // RESTAURATION: Récupérer le symbole depuis localStorage
+      const savedSymbol = localStorage.getItem('selectedSymbol')
+      if (savedSymbol) {
+        selectedSymbol.value = savedSymbol
+        tradeForm.symbol = savedSymbol
+        console.log('✅ onMounted - Symbole restauré:', savedSymbol)
+      }
+      
       loadBrokers()
       // Ne pas connecter WebSocket au démarrage - seulement quand broker sélectionné
     })
@@ -2359,10 +2457,8 @@ export default {
       tradesLoading,
       openOrders,
       closedOrders,
-      positions,  // NOUVEAU: positions Terminal 7
       orderViewMode,
       ordersLoading,
-      positionsLoading,  // NOUVEAU: loading positions
       orderActionLoading,
       currentOrdersList,
       canValidate,
@@ -2382,7 +2478,6 @@ export default {
       editOrder,
       loadOpenOrders,
       loadClosedOrders,
-      loadPositions,  // NOUVEAU: fonction chargement positions
       loadOrdersForCurrentMode,
       showOrderTypeModal,
       currentOrderType,
@@ -2407,15 +2502,16 @@ export default {
       getLoadingMessage,
       getEmptyMessage,
       switchToTab,  // FONCTION MANQUANTE pour les clics onglets
-      // FONCTIONS UX POSITIONS P&L
-      getPositionClass,
-      getPnlClass,
-      formatPnL,
-      formatQuantity,
-      calculatePnlPercentage,
-      getSourceLabel,
-      getEmptyStateIcon,
-      getEmptyStateHint,
+      // NOUVELLES FONCTIONS FORMATAGE ORDRES
+      formatOrderDateTime,
+      formatOrderTotal,
+      formatOrderDisplayPrice,
+      formatOrderType,
+      formatOrderQuantity,
+      isNewOrder,
+      // FONCTIONS FORMATAGE TRADES
+      formatTradeDateTime,
+      formatTradeAmount,
       clearExecutionResult
     }
   }
@@ -2423,6 +2519,376 @@ export default {
 </script>
 
 <style scoped>
+/* NOUVEAU CSS SECTION ORDRES - ARCHITECTURE TERMINAL 7 */
+
+/* Section ordres */
+.orders-section {
+  margin-top: 1.5rem;
+  max-width: 100%;
+}
+
+.orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--color-primary);
+  padding-bottom: 0.5rem;
+}
+
+.orders-header h2 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 1.2rem;
+}
+
+.orders-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.toggle-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.toggle-btn:hover {
+  background: var(--color-primary);
+  color: var(--color-background);
+}
+
+.toggle-btn.active {
+  background: var(--color-primary);
+  color: var(--color-background);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+}
+
+/* Container ordres avec scrollbar améliorer */
+.orders-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+/* CORRECTION SCROLLBAR DARK THEME */
+.orders-container::-webkit-scrollbar {
+  width: 8px;
+  background: var(--color-background);
+}
+
+.orders-container::-webkit-scrollbar-track {
+  background: var(--color-surface);
+  border-radius: 4px;
+  margin: 2px;
+}
+
+.orders-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--color-primary) 0%, rgba(0, 212, 255, 0.6) 100%);
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.orders-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+}
+
+.orders-container::-webkit-scrollbar-corner {
+  background: var(--color-surface);
+}
+
+/* En-tête des colonnes - ALIGNEMENT CORRIGÉ */
+.order-item-header {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px 120px 120px 100px 80px 120px 100px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 2px solid var(--color-primary);
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Items ordres - ALIGNEMENT IDENTIQUE À L'EN-TÊTE */
+.order-item-unified {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px 120px 120px 100px 80px 120px 100px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s ease;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.order-item-unified:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0, 212, 255, 0.15);
+}
+
+/* Animation pour les nouveaux ordres */
+.order-item-unified.new-order {
+  animation: newOrderGlow 2s ease-in-out;
+  border-color: var(--color-success);
+}
+
+@keyframes newOrderGlow {
+  0% {
+    background: rgba(0, 255, 136, 0.1);
+    border-color: var(--color-success);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+  }
+  100% {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    box-shadow: none;
+  }
+}
+
+/* Styles des cellules individuelles */
+.order-symbol {
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+}
+
+.order-type {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* STYLES SPÉCIFIQUES TYPES D'ORDRES - CORRECTION TRIGGER */
+.type-market {
+  background: linear-gradient(135deg, #007acc 0%, #005c99 100%);
+  color: white;
+  border: 1px solid #005c99;
+}
+
+.type-limit {
+  background: linear-gradient(135deg, #6b46c1 0%, #553c9a 100%);
+  color: white;
+  border: 1px solid #553c9a;
+}
+
+.type-trigger {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border: 1px solid #d97706;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.type-tpsl {
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  color: white;
+  border: 1px solid #047857;
+}
+
+.type-stop-loss {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  border: 1px solid #b91c1c;
+}
+
+.type-take-profit {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+  border: 1px solid #047857;
+}
+
+.type-combo, .type-oco {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  color: white;
+  border: 1px solid #6d28d9;
+}
+
+.type-unknown {
+  background: var(--color-surface-light);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.order-side {
+  font-weight: 600;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.order-side.buy {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.order-side.sell {
+  background: rgba(255, 0, 85, 0.15);
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.order-quantity,
+.order-price,
+.order-total {
+  text-align: right;
+  font-weight: 500;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* CORRECTION AFFICHAGE PRIX TRIGGER */
+.order-price {
+  color: var(--color-text-light);
+  font-weight: 600;
+}
+
+.order-total {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.order-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.status-open, .status-new, .status-live {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.status-filled, .status-closed {
+  background: rgba(0, 212, 255, 0.15);
+  color: var(--color-primary);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.status-partially_filled {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-cancelled {
+  background: rgba(255, 0, 85, 0.15);
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.order-created {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.order-actions {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+}
+
+.action-btn {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: rgba(255, 0, 85, 0.1);
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 0, 85, 0.3);
+}
+
+.edit-btn {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.edit-btn:hover:not(:disabled) {
+  background: #f59e0b;
+  color: white;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.no-orders {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Responsive pour les ordres */
+@media (max-width: 1400px) {
+  .order-item-header,
+  .order-item-unified {
+    font-size: 0.65rem;
+    padding: 0.5rem 0.75rem;
+    grid-template-columns: 1fr 70px 50px 100px 100px 80px 70px 100px 80px;
+  }
+  
+  .orders-container {
+    max-height: 350px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .order-item-header,
+  .order-item-unified {
+    grid-template-columns: 1fr 60px 45px 90px 90px 70px 60px 90px 70px;
+    font-size: 0.6rem;
+    gap: 0.25rem;
+  }
+}
+
 /* Utilisation des variables CSS globales cohérentes avec les autres pages */
 
 .trading-manual {
@@ -3958,12 +4424,12 @@ export default {
 
 .trade-item {
   display: grid;
-  grid-template-columns: 65px 1fr 90px 85px;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  grid-template-columns: 80px 50px 80px 90px 70px 90px 70px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
   align-items: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   transition: all 0.2s ease;
   border-radius: 6px;
   margin-bottom: 2px;
@@ -4039,6 +4505,31 @@ export default {
   background: var(--color-surface);
   border: 1px solid var(--color-danger);
   animation: warningPulse 2s infinite;
+}
+
+/* Nouveaux styles pour les éléments de trades */
+.trade-datetime {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.trade-price {
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.trade-amount {
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+  color: var(--color-primary);
+  font-weight: 600;
+  background: rgba(0, 212, 255, 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
 }
 
 /* Éléments cliquables dans Types d'Ordres */
@@ -4642,6 +5133,258 @@ export default {
   background: var(--color-success);
 }
 
+/* === NOUVEAUX STYLES POUR COLONNE TYPE D'ORDRE === */
+
+/* En-tête des colonnes pour ordres */
+.order-item-header {
+  display: grid;
+  grid-template-columns: 110px 50px 90px 90px 90px 80px 80px 70px 100px;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Ligne d'ordre unifiée avec nouvelle colonne type - CORRIGÉ ALIGNEMENT */
+.order-item-unified {
+  display: grid;
+  grid-template-columns: 1fr 60px 100px 80px 120px 120px 100px 80px 120px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s ease;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+/* Header avec même alignement que les lignes */
+.order-item-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 100px 80px 120px 120px 100px 80px 120px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 2px solid var(--color-primary);
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.order-item-unified:hover {
+  border-color: var(--color-primary);
+  background: rgba(0, 212, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+/* Styles des colonnes individuelles */
+.order-datetime {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.order-side {
+  font-weight: 600;
+  text-align: center;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.order-side.buy {
+  color: var(--color-success);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.order-side.sell {
+  color: var(--color-danger);
+  background: rgba(255, 0, 85, 0.1);
+}
+
+/* NOUVEAUX STYLES POUR TYPES D'ORDRES */
+.order-type {
+  font-weight: 500;
+  text-align: center;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+/* Styles par type d'ordre */
+.type-market {
+  color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.type-limit {
+  color: #ffaa00;
+  background: rgba(255, 170, 0, 0.1);
+  border-color: rgba(255, 170, 0, 0.3);
+}
+
+.type-stop-loss {
+  color: #ff0055;
+  background: rgba(255, 0, 85, 0.1);
+  border-color: rgba(255, 0, 85, 0.3);
+}
+
+.type-take-profit {
+  color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+  border-color: rgba(0, 255, 136, 0.3);
+}
+
+.type-stop-limit {
+  color: #ff8800;
+  background: rgba(255, 136, 0, 0.1);
+  border-color: rgba(255, 136, 0, 0.3);
+}
+
+.type-combo {
+  color: #8800ff;
+  background: rgba(136, 0, 255, 0.1);
+  border-color: rgba(136, 0, 255, 0.3);
+}
+
+.type-trigger {
+  color: #00ffaa;
+  background: rgba(0, 255, 170, 0.1);
+  border-color: rgba(0, 255, 170, 0.3);
+}
+
+.type-unknown {
+  color: var(--color-text-secondary);
+  background: rgba(128, 128, 128, 0.1);
+  border-color: rgba(128, 128, 128, 0.3);
+}
+
+/* Autres colonnes */
+.order-symbol {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.order-quantity {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-text-secondary);
+}
+
+.order-price {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-text);
+}
+
+.order-total {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.order-status {
+  font-weight: 500;
+  text-align: center;
+  font-size: 0.65rem;
+}
+
+.order-status.open,
+.order-status.new,
+.order-status.pending {
+  color: var(--color-warning);
+}
+
+.order-status.filled,
+.order-status.closed {
+  color: var(--color-success);
+}
+
+.order-status.canceled,
+.order-status.cancelled,
+.order-status.rejected {
+  color: var(--color-danger);
+}
+
+/* Actions en mini boutons */
+.order-actions {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+}
+
+.btn-cancel-mini,
+.btn-edit-mini {
+  background: none;
+  border: none;
+  padding: 0.2rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  border-radius: 0.2rem;
+  transition: all 0.2s ease;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel-mini:hover:not(:disabled) {
+  background: rgba(255, 0, 85, 0.2);
+  transform: scale(1.1);
+}
+
+.btn-edit-mini:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.2);
+  transform: scale(1.1);
+}
+
+.btn-cancel-mini:disabled,
+.btn-edit-mini:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Responsive pour écrans plus petits */
+@media (max-width: 1200px) {
+  .order-item-header,
+  .order-item-unified {
+    grid-template-columns: 100px 45px 75px 75px 75px 70px 70px 60px 90px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 1000px) {
+  .order-item-header,
+  .order-item-unified {
+    grid-template-columns: 90px 40px 70px 70px 70px 65px 65px 55px 80px;
+    font-size: 0.65rem;
+    gap: 0.5rem;
+  }
+}
+
 .btn-confirm-execute:hover {
   background: var(--color-success-dark, #16a34a);
 }
@@ -4659,8 +5402,8 @@ export default {
   box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
-/* === NOUVEAUX STYLES POUR 3 ONGLETS SOLUTION 2 === */
-/* Système d'onglets pour Ordres ouverts / Positions P&L / Historique */
+/* === STYLES POUR 2 ONGLETS SIMPLIFIÉS === */
+/* Système d'onglets pour Ordres ouverts / Historique */
 
 .orders-toggle {
   display: flex;
@@ -4670,10 +5413,10 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 212, 255, 0.1);
 }
 
-/* Support pour 3 onglets (open/positions/history) */
-.orders-toggle.three-tabs .toggle-btn {
+/* Support pour 2 onglets (open/history) */
+.orders-toggle.two-tabs .toggle-btn {
   flex: 1;
-  min-width: 120px;
+  min-width: 150px;
 }
 
 .toggle-btn {
@@ -5148,6 +5891,118 @@ export default {
   background: linear-gradient(90deg, rgba(255, 0, 85, 0.5), var(--color-danger));
 }
 
+/* === SCROLLBARS THÈME DARK AMÉLIORÉ === */
+
+/* Scrollbars pour la section des ordres */
+.orders-section {
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.5) rgba(255, 255, 255, 0.1);
+}
+
+/* Webkit scrollbars pour Chrome/Safari/Edge */
+.orders-section::-webkit-scrollbar {
+  width: 8px;
+}
+
+.orders-section::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.orders-section::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.6) 0%, 
+    rgba(0, 212, 255, 0.4) 50%, 
+    rgba(0, 212, 255, 0.8) 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.orders-section::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.8) 0%, 
+    rgba(0, 212, 255, 0.6) 50%, 
+    rgba(0, 212, 255, 1.0) 100%);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+}
+
+.orders-section::-webkit-scrollbar-corner {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Scrollbars globaux pour l'application */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.3) 0%, 
+    rgba(0, 212, 255, 0.5) 50%, 
+    rgba(0, 212, 255, 0.3) 100%);
+  border-radius: 5px;
+  border: 1px solid rgba(0, 212, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.5) 0%, 
+    rgba(0, 212, 255, 0.7) 50%, 
+    rgba(0, 212, 255, 0.5) 100%);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+/* === AMÉLIORATION AFFICHAGE ORDRES TRIGGER === */
+
+/* Indicateurs visuels pour ordres avec prix de déclenchement */
+.order-price:has-text("(T)"), 
+.order-price:has-text("(SL)"), 
+.order-price:has-text("(TP)") {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 212, 255, 0.3);
+}
+
+/* Style spécial pour ordres TRIGGER */
+.order-item-unified:has(.type-trigger) {
+  border-left: 3px solid rgba(0, 255, 170, 0.8);
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 170, 0.03) 0%, 
+    rgba(0, 255, 170, 0.01) 100%);
+}
+
+.order-item-unified:has(.type-trigger):hover {
+  border-left: 3px solid rgba(0, 255, 170, 1.0);
+  box-shadow: 0 4px 15px rgba(0, 255, 170, 0.15);
+}
+
+/* Animation pulse pour nouveaux ordres */
+@keyframes newOrderPulse {
+  0% { 
+    box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7);
+    border-color: var(--color-primary);
+  }
+  50% { 
+    box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.3);
+  }
+  100% { 
+    box-shadow: 0 0 0 0 rgba(0, 212, 255, 0);
+    border-color: var(--color-border);
+  }
+}
+
+.order-item-unified.new-order {
+  animation: newOrderPulse 2s ease-out;
+}
+
 /* Footer Enhanced */
 .position-footer-enhanced {
   display: flex;
@@ -5247,6 +6102,141 @@ export default {
   .exchange-capabilities {
     order: 6; /* Capacités exchange en dernier */
   }
+}
+
+/* === STYLES AFFICHAGE UNIFORME ORDRES === */
+.orders-list.unified {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.order-item-unified {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto auto auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background-color 0.2s ease;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.order-item-unified:hover {
+  background-color: rgba(0, 212, 255, 0.05);
+}
+
+.order-datetime {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  min-width: 120px;
+}
+
+.order-side.buy {
+  color: var(--color-success);
+  font-weight: 600;
+  background: rgba(0, 255, 136, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+  min-width: 60px;
+}
+
+.order-side.sell {
+  color: var(--color-danger);
+  font-weight: 600;
+  background: rgba(255, 0, 85, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+  min-width: 60px;
+}
+
+.order-symbol {
+  color: var(--color-primary);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.order-quantity {
+  text-align: right;
+  color: rgba(255, 255, 255, 0.9);
+  min-width: 100px;
+}
+
+.order-price {
+  text-align: right;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.order-total {
+  text-align: right;
+  color: var(--color-primary);
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.order-status.completed {
+  color: var(--color-success);
+  background: rgba(0, 255, 136, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  min-width: 80px;
+}
+
+.order-status.pending, .order-status.open {
+  color: var(--color-warning, #fbbf24);
+  background: rgba(251, 191, 36, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  min-width: 80px;
+}
+
+.order-status.canceled, .order-status.cancelled {
+  color: var(--color-danger);
+  background: rgba(255, 0, 85, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  min-width: 80px;
+}
+
+.order-actions {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.btn-cancel-mini, .btn-edit-mini {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.btn-cancel-mini:hover {
+  background: rgba(255, 0, 85, 0.2);
+}
+
+.btn-edit-mini:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.btn-cancel-mini:disabled,
+.btn-edit-mini:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {

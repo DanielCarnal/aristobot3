@@ -1,6 +1,6 @@
 # Get Order Info - Bitget Spot Trading API
 
-**Rate limit:** 20 requests/second/UID
+**Frequency limit:** 20 times/1s (UID)
 
 ## Description
 
@@ -74,7 +74,7 @@ curl "https://api.bitget.com/api/v2/spot/trade/orderInfo?orderId=1234567890" \
 | `price` | String | Order price |
 | `size` | String | Amount. Limit represents the number of base coins. Market-buy represents the number of quote coins. Market-sell represents the number of base coins |
 | `orderType` | String | Order type<br>• `limit`: Limit price<br>• `market`: Market price |
-| `side` | String | Direction |
+| `side` | String | Direction (buy/sell) |
 | `status` | String | Order status<br>• `live`: pending match<br>• `partially_filled`: Partially filled<br>• `filled`: All filled<br>• `cancelled`: The order is cancelled |
 | `priceAvg` | String | Filled price |
 | `baseVolume` | String | Filled quantity (base coin) |
@@ -146,7 +146,7 @@ The `feeDetail` field contains a JSON string with fee information:
 
 ### Rate Limits
 
-- **20 requests per second per UID**
+- **20 times per second per UID** (Frequency limit: 20 times/1s)
 
 ### Use Cases
 

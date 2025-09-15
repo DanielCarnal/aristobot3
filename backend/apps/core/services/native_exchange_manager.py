@@ -420,7 +420,12 @@ class NativeExchangeManager:
             
             elif action == 'fetch_closed_orders':
                 symbol = params.get('symbol')
-                limit = params.get('limit', 100)
+                # Convertir limit en int pour éviter l'erreur de comparaison str vs int
+                limit_raw = params.get('limit', 100)
+                try:
+                    limit = int(limit_raw)
+                except (ValueError, TypeError):
+                    limit = 100  # Valeur par défaut si conversion échoue
                 result = await client.get_order_history(symbol, limit)
                 return {'success': result['success'], 'data': result.get('orders'), 'error': result.get('error')}
             

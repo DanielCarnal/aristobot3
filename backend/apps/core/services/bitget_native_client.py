@@ -604,64 +604,83 @@ class BitgetNativeClient(BaseExchangeClient):
     
     async def get_open_orders(self, symbol: str = None) -> Dict:
         """
-        📋 ORDRES OUVERTS - SCRIPT 2 VALIDÉ 100%
+        📋 ORDRES OUVERTS - CORRECTION COMPLÈTE IMPLÉMENTÉE
         
-        Utilise /api/v2/spot/trade/unfilled-orders avec la logique Script 2.
+        🎯 RÉSOLUTION CRITIQUE: Bitget sépare les ordres selon tpslType:
+        - tpslType=normal : Ordres market/limit standard 
+        - tpslType=tpsl : Ordres Take Profit et Stop Loss
+        
+        Cette fonction fait DEUX appels API et fusionne les résultats pour avoir
+        une vue complète de TOUS les ordres ouverts.
+        
+        📚 DOCUMENTATION COMPLÈTE:
+        - Endpoint: /api/v2/spot/trade/unfilled-orders
+        - Paramètres disponibles: symbol, startTime, endTime, limit, pageSize, idLessThan, tpslType
+        - Types d'ordres supportés: market, limit, stop_loss, take_profit, trigger
+        
+        🔧 UTILISATION DEBUG:
+        Cette méthode est parfaitement adaptée pour le debug car elle:
+        1. Log toutes les requêtes et réponses
+        2. Récupère TOUS les types d'ordres (normal + tpsl)  
+        3. Fournit des informations détaillées sur chaque ordre
+        4. Gère les erreurs avec des messages explicites
         """
         try:
-            # Construction des paramètres (Script 2)
-            params = {}
+            all_orders = []
+            
+            # Construction des paramètres de base
+            base_params = {}
             if symbol:
-                params['symbol'] = self.normalize_symbol(symbol)
+                base_params['symbol'] = self.normalize_symbol(symbol)
             
-            # Construction du chemin avec paramètres
             path = '/api/v2/spot/trade/unfilled-orders'
-            if params:
-                query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-                full_path = f"{path}?{query_string}"
-            else:
-                full_path = path
             
-            response_data = await self._make_request('GET', full_path)
+            # 1. RÉCUPÉRER ORDRES NORMAUX (market, limit, etc.)
+            logger.info("📋 Récupération ordres NORMAUX...")
+            normal_params = base_params.copy()
+            normal_params['tpslType'] = 'normal'
             
-            if response_data.get('code') != '00000':
-                return {
-                    'success': False,
-                    'error': response_data.get('msg', 'Unknown error'),
-                    'orders': []
-                }
+            query_string = '&'.join([f"{k}={v}" for k, v in normal_params.items()])
+            full_path = f"{path}?{query_string}"
             
-            # Transformation des ordres (format unifié)
-            orders = []
-            for order_data in response_data.get('data', []):
-                # CORRECTION: Sérialiser datetime en ISO string pour compatibilité JSON
-                created_at_timestamp = order_data.get('cTime')
-                created_at_str = None
-                if created_at_timestamp:
-                    try:
-                        dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
-                        created_at_str = dt.isoformat()
-                    except (ValueError, TypeError):
-                        created_at_str = None
+            normal_response = await self._make_request('GET', full_path)
+            
+            if normal_response.get('code') == '00000':
+                normal_orders_data = normal_response.get('data', [])
+                logger.info(f"✅ {len(normal_orders_data)} ordres normaux récupérés")
                 
-                order = {
-                    'order_id': order_data.get('orderId'),
-                    'symbol': order_data.get('symbol'),
-                    'side': order_data.get('side'),
-                    'type': order_data.get('orderType', 'unknown'),
-                    'amount': float(order_data.get('size', 0)),
-                    'price': float(order_data.get('price', 0)) if order_data.get('price') else None,
-                    'filled': float(order_data.get('fillSize', 0)),
-                    'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
-                    'status': order_data.get('status', 'unknown'),
-                    'created_at': created_at_str  # ISO string au lieu de datetime object
-                }
-                orders.append(order)
+                # Transformer ordres normaux
+                for order_data in normal_orders_data:
+                    order = self._transform_order_data(order_data, is_tpsl=False)
+                    all_orders.append(order)
+            else:
+                logger.warning(f"⚠️ Erreur ordres normaux: {normal_response.get('msg')}")
             
-            logger.info(f"📋 Ordres ouverts Bitget: {len(orders)} trouvés")
+            # 2. RÉCUPÉRER ORDRES TP/SL
+            logger.info("🎯 Récupération ordres TP/SL...")
+            tpsl_params = base_params.copy()
+            tpsl_params['tpslType'] = 'tpsl'
+            
+            query_string = '&'.join([f"{k}={v}" for k, v in tpsl_params.items()])
+            full_path = f"{path}?{query_string}"
+            
+            tpsl_response = await self._make_request('GET', full_path)
+            
+            if tpsl_response.get('code') == '00000':
+                tpsl_orders_data = tpsl_response.get('data', [])
+                logger.info(f"✅ {len(tpsl_orders_data)} ordres TP/SL récupérés")
+                
+                # Transformer ordres TP/SL
+                for order_data in tpsl_orders_data:
+                    order = self._transform_order_data(order_data, is_tpsl=True)
+                    all_orders.append(order)
+            else:
+                logger.warning(f"⚠️ Erreur ordres TP/SL: {tpsl_response.get('msg')}")
+            
+            logger.info(f"📋 TOTAL ordres ouverts Bitget: {len(all_orders)} trouvés (normaux + TP/SL)")
             return {
                 'success': True,
-                'orders': orders
+                'orders': all_orders
             }
             
         except Exception as e:
@@ -671,6 +690,76 @@ class BitgetNativeClient(BaseExchangeClient):
                 'error': str(e),
                 'orders': []
             }
+    
+    def _transform_order_data(self, order_data: Dict, is_tpsl: bool = False) -> Dict:
+        """
+        🔄 TRANSFORMATION DONNÉES ORDRE BITGET VERS FORMAT UNIFIÉ
+        
+        Gère les ordres normaux ET TP/SL avec typage correct.
+        """
+        # Timestamp de création
+        created_at_timestamp = order_data.get('cTime')
+        created_at_str = None
+        if created_at_timestamp:
+            try:
+                dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
+                created_at_str = dt.isoformat()
+            except (ValueError, TypeError):
+                created_at_str = None
+        
+        # Détermination du type d'ordre intelligent
+        order_type = self._determine_order_type(order_data, is_tpsl)
+        
+        # Construction de l'ordre unifié
+        order = {
+            'order_id': order_data.get('orderId'),
+            'symbol': order_data.get('symbol'),
+            'side': order_data.get('side'),
+            'type': order_type,
+            'amount': float(order_data.get('size', 0)),
+            'price': float(order_data.get('price', 0)) if order_data.get('price') else None,
+            'filled': float(order_data.get('fillSize', 0)),
+            'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
+            'status': order_data.get('status', 'unknown'),
+            'created_at': created_at_str,
+            
+            # NOUVEAUX CHAMPS TP/SL pour debugging
+            'preset_take_profit_price': order_data.get('presetTakeProfitPrice'),
+            'preset_stop_loss_price': order_data.get('presetStopLossPrice'),
+            'trigger_price': order_data.get('triggerPrice'),
+            'tpsl_type': order_data.get('tpslType', 'normal'),
+            'is_tpsl_order': is_tpsl
+        }
+        
+        return order
+    
+    def _determine_order_type(self, order_data: Dict, is_tpsl: bool) -> str:
+        """
+        🔍 DÉTERMINATION INTELLIGENTE DU TYPE D'ORDRE
+        
+        Analyse les champs Bitget pour déterminer le type précis d'ordre.
+        """
+        base_type = order_data.get('orderType', 'unknown')
+        
+        if not is_tpsl:
+            # Ordres normaux : market, limit, etc.
+            return base_type
+        
+        # Ordres TP/SL : analyser les champs spécifiques
+        has_tp = order_data.get('presetTakeProfitPrice')
+        has_sl = order_data.get('presetStopLossPrice')
+        has_trigger = order_data.get('triggerPrice')
+        
+        if has_tp and has_sl:
+            return 'sl_tp_combo'  # Ordre combiné SL+TP
+        elif has_tp:
+            return 'take_profit'  # Ordre Take Profit seul
+        elif has_sl:
+            return 'stop_loss'    # Ordre Stop Loss seul
+        elif has_trigger:
+            return 'trigger'      # Ordre avec trigger générique
+        else:
+            return f'tpsl_{base_type}'  # Type TP/SL générique
     
     async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
         """
@@ -693,8 +782,16 @@ class BitgetNativeClient(BaseExchangeClient):
             
             if symbol:
                 params['symbol'] = self.normalize_symbol(symbol)
-            if limit and limit <= 100:
-                params['limit'] = str(limit)
+            
+            # Sécuriser la conversion de limit (peut être str ou int)
+            if limit:
+                try:
+                    limit_int = int(limit)
+                    if limit_int <= 100:
+                        params['limit'] = str(limit_int)
+                except (ValueError, TypeError):
+                    # Si limit n'est pas convertible, ignorer
+                    pass
             
             # Construction du chemin
             path = '/api/v2/spot/trade/history-orders'
