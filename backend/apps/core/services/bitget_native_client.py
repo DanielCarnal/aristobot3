@@ -878,7 +878,7 @@ class BitgetNativeClient(BaseExchangeClient):
                     'side': order_data.get('side'),
                     'type': order_data.get('orderType', 'unknown'),
                     'amount': float(order_data.get('size', 0)),
-                    'price': float(order_data.get('price', 0)) if order_data.get('price') else None,
+                    'price': self._extract_order_price(order_data),
                     'filled': float(order_data.get('fillSize', 0)),
                     'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
                     'status': order_data.get('status', 'unknown'),

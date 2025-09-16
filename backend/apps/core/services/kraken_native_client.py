@@ -704,6 +704,48 @@ class KrakenNativeClient(BaseExchangeClient):
         """Normalisation standard: supprime le slash"""
         return symbol.replace('/', '').replace('-', '').upper()
     
+    def _extract_order_price_kraken(self, order_data: Dict, is_history: bool = False) -> float:
+        """
+        💰 EXTRACTION PRIX ORDRE KRAKEN - CORRECTION ORDRES FERMÉS
+        
+        Pour Kraken, les ordres fermés peuvent avoir un prix d'exécution moyen.
+        
+        Champs Kraken (structure complexe):
+        - descr.price : Prix initial de l'ordre
+        - price : Prix moyen d'exécution (si disponible)
+        - cost : Coût total (vol_exec * prix moyen)
+        - vol_exec : Volume exécuté
+        """
+        # 1. Pour ordres historiques, essayer d'abord le prix moyen d'exécution
+        if is_history:
+            # Kraken peut avoir un champ 'price' avec le prix moyen
+            avg_price = order_data.get('price')
+            if avg_price and avg_price != '0':
+                try:
+                    return float(avg_price)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Calcul prix moyen à partir cost/vol_exec
+            cost = order_data.get('cost', 0)
+            vol_exec = order_data.get('vol_exec', 0)
+            if cost and vol_exec:
+                try:
+                    return float(cost) / float(vol_exec)
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
+        
+        # 2. Fallback vers prix initial (ordres LIMIT)
+        initial_price = order_data.get('descr', {}).get('price', 0)
+        if initial_price and initial_price != '0':
+            try:
+                return float(initial_price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 3. Aucun prix disponible
+        return None
+    
     async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
         """
         📚 HISTORIQUE ORDRES KRAKEN
@@ -767,14 +809,14 @@ class KrakenNativeClient(BaseExchangeClient):
                     if symbol and symbol != order_symbol:
                         continue
                     
-                    # Conversion format standard
+                    # Conversion format standard - CORRECTION prix exécution
                     standardized_order = {
                         'id': order_id,
                         'symbol': order_symbol,
                         'side': order_data.get('descr', {}).get('type', '').lower(),
                         'type': order_data.get('descr', {}).get('ordertype', '').lower(),
                         'amount': float(order_data.get('vol', 0)),
-                        'price': float(order_data.get('descr', {}).get('price', 0)) if order_data.get('descr', {}).get('price') else None,
+                        'price': self._extract_order_price_kraken(order_data, is_history=True),
                         'filled': float(order_data.get('vol_exec', 0)),
                         'remaining': float(order_data.get('vol', 0)) - float(order_data.get('vol_exec', 0)),
                         'status': self._map_kraken_status(order_data.get('status', '')),

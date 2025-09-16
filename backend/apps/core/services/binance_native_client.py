@@ -587,6 +587,39 @@ class BinanceNativeClient(BaseExchangeClient):
                 'orders': []
             }
     
+    def _extract_order_price_binance(self, order_data: Dict, is_history: bool = False) -> float:
+        """
+        💰 EXTRACTION PRIX ORDRE BINANCE - CORRECTION ORDRES FERMÉS
+        
+        Pour Binance, les ordres fermés peuvent avoir un prix d'exécution moyen.
+        
+        Champs Binance:
+        - price : Prix initial de l'ordre (0 pour MARKET)
+        - executedQty : Quantité exécutée
+        - cummulativeQuoteQty : Valeur totale exécutée
+        - status : FILLED, PARTIALLY_FILLED, etc.
+        """
+        # 1. Pour ordres historiques FILLED avec quantité exécutée > 0
+        if is_history:
+            executed_qty = float(order_data.get('executedQty', 0))
+            cumulative_quote = float(order_data.get('cummulativeQuoteQty', 0))
+            
+            # Calcul prix moyen d'exécution si possible
+            if executed_qty > 0 and cumulative_quote > 0:
+                avg_execution_price = cumulative_quote / executed_qty
+                return avg_execution_price
+        
+        # 2. Fallback vers prix initial (ordres LIMIT ouverts ou cas spéciaux)
+        initial_price = order_data.get('price', 0)
+        if initial_price and initial_price != '0.00000000':
+            try:
+                return float(initial_price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 3. Aucun prix disponible
+        return None
+    
     async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
         """
         📚 HISTORIQUE ORDRES Binance
@@ -630,7 +663,7 @@ class BinanceNativeClient(BaseExchangeClient):
                         'orders': []
                     }
                 
-                # Transformation (même logique que open_orders)
+                # Transformation - CORRECTION pour ordres fermés
                 orders = []
                 for order_data in data:
                     created_at_str = None
@@ -647,7 +680,7 @@ class BinanceNativeClient(BaseExchangeClient):
                         'side': order_data.get('side', '').lower(),
                         'type': order_data.get('type', '').lower(),
                         'amount': float(order_data.get('origQty', 0)),
-                        'price': float(order_data.get('price', 0)) if order_data.get('price') and order_data.get('price') != '0.00000000' else None,
+                        'price': self._extract_order_price_binance(order_data, is_history=True),
                         'filled': float(order_data.get('executedQty', 0)),
                         'remaining': float(order_data.get('origQty', 0)) - float(order_data.get('executedQty', 0)),
                         'status': order_data.get('status', '').lower(),
