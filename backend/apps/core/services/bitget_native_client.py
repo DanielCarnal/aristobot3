@@ -717,7 +717,7 @@ class BitgetNativeClient(BaseExchangeClient):
             'side': order_data.get('side'),
             'type': order_type,
             'amount': float(order_data.get('size', 0)),
-            'price': float(order_data.get('price', 0)) if order_data.get('price') else None,
+            'price': self._extract_order_price(order_data),
             'filled': float(order_data.get('fillSize', 0)),
             'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
             'status': order_data.get('status', 'unknown'),
@@ -732,6 +732,58 @@ class BitgetNativeClient(BaseExchangeClient):
         }
         
         return order
+    
+    def _extract_order_price(self, order_data: Dict) -> float:
+        """
+        💰 EXTRACTION PRIX ORDRE - CORRECTION POUR ORDRES LIMIT
+        
+        Bitget utilise différents champs selon le type d'ordre :
+        - priceAvg : Prix des ordres LIMIT (doc ligne 81)
+        - triggerPrice : Prix des ordres TRIGGER/TP/SL
+        - price : Fallback générique (peut être vide)
+        """
+        # 1. Essayer priceAvg (ordres LIMIT)
+        price_avg = order_data.get('priceAvg')
+        if price_avg and price_avg != "0" and price_avg != "":
+            try:
+                return float(price_avg)
+            except (ValueError, TypeError):
+                pass
+        
+        # 2. Essayer triggerPrice (ordres TRIGGER/TP/SL)
+        trigger_price = order_data.get('triggerPrice')
+        if trigger_price and trigger_price != "0" and trigger_price != "":
+            try:
+                return float(trigger_price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 3. Essayer presetTakeProfitPrice (ordres TP)
+        tp_price = order_data.get('presetTakeProfitPrice')
+        if tp_price and tp_price != "0" and tp_price != "":
+            try:
+                return float(tp_price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 4. Essayer presetStopLossPrice (ordres SL)
+        sl_price = order_data.get('presetStopLossPrice')
+        if sl_price and sl_price != "0" and sl_price != "":
+            try:
+                return float(sl_price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 5. Fallback vers price (compatibilité)
+        price = order_data.get('price')
+        if price and price != "0" and price != "":
+            try:
+                return float(price)
+            except (ValueError, TypeError):
+                pass
+        
+        # 6. Aucun prix disponible
+        return None
     
     def _determine_order_type(self, order_data: Dict, is_tpsl: bool) -> str:
         """
