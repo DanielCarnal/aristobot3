@@ -515,7 +515,18 @@ class BinanceNativeClient(BaseExchangeClient):
                 'order_id': order_id
             }
     
-    async def get_open_orders(self, symbol: str = None) -> Dict:
+    async def get_open_orders(
+        self,
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
         📋 ORDRES OUVERTS Binance
         """
@@ -523,6 +534,16 @@ class BinanceNativeClient(BaseExchangeClient):
             params = {'timestamp': int(time.time() * 1000)}
             if symbol:
                 params['symbol'] = self.normalize_symbol(symbol)
+            
+            # Extended parameters compatibility - Binance mapping
+            if start_time:
+                params['startTime'] = start_time
+            if end_time:
+                params['endTime'] = end_time
+            if limit and limit != 100:
+                params['limit'] = min(limit, 500)  # Binance max 500
+            if order_id:
+                params['orderId'] = order_id
             
             query_string = urllib.parse.urlencode(params)
             signature = hmac.new(
@@ -620,79 +641,53 @@ class BinanceNativeClient(BaseExchangeClient):
         # 3. Aucun prix disponible
         return None
     
-    async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
+    async def get_order_history(
+        self,
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
-        📚 HISTORIQUE ORDRES Binance
+        📚 HISTORIQUE ORDRES BINANCE - SIGNATURE UNIFIÉE
+        
+        Compatible avec BitgetNativeClient pour Terminal 7.
+        Mappe les paramètres vers l'API Binance /api/v3/allOrders.
         """
         try:
             if not symbol:
-                # Binance exige un symbol pour allOrders
-                return {
-                    'success': False,
-                    'error': 'Symbole requis pour historique Binance',
-                    'orders': []
-                }
-            
-            params = {
-                'symbol': self.normalize_symbol(symbol),
-                'timestamp': int(time.time() * 1000)
-            }
-            if limit:
-                params['limit'] = min(limit, 1000)  # Max 1000 pour Binance
-            
-            query_string = urllib.parse.urlencode(params)
-            signature = hmac.new(
-                self.api_secret.encode('utf-8'),
-                query_string.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            params['signature'] = signature
-            
-            path = '/api/v3/allOrders'
-            headers = {'X-MBX-APIKEY': self.api_key}
-            url = f"{self.base_url}{path}"
-            
-            await self._create_session()
-            async with self.session.get(url, params=params, headers=headers) as response:
-                data = await response.json()
+                # Binance exige un symbole pour allOrders
+                # Fallback: récupérer ordres pour symboles populaires
+                popular_symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT']
+                all_orders = []
                 
-                if response.status != 200:
-                    return {
-                        'success': False,
-                        'error': data.get('msg', 'Unknown error'),
-                        'orders': []
-                    }
+                for sym in popular_symbols[:3]:  # Limiter pour éviter rate limits
+                    try:
+                        result = await self._get_symbol_history_unified(
+                            sym, start_time, end_time, min(20, limit), order_id
+                        )
+                        if result.get('success'):
+                            all_orders.extend(result.get('orders', []))
+                    except Exception:
+                        continue
                 
-                # Transformation - CORRECTION pour ordres fermés
-                orders = []
-                for order_data in data:
-                    created_at_str = None
-                    if order_data.get('time'):
-                        try:
-                            dt = datetime.fromtimestamp(int(order_data['time']) / 1000)
-                            created_at_str = dt.isoformat()
-                        except:
-                            pass
-                    
-                    order = {
-                        'order_id': str(order_data.get('orderId')),
-                        'symbol': order_data.get('symbol'),
-                        'side': order_data.get('side', '').lower(),
-                        'type': order_data.get('type', '').lower(),
-                        'amount': float(order_data.get('origQty', 0)),
-                        'price': self._extract_order_price_binance(order_data, is_history=True),
-                        'filled': float(order_data.get('executedQty', 0)),
-                        'remaining': float(order_data.get('origQty', 0)) - float(order_data.get('executedQty', 0)),
-                        'status': order_data.get('status', '').lower(),
-                        'created_at': created_at_str
-                    }
-                    orders.append(order)
-                
-                logger.info(f"📚 Historique Binance: {len(orders)}")
+                # Trier et limiter
+                all_orders.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
                 return {
                     'success': True,
-                    'orders': orders
+                    'orders': all_orders[:limit],
+                    'count': len(all_orders[:limit])
                 }
+            else:
+                # Récupération pour un symbole spécifique
+                return await self._get_symbol_history_unified(
+                    symbol, start_time, end_time, limit, order_id
+                )
                 
         except Exception as e:
             logger.error(f"❌ Erreur get_order_history Binance: {e}")
@@ -771,57 +766,35 @@ class BinanceNativeClient(BaseExchangeClient):
         """Normalisation Binance: supprime le slash"""
         return symbol.replace('/', '').replace('-', '').upper()
     
-    async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
+    async def _get_symbol_history_unified(
+        self, 
+        symbol: str, 
+        start_time: str = None,
+        end_time: str = None, 
+        limit: int = 100,
+        order_id: str = None
+    ) -> Dict:
         """
-        📚 HISTORIQUE ORDRES BINANCE
+        📚 RÉCUPÉRATION HISTORIQUE UNIFIÉ - Avec paramètres étendus Binance
         
-        Récupère l'historique des ordres via /api/v3/allOrders.
-        NOTE: Binance EXIGE un symbole pour cet endpoint.
+        Mappe les paramètres Bitget vers API Binance /api/v3/allOrders.
         """
-        try:
-            if not symbol:
-                # Binance exige un symbole pour l'historique
-                # On va récupérer les ordres de plusieurs symboles populaires
-                popular_symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOTUSDT', 'LINKUSDT']
-                all_orders = []
-                
-                for sym in popular_symbols:
-                    try:
-                        result = await self._get_symbol_history(sym, min(20, limit))
-                        if result.get('success'):
-                            all_orders.extend(result.get('orders', []))
-                    except Exception:
-                        continue  # Ignore errors for individual symbols
-                
-                # Trier par timestamp et limiter
-                all_orders.sort(key=lambda x: x.get('time', 0), reverse=True)
-                return {
-                    'success': True,
-                    'orders': all_orders[:limit],
-                    'count': len(all_orders[:limit])
-                }
-            else:
-                # Récupération pour un symbole spécifique
-                return await self._get_symbol_history(symbol, limit)
-                
-        except Exception as e:
-            logger.error(f"❌ Erreur get_order_history Binance: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'orders': []
-            }
-    
-    async def _get_symbol_history(self, symbol: str, limit: int = 100) -> Dict:
-        """Récupère l'historique pour un symbole spécifique"""
         try:
             normalized_symbol = self.normalize_symbol(symbol)
             
-            # Paramètres pour Binance allOrders
+            # Construction des paramètres Binance
             params = {
                 'symbol': normalized_symbol,
-                'limit': min(limit, 500)  # Limite max Binance
+                'limit': min(limit, 1000)  # Binance max 1000
             }
+            
+            # Mapping des paramètres étendus vers Binance
+            if start_time:
+                params['startTime'] = start_time
+            if end_time:
+                params['endTime'] = end_time
+            if order_id:
+                params['orderId'] = order_id
             
             # Signature avec nouvelle méthode
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
@@ -841,17 +814,16 @@ class BinanceNativeClient(BaseExchangeClient):
                         'orders': []
                     }
                 
-                # Transformation format Aristobot
+                # Transformation format standardisé
                 orders = []
                 for order in data:
-                    # Conversion format standard
                     standardized_order = {
                         'id': order.get('orderId'),
                         'symbol': self.denormalize_symbol(order.get('symbol', '')),
                         'side': order.get('side', '').lower(),
                         'type': order.get('type', '').lower(),
                         'amount': float(order.get('origQty', 0)),
-                        'price': float(order.get('price', 0)) if order.get('price') else None,
+                        'price': self._extract_order_price_binance(order, is_history=True),
                         'filled': float(order.get('executedQty', 0)),
                         'remaining': float(order.get('origQty', 0)) - float(order.get('executedQty', 0)),
                         'status': self._map_binance_status(order.get('status', '')),
@@ -861,7 +833,7 @@ class BinanceNativeClient(BaseExchangeClient):
                     }
                     orders.append(standardized_order)
                 
-                logger.info(f"📚 Historique Binance {normalized_symbol}: {len(orders)} ordres")
+                logger.info(f"📚 Historique unifié Binance {normalized_symbol}: {len(orders)} ordres")
                 return {
                     'success': True,
                     'orders': orders,
@@ -869,12 +841,13 @@ class BinanceNativeClient(BaseExchangeClient):
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Erreur _get_symbol_history Binance {symbol}: {e}")
+            logger.error(f"❌ Erreur _get_symbol_history_unified Binance {symbol}: {e}")
             return {
                 'success': False,
                 'error': str(e),
                 'orders': []
             }
+    
     
     def _map_binance_status(self, binance_status: str) -> str:
         """Mappe les statuts Binance vers format standard"""

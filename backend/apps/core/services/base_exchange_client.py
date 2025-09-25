@@ -247,23 +247,25 @@ class BaseExchangeClient(ABC):
         await self._create_session()  # S'assurer que la session existe
         await self._rate_limit_check()
         
-        # Construction de l'URL
-        url = f"{self.base_url}{path}"
-        
-        # Préparation des paramètres
+        # Construction de l'URL et préparation signature
         if method.upper() == 'GET' and params:
             # Paramètres dans l'URL pour GET
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-            url = f"{url}?{query_string}"
-            params_str = query_string
+            url = f"{self.base_url}{path}?{query_string}"
+            
+            # CORRECTION BITGET: Path complet avec query string pour signature
+            full_path_with_query = f"{path}?{query_string}"
+            params_str = ''  # Vide car tout est dans le path
             data = None
         else:
             # Paramètres dans le body pour POST
+            url = f"{self.base_url}{path}"
+            full_path_with_query = path
             params_str = json.dumps(params) if params else ''
             data = params_str
         
-        # Signature de la requête
-        headers = self._sign_request(method, path, params_str)
+        # Signature de la requête avec path complet (correction Bitget)
+        headers = self._sign_request(method, full_path_with_query, params_str)
         
         for attempt in range(retries + 1):
             try:

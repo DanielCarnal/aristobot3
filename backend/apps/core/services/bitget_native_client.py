@@ -180,7 +180,7 @@ class BitgetNativeClient(BaseExchangeClient):
         """
         try:
             path = '/api/v2/spot/account/assets'
-            response_data = await self._make_request('GET', path)
+            response_data = await self._make_request('GET', path, {})
             
             # Bitget retourne code='00000' pour succès
             if response_data.get('code') != '00000':
@@ -210,7 +210,7 @@ class BitgetNativeClient(BaseExchangeClient):
         """
         try:
             path = '/api/v2/spot/account/assets'
-            response_data = await self._make_request('GET', path)
+            response_data = await self._make_request('GET', path, {})
             
             if response_data.get('code') != '00000':
                 return {
@@ -261,7 +261,7 @@ class BitgetNativeClient(BaseExchangeClient):
                 return self._markets_cache
             
             path = '/api/v2/spot/public/symbols'
-            response_data = await self._make_request('GET', path)
+            response_data = await self._make_request('GET', path, {})
             
             if response_data.get('code') != '00000':
                 return {
@@ -602,85 +602,148 @@ class BitgetNativeClient(BaseExchangeClient):
                 'order_id': order_id
             }
     
-    async def get_open_orders(self, symbol: str = None) -> Dict:
+    async def get_open_orders(
+        self, 
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
-        📋 ORDRES OUVERTS - CORRECTION COMPLÈTE IMPLÉMENTÉE
+        📋 ORDRES OUVERTS - EXTENSION COMPLÈTE 100% PARAMÈTRES BITGET
         
-        🎯 RÉSOLUTION CRITIQUE: Bitget sépare les ordres selon tpslType:
+        🎯 ARCHITECTURE DOUBLE APPEL PRÉSERVÉE:
         - tpslType=normal : Ordres market/limit standard 
         - tpslType=tpsl : Ordres Take Profit et Stop Loss
+        - Si tpsl_type=None : DEUX appels et fusion (comportement existant)
+        - Si tpsl_type spécifié : UN seul appel ciblé
         
-        Cette fonction fait DEUX appels API et fusionne les résultats pour avoir
-        une vue complète de TOUS les ordres ouverts.
+        📚 PARAMÈTRES COMPLETS EXPOSÉS (selon docs Bitget):
+        Args:
+            symbol: Trading pair (ex: 'BTC/USDT')
+            start_time: Record start time, Unix millisecond timestamp
+            end_time: Record end time, Unix millisecond timestamp  
+            id_less_than: Pagination - orderId pour page précédente
+            limit: Max orders per request (default 100, max 100)
+            order_id: Specific order ID to retrieve
+            tpsl_type: 'normal', 'tpsl', or None (both)
+            request_time: Request time Unix millisecond timestamp
+            receive_window: Valid window period Unix millisecond timestamp
+            
+        Returns:
+            Dict: {
+                'success': bool,
+                'orders': list,  # Format unifié Aristobot
+                'raw_params': dict,  # Paramètres utilisés pour debug
+                'api_calls': int  # Nombre d'appels API effectués
+            }
         
-        📚 DOCUMENTATION COMPLÈTE:
-        - Endpoint: /api/v2/spot/trade/unfilled-orders
-        - Paramètres disponibles: symbol, startTime, endTime, limit, pageSize, idLessThan, tpslType
-        - Types d'ordres supportés: market, limit, stop_loss, take_profit, trigger
-        
-        🔧 UTILISATION DEBUG:
-        Cette méthode est parfaitement adaptée pour le debug car elle:
-        1. Log toutes les requêtes et réponses
-        2. Récupère TOUS les types d'ordres (normal + tpsl)  
-        3. Fournit des informations détaillées sur chaque ordre
-        4. Gère les erreurs avec des messages explicites
+        🔧 COMPATIBILITÉ RÉTROGRADE:
+        - Signature existante get_open_orders(symbol) → fonctionne toujours
+        - Nouveaux paramètres optionnels → pas de casse
+        - Fusion automatique normal+tpsl conservée si tpsl_type=None
         """
         try:
             all_orders = []
+            api_calls_count = 0
             
-            # Construction des paramètres de base
+            # 🔧 CONSTRUCTION PARAMÈTRES COMPLETS
             base_params = {}
+            
+            # Paramètres existants (compatibilité)
             if symbol:
                 base_params['symbol'] = self.normalize_symbol(symbol)
+            if limit and limit <= 100:
+                base_params['limit'] = str(limit)
+                
+            # 🆕 NOUVEAUX PARAMÈTRES ÉTENDUS
+            if start_time:
+                base_params['startTime'] = str(start_time)
+            if end_time:
+                base_params['endTime'] = str(end_time)
+            if id_less_than:
+                base_params['idLessThan'] = str(id_less_than)
+            if order_id:
+                base_params['orderId'] = str(order_id)
+            if request_time:
+                base_params['requestTime'] = str(request_time)
+            if receive_window:
+                base_params['receiveWindow'] = str(receive_window)
             
             path = '/api/v2/spot/trade/unfilled-orders'
             
-            # 1. RÉCUPÉRER ORDRES NORMAUX (market, limit, etc.)
-            logger.info("📋 Récupération ordres NORMAUX...")
-            normal_params = base_params.copy()
-            normal_params['tpslType'] = 'normal'
-            
-            query_string = '&'.join([f"{k}={v}" for k, v in normal_params.items()])
-            full_path = f"{path}?{query_string}"
-            
-            normal_response = await self._make_request('GET', full_path)
-            
-            if normal_response.get('code') == '00000':
-                normal_orders_data = normal_response.get('data', [])
-                logger.info(f"✅ {len(normal_orders_data)} ordres normaux récupérés")
+            # 🎯 LOGIQUE CONDITIONNELLE SELON tpsl_type
+            if tpsl_type:
+                # APPEL UNIQUE CIBLÉ
+                logger.info(f"📋 Récupération ordres {tpsl_type.upper()} uniquement...")
+                params = base_params.copy()
+                params['tpslType'] = tpsl_type
                 
-                # Transformer ordres normaux
-                for order_data in normal_orders_data:
-                    order = self._transform_order_data(order_data, is_tpsl=False)
-                    all_orders.append(order)
-            else:
-                logger.warning(f"⚠️ Erreur ordres normaux: {normal_response.get('msg')}")
-            
-            # 2. RÉCUPÉRER ORDRES TP/SL
-            logger.info("🎯 Récupération ordres TP/SL...")
-            tpsl_params = base_params.copy()
-            tpsl_params['tpslType'] = 'tpsl'
-            
-            query_string = '&'.join([f"{k}={v}" for k, v in tpsl_params.items()])
-            full_path = f"{path}?{query_string}"
-            
-            tpsl_response = await self._make_request('GET', full_path)
-            
-            if tpsl_response.get('code') == '00000':
-                tpsl_orders_data = tpsl_response.get('data', [])
-                logger.info(f"✅ {len(tpsl_orders_data)} ordres TP/SL récupérés")
+                response = await self._make_request('GET', path, params)
+                api_calls_count = 1
                 
-                # Transformer ordres TP/SL
-                for order_data in tpsl_orders_data:
-                    order = self._transform_order_data(order_data, is_tpsl=True)
-                    all_orders.append(order)
-            else:
-                logger.warning(f"⚠️ Erreur ordres TP/SL: {tpsl_response.get('msg')}")
+                if response.get('code') == '00000':
+                    orders_data = response.get('data', [])
+                    logger.info(f"✅ {len(orders_data)} ordres {tpsl_type} récupérés")
+                    
+                    for order_data in orders_data:
+                        order = self._transform_order_data(order_data, is_tpsl=(tpsl_type=='tpsl'))
+                        all_orders.append(order)
+                else:
+                    logger.warning(f"⚠️ Erreur ordres {tpsl_type}: {response.get('msg')}")
             
-            logger.info(f"📋 TOTAL ordres ouverts Bitget: {len(all_orders)} trouvés (normaux + TP/SL)")
+            else:
+                # DOUBLE APPEL FUSION (comportement existant)
+                
+                # 1. RÉCUPÉRER ORDRES NORMAUX (market, limit, etc.)
+                logger.info("📋 Récupération ordres NORMAUX...")
+                normal_params = base_params.copy()
+                normal_params['tpslType'] = 'normal'
+                
+                normal_response = await self._make_request('GET', path, normal_params)
+                api_calls_count += 1
+                
+                if normal_response.get('code') == '00000':
+                    normal_orders_data = normal_response.get('data', [])
+                    logger.info(f"✅ {len(normal_orders_data)} ordres normaux récupérés")
+                    
+                    # Transformer ordres normaux
+                    for order_data in normal_orders_data:
+                        order = self._transform_order_data(order_data, is_tpsl=False)
+                        all_orders.append(order)
+                else:
+                    logger.warning(f"⚠️ Erreur ordres normaux: {normal_response.get('msg')}")
+                
+                # 2. RÉCUPÉRER ORDRES TP/SL
+                logger.info("🎯 Récupération ordres TP/SL...")
+                tpsl_params = base_params.copy()
+                tpsl_params['tpslType'] = 'tpsl'
+                
+                tpsl_response = await self._make_request('GET', path, tpsl_params)
+                api_calls_count += 1
+                
+                if tpsl_response.get('code') == '00000':
+                    tpsl_orders_data = tpsl_response.get('data', [])
+                    logger.info(f"✅ {len(tpsl_orders_data)} ordres TP/SL récupérés")
+                    
+                    # Transformer ordres TP/SL
+                    for order_data in tpsl_orders_data:
+                        order = self._transform_order_data(order_data, is_tpsl=True)
+                        all_orders.append(order)
+                else:
+                    logger.warning(f"⚠️ Erreur ordres TP/SL: {tpsl_response.get('msg')}")
+            
+            logger.info(f"📋 TOTAL ordres ouverts Bitget: {len(all_orders)} trouvés ({api_calls_count} appels API)")
             return {
                 'success': True,
-                'orders': all_orders
+                'orders': all_orders,
+                'raw_params': base_params,  # Debug
+                'api_calls': api_calls_count
             }
             
         except Exception as e:
@@ -693,45 +756,204 @@ class BitgetNativeClient(BaseExchangeClient):
     
     def _transform_order_data(self, order_data: Dict, is_tpsl: bool = False) -> Dict:
         """
-        🔄 TRANSFORMATION DONNÉES ORDRE BITGET VERS FORMAT UNIFIÉ
+        🔄 TRANSFORMATION DONNÉES ORDRE BITGET VERS FORMAT UNIFIÉ ENRICHI
         
-        Gère les ordres normaux ET TP/SL avec typage correct.
+        🎯 ENRICHISSEMENT COMPLET:
+        Transforme les données brutes Bitget vers format Aristobot unifié 
+        en incluant TOUS les champs disponibles dans les endpoints :
+        - get_current_orders (unfilled-orders)
+        - get_history_orders (history-orders) 
+        - get_order_info (orderInfo)
+        
+        📊 NOUVEAUX CHAMPS AJOUTÉS:
+        - Volumes: baseVolume, quoteVolume (montants réels tradés)
+        - Sources: orderSource, enterPointSource (origine ordre/client)
+        - Timing: uTime (dernière mise à jour)
+        - Fees: feeDetail (breakdown frais détaillé)  
+        - Execution: priceAvg (prix moyen exécution)
+        - Cancellation: cancelReason (raison annulation)
+        - Client: clientOid (ID personnalisé utilisateur)
+        
+        Args:
+            order_data: Données brutes Bitget
+            is_tpsl: Flag indiquant si c'est un ordre TP/SL
+            
+        Returns:
+            Dict: Format Aristobot unifié enrichi avec tous les champs Bitget
         """
-        # Timestamp de création
-        created_at_timestamp = order_data.get('cTime')
-        created_at_str = None
-        if created_at_timestamp:
-            try:
-                dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
-                created_at_str = dt.isoformat()
-            except (ValueError, TypeError):
-                created_at_str = None
+        # === TIMESTAMPS (CRÉATION + MISE À JOUR) ===
+        created_at_str = self._format_timestamp(order_data.get('cTime'))
+        updated_at_str = self._format_timestamp(order_data.get('uTime'))
         
-        # Détermination du type d'ordre intelligent
+        # === TYPE ORDRE INTELLIGENT ===
         order_type = self._determine_order_type(order_data, is_tpsl)
         
-        # Construction de l'ordre unifié
+        # === VOLUMES ET MONTANTS (NOUVEAU) ===
+        # Gestion sécurisée des volumes avec fallbacks
+        base_volume = self._safe_float(order_data.get('baseVolume', 0))
+        quote_volume = self._safe_float(order_data.get('quoteVolume', 0))
+        size = self._safe_float(order_data.get('size', 0))
+        fill_size = self._safe_float(order_data.get('fillSize', 0))
+        
+        # === PRIX ET EXÉCUTION ===
+        price = self._extract_order_price(order_data)
+        price_avg = self._safe_float(order_data.get('priceAvg'))
+        
+        # === FEES (NOUVEAU - PARSING JSON) ===
+        fee_detail = self._parse_fee_detail(order_data.get('feeDetail'))
+        
+        # === CONSTRUCTION FORMAT UNIFIÉ ENRICHI ===
         order = {
+            # === CHAMPS CORE ARISTOBOT (EXISTANTS) ===
             'order_id': order_data.get('orderId'),
             'symbol': order_data.get('symbol'),
             'side': order_data.get('side'),
             'type': order_type,
-            'amount': float(order_data.get('size', 0)),
-            'price': self._extract_order_price(order_data),
-            'filled': float(order_data.get('fillSize', 0)),
-            'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
+            'amount': size,
+            'price': price,
+            'filled': fill_size,
+            'remaining': max(0, size - fill_size),  # Sécuriser contre valeurs négatives
             'status': order_data.get('status', 'unknown'),
             'created_at': created_at_str,
             
-            # NOUVEAUX CHAMPS TP/SL pour debugging
+            # === CHAMPS TP/SL (EXISTANTS) ===
             'preset_take_profit_price': order_data.get('presetTakeProfitPrice'),
             'preset_stop_loss_price': order_data.get('presetStopLossPrice'),
             'trigger_price': order_data.get('triggerPrice'),
             'tpsl_type': order_data.get('tpslType', 'normal'),
-            'is_tpsl_order': is_tpsl
+            'is_tpsl_order': is_tpsl,
+            
+            # === 🆕 NOUVEAUX CHAMPS ENRICHIS ===
+            
+            # Identifiants et références
+            'client_order_id': order_data.get('clientOid'),  # ID personnalisé utilisateur
+            'user_id': order_data.get('userId'),  # ID compte Bitget
+            
+            # Volumes et montants tradés réels
+            'base_volume': base_volume,   # Volume en devise de base (BTC pour BTC/USDT)
+            'quote_volume': quote_volume, # Volume en devise de cotation (USDT pour BTC/USDT)
+            
+            # Prix d'exécution
+            'price_avg': price_avg,  # Prix moyen d'exécution (différent de price d'ordre)
+            
+            # Sources et origines
+            'order_source': order_data.get('orderSource'),        # normal, market, spot_trader_buy, etc.
+            'enter_point_source': order_data.get('enterPointSource'), # WEB, API, APP, etc.
+            
+            # Timing enrichi
+            'updated_at': updated_at_str,  # Dernière mise à jour ordre
+            
+            # Frais détaillés (parsé depuis JSON)
+            'fee_detail': fee_detail,  # Structure parsée des frais
+            
+            # Annulation
+            'cancel_reason': order_data.get('cancelReason'),  # Raison annulation si applicable
+            
+            # === CHAMPS TECHNIQUES POUR DEBUG ===
+            'bitget_raw_status': order_data.get('status'),  # Status Bitget brut
+            'bitget_order_type': order_data.get('orderType'), # Type Bitget brut
         }
         
         return order
+    
+    def _format_timestamp(self, timestamp_str: str) -> str:
+        """
+        🕒 FORMATAGE TIMESTAMP BITGET VERS ISO
+        
+        Convertit les timestamps Unix millisecondes Bitget vers format ISO.
+        Utilisé pour cTime et uTime des ordres.
+        """
+        if not timestamp_str:
+            return None
+        try:
+            dt = datetime.fromtimestamp(int(timestamp_str) / 1000)
+            return dt.isoformat()
+        except (ValueError, TypeError):
+            return None
+    
+    def _safe_float(self, value) -> float:
+        """
+        🔢 CONVERSION SÉCURISÉE VERS FLOAT
+        
+        Convertit les valeurs Bitget (souvent strings) vers float.
+        Gère les cas None, "", "0" avec fallback 0.0.
+        """
+        if value is None or value == "" or value == "0":
+            return 0.0
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return 0.0
+    
+    def _parse_fee_detail(self, fee_detail_str: str) -> Dict:
+        """
+        💰 PARSING DÉTAIL DES FRAIS BITGET
+        
+        Parse la structure JSON complexe des frais Bitget.
+        Gère les deux formats: newFees (nouveau) et legacy (ancien).
+        
+        Structure newFees:
+        - c: montant déduit par coupons
+        - d: montant déduit en BGB
+        - r: reste déduit de la monnaie de transaction  
+        - t: total frais à payer
+        
+        Structure legacy:
+        - {Currency}: monnaie utilisée pour frais
+        - deduction: si déduction activée
+        - feeCoinCode: code monnaie frais
+        - totalFee: total frais
+        """
+        if not fee_detail_str:
+            return {}
+        
+        try:
+            fee_data = json.loads(fee_detail_str)
+            
+            # Structure standardisée pour Aristobot
+            parsed_fees = {
+                'raw_json': fee_detail_str,  # JSON brut pour référence
+                'has_new_fees': 'newFees' in fee_data,
+                'total_fee': 0.0,
+                'fee_currency': None,
+                'deductions': {}
+            }
+            
+            # Traitement du nouveau format newFees
+            if 'newFees' in fee_data:
+                new_fees = fee_data['newFees']
+                parsed_fees.update({
+                    'coupon_deduction': self._safe_float(new_fees.get('c', 0)),
+                    'bgb_deduction': self._safe_float(new_fees.get('d', 0)),
+                    'remaining_deduction': self._safe_float(new_fees.get('r', 0)),
+                    'total_fee': self._safe_float(new_fees.get('t', 0)),
+                    'fee_currency': 'mixed'  # Nouveau format utilise plusieurs monnaies
+                })
+            
+            # Traitement du format legacy (BGB, USDT, etc.)
+            for key, value in fee_data.items():
+                if key != 'newFees' and isinstance(value, dict):
+                    # C'est une structure legacy par monnaie
+                    parsed_fees['deductions'][key] = {
+                        'deduction_enabled': value.get('deduction', False),
+                        'fee_coin_code': value.get('feeCoinCode'),
+                        'total_deduction_fee': self._safe_float(value.get('totalDeductionFee', 0)),
+                        'total_fee': self._safe_float(value.get('totalFee', 0))
+                    }
+                    
+                    # Utiliser comme fee_currency principal si pas de newFees
+                    if not parsed_fees['has_new_fees']:
+                        parsed_fees['fee_currency'] = key
+                        parsed_fees['total_fee'] = self._safe_float(value.get('totalFee', 0))
+            
+            return parsed_fees
+            
+        except (json.JSONDecodeError, TypeError):
+            return {
+                'raw_json': fee_detail_str,
+                'parse_error': True,
+                'total_fee': 0.0
+            }
     
     def _extract_order_price(self, order_data: Dict) -> float:
         """
@@ -813,44 +1035,102 @@ class BitgetNativeClient(BaseExchangeClient):
         else:
             return f'tpsl_{base_type}'  # Type TP/SL générique
     
-    async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
+    async def get_order_history(
+        self,
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
-        📚 HISTORIQUE ORDRES - SCRIPT 2 VALIDÉ
+        📚 HISTORIQUE ORDRES - EXTENSION COMPLÈTE 100% PARAMÈTRES BITGET
         
-        Utilise /api/v2/spot/trade/history-orders avec plage de dates.
-        """
-        try:
-            # Plage de dates (7 derniers jours par défaut, comme Script 2)
-            now = datetime.utcnow()
-            start_date = now - timedelta(days=7)
-            start_timestamp = int(start_date.timestamp() * 1000)
-            end_timestamp = int(now.timestamp() * 1000)
+        🎯 ARCHITECTURE FLEXIBLE:
+        - Si start_time/end_time fournis : utilise plages spécifiées
+        - Sinon : 7 derniers jours par défaut (compatible existant)
+        - Limite Bitget : 90 jours maximum d'historique
+        
+        📚 PARAMÈTRES COMPLETS EXPOSÉS (selon docs Bitget):
+        Args:
+            symbol: Trading pair (ex: 'BTC/USDT')
+            start_time: Record start time, Unix millisecond timestamp
+            end_time: Record end time, Unix millisecond timestamp
+            id_less_than: Pagination - orderId pour page précédente
+            limit: Max orders per request (default 100, max 100)
+            order_id: Specific order ID to retrieve
+            tpsl_type: 'normal' or 'tpsl' - filtre type d'ordre
+            request_time: Request time Unix millisecond timestamp
+            receive_window: Valid window period Unix millisecond timestamp
             
-            # Construction des paramètres
-            params = {
-                'startTime': str(start_timestamp),
-                'endTime': str(end_timestamp)
+        Returns:
+            Dict: {
+                'success': bool,
+                'orders': list,  # Format unifié Aristobot
+                'period_info': dict,  # Info sur plage de dates utilisée
+                'raw_params': dict  # Paramètres envoyés pour debug
             }
             
+        🔧 COMPATIBILITÉ RÉTROGRADE:
+        - get_order_history(symbol, limit) → fonctionne toujours
+        - Plage par défaut 7 jours conservée
+        - Structure retour enrichie mais compatible
+        """
+        try:
+            # 🔧 GESTION INTELLIGENTE PLAGES DATES
+            if start_time and end_time:
+                # Utiliser plages fournies
+                used_start = str(start_time)
+                used_end = str(end_time)
+                logger.info(f"📅 Plage personnalisée: {start_time} → {end_time}")
+            else:
+                # Plage par défaut 7 jours (compatibilité existante)
+                now = datetime.utcnow()
+                start_date = now - timedelta(days=7)
+                used_start = str(int(start_date.timestamp() * 1000))
+                used_end = str(int(now.timestamp() * 1000))
+                logger.info(f"📅 Plage par défaut: 7 derniers jours")
+            
+            # 🔧 CONSTRUCTION PARAMÈTRES COMPLETS
+            params = {
+                'startTime': used_start,
+                'endTime': used_end
+            }
+            
+            # Paramètres existants (compatibilité)
             if symbol:
                 params['symbol'] = self.normalize_symbol(symbol)
             
-            # Sécuriser la conversion de limit (peut être str ou int)
+            # Sécuriser la conversion de limit
             if limit:
                 try:
                     limit_int = int(limit)
                     if limit_int <= 100:
                         params['limit'] = str(limit_int)
                 except (ValueError, TypeError):
-                    # Si limit n'est pas convertible, ignorer
                     pass
             
-            # Construction du chemin
-            path = '/api/v2/spot/trade/history-orders'
-            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-            full_path = f"{path}?{query_string}"
+            # 🆕 NOUVEAUX PARAMÈTRES ÉTENDUS
+            if id_less_than:
+                params['idLessThan'] = str(id_less_than)
+            if order_id:
+                params['orderId'] = str(order_id)
+            if tpsl_type:
+                params['tpslType'] = str(tpsl_type)
+            if request_time:
+                params['requestTime'] = str(request_time)
+            if receive_window:
+                params['receiveWindow'] = str(receive_window)
             
-            response_data = await self._make_request('GET', full_path)
+            path = '/api/v2/spot/trade/history-orders'
+            
+            logger.info(f"📚 Récupération historique avec {len(params)} paramètres: {list(params.keys())}")
+            
+            response_data = await self._make_request('GET', path, params)
             
             if response_data.get('code') != '00000':
                 return {
@@ -859,37 +1139,28 @@ class BitgetNativeClient(BaseExchangeClient):
                     'orders': []
                 }
             
-            # Transformation (même logique que get_open_orders)
+            # 🔄 TRANSFORMATION VIA _transform_order_data (uniforme)
             orders = []
             for order_data in response_data.get('data', []):
-                # CORRECTION: Sérialiser datetime en ISO string pour compatibilité JSON
-                created_at_timestamp = order_data.get('cTime')
-                created_at_str = None
-                if created_at_timestamp:
-                    try:
-                        dt = datetime.fromtimestamp(int(created_at_timestamp) / 1000)
-                        created_at_str = dt.isoformat()
-                    except (ValueError, TypeError):
-                        created_at_str = None
-                
-                order = {
-                    'order_id': order_data.get('orderId'),
-                    'symbol': order_data.get('symbol'),
-                    'side': order_data.get('side'),
-                    'type': order_data.get('orderType', 'unknown'),
-                    'amount': float(order_data.get('size', 0)),
-                    'price': self._extract_order_price(order_data),
-                    'filled': float(order_data.get('fillSize', 0)),
-                    'remaining': float(order_data.get('size', 0)) - float(order_data.get('fillSize', 0)),
-                    'status': order_data.get('status', 'unknown'),
-                    'created_at': created_at_str  # ISO string au lieu de datetime object
-                }
+                # Utiliser la même transformation que get_open_orders
+                order = self._transform_order_data(order_data, is_tpsl=(tpsl_type=='tpsl'))
                 orders.append(order)
             
             logger.info(f"📚 Historique Bitget: {len(orders)} ordres trouvés")
+            
+            # 📊 INFO PLAGE UTILISÉE (pour debug/logs)
+            period_info = {
+                'start_time': used_start,
+                'end_time': used_end,
+                'is_custom_range': bool(start_time and end_time),
+                'default_days': 7 if not (start_time and end_time) else None
+            }
+            
             return {
                 'success': True,
-                'orders': orders
+                'orders': orders,
+                'period_info': period_info,
+                'raw_params': params
             }
             
         except Exception as e:
@@ -898,6 +1169,122 @@ class BitgetNativeClient(BaseExchangeClient):
                 'success': False,
                 'error': str(e),
                 'orders': []
+            }
+    
+    async def get_order_info(
+        self,
+        order_id: str = None,
+        client_oid: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
+        """
+        🔍 INFORMATION ORDRE SPÉCIFIQUE - NOUVEAU ENDPOINT COMPLET
+        
+        🎯 OBJECTIF:
+        Récupère les détails complets d'un ordre spécifique par orderId ou clientOid.
+        Utilisé pour suivi précis, réconciliation, et vérification statut.
+        
+        📚 PARAMÈTRES COMPLETS (selon docs Bitget):
+        Args:
+            order_id: Order ID système Bitget (soit order_id soit client_oid requis)
+            client_oid: Client customized ID (soit order_id soit client_oid requis)
+            request_time: Request time Unix millisecond timestamp
+            receive_window: Valid window period Unix millisecond timestamp
+            
+        Returns:
+            Dict: {
+                'success': bool,
+                'order': dict,  # Format unifié Aristobot si trouvé
+                'raw_data': dict,  # Données brutes Bitget pour debug
+                'lookup_method': str  # 'order_id' ou 'client_oid'
+            }
+            
+        🔧 UTILISATION:
+        - Suivi ordre après placement
+        - Vérification statut détaillé  
+        - Réconciliation trades
+        - Analyse fees et exécution
+        
+        ⚠️ CONTRAINTE BITGET:
+        Soit order_id soit client_oid OBLIGATOIRE (pas les deux)
+        """
+        try:
+            # 🔧 VALIDATION PARAMÈTRES
+            if not order_id and not client_oid:
+                return {
+                    'success': False,
+                    'error': 'order_id ou client_oid requis',
+                    'order': None
+                }
+            
+            if order_id and client_oid:
+                return {
+                    'success': False,
+                    'error': 'Spécifier order_id OU client_oid, pas les deux',
+                    'order': None
+                }
+            
+            # 🔧 CONSTRUCTION PARAMÈTRES
+            params = {}
+            lookup_method = None
+            
+            if order_id:
+                params['orderId'] = str(order_id)
+                lookup_method = 'order_id'
+                logger.info(f"🔍 Recherche ordre par orderId: {order_id}")
+            elif client_oid:
+                params['clientOid'] = str(client_oid)
+                lookup_method = 'client_oid'
+                logger.info(f"🔍 Recherche ordre par clientOid: {client_oid}")
+            
+            # Paramètres optionnels
+            if request_time:
+                params['requestTime'] = str(request_time)
+            if receive_window:
+                params['receiveWindow'] = str(receive_window)
+            
+            path = '/api/v2/spot/trade/orderInfo'
+            
+            response_data = await self._make_request('GET', path, params)
+            
+            if response_data.get('code') != '00000':
+                return {
+                    'success': False,
+                    'error': response_data.get('msg', 'Order not found'),
+                    'order': None,
+                    'lookup_method': lookup_method
+                }
+            
+            # 📊 TRAITEMENT RÉPONSE
+            orders_data = response_data.get('data', [])
+            if not orders_data:
+                return {
+                    'success': False,
+                    'error': 'Ordre non trouvé',
+                    'order': None,
+                    'lookup_method': lookup_method
+                }
+            
+            # 🔄 TRANSFORMATION VIA _transform_order_data
+            order_data = orders_data[0]  # Bitget retourne toujours une liste
+            order = self._transform_order_data(order_data, is_tpsl=(order_data.get('tpslType')=='tpsl'))
+            
+            logger.info(f"✅ Ordre trouvé: {order['order_id']} - {order['status']} - {order['type']}")
+            
+            return {
+                'success': True,
+                'order': order,
+                'raw_data': order_data,  # Pour debug/analyse
+                'lookup_method': lookup_method
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur get_order_info: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'order': None
             }
     
     # === MÉTHODES SPÉCIALISÉES BITGET ===
@@ -918,7 +1305,7 @@ class BitgetNativeClient(BaseExchangeClient):
         try:
             # Bitget permet de récupérer tous les tickers sans paramètre
             path = '/api/v2/spot/market/tickers'
-            response_data = await self._make_request('GET', path)
+            response_data = await self._make_request('GET', path, {})
             
             if response_data.get('code') != '00000':
                 return self._standardize_error_response(

@@ -518,13 +518,31 @@ class KrakenNativeClient(BaseExchangeClient):
                 'order_id': order_id
             }
     
-    async def get_open_orders(self, symbol: str = None) -> Dict:
+    async def get_open_orders(
+        self,
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
         📋 ORDRES OUVERTS Kraken
         """
         try:
             nonce = self._get_nonce()
             params_str = f'nonce={nonce}'
+            
+            # Extended parameters compatibility - Note: Kraken has limited filter support
+            # Most filtering will be done post-processing
+            if order_id:
+                # Kraken can filter by specific transaction ID
+                params_str += f'&trades=true'
+            
             path = '/0/private/OpenOrders'
             
             headers = self._sign_request('POST', path, params_str)
@@ -590,19 +608,123 @@ class KrakenNativeClient(BaseExchangeClient):
                 'orders': []
             }
     
-    async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
+    async def get_order_history(
+        self,
+        symbol: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        id_less_than: str = None,
+        limit: int = 100,
+        order_id: str = None,
+        tpsl_type: str = None,
+        request_time: str = None,
+        receive_window: str = None
+    ) -> Dict:
         """
-        📚 HISTORIQUE ORDRES Kraken - Méthode simplifiée
+        📚 HISTORIQUE ORDRES KRAKEN - SIGNATURE UNIFIÉE
+        
+        Compatible avec BitgetNativeClient pour Terminal 7.
+        Utilise l'API Kraken /0/private/ClosedOrders.
         """
-        # Note: Kraken a des endpoints complexes pour l'historique
-        # Implémentation basique pour compatibilité Terminal 7
         try:
-            logger.info("📚 get_order_history Kraken: implémentation basique")
+            # Paramètres Kraken ClosedOrders
+            params = {}
             
-            return {
-                'success': True,
-                'orders': []  # Retour vide pour éviter les erreurs
-            }
+            # Nonce obligatoire
+            nonce = str(int(time.time() * 1000))
+            params['nonce'] = nonce
+            
+            # Mapping des paramètres étendus vers Kraken
+            if start_time:
+                # Kraken utilise timestamps Unix en secondes
+                try:
+                    start_unix = int(int(start_time) / 1000)  # Conversion ms -> s
+                    params['start'] = str(start_unix)
+                except (ValueError, TypeError):
+                    pass
+            
+            if end_time:
+                try:
+                    end_unix = int(int(end_time) / 1000)  # Conversion ms -> s  
+                    params['end'] = str(end_unix)
+                except (ValueError, TypeError):
+                    pass
+            
+            if limit and limit != 100:
+                params['ofs'] = '0'  # Offset pour pagination
+                # Note: Kraken ne supporte pas directement 'limit', utilise la pagination
+            
+            # Construction du path
+            path = '/0/private/ClosedOrders'
+            
+            # Conversion en query string pour signature
+            param_str = '&'.join([f"{k}={v}" for k, v in params.items()])
+            
+            # Signature Kraken
+            headers = self._sign_request('POST', path, param_str)
+            url = f"{self.base_url}{path}"
+            
+            await self._create_session()
+            async with self.session.post(
+                url, 
+                headers=headers,
+                data=param_str
+            ) as response:
+                data = await response.json()
+                
+                if response.status != 200:
+                    return {
+                        'success': False,
+                        'error': data.get('error', f'HTTP {response.status}'),
+                        'orders': []
+                    }
+                
+                # Kraken retourne des erreurs dans le JSON même en 200
+                if data.get('error') and len(data['error']) > 0:
+                    return {
+                        'success': False,
+                        'error': ', '.join(data['error']),
+                        'orders': []
+                    }
+                
+                # Transformation format standardisé
+                orders = []
+                closed_orders = data.get('result', {}).get('closed', {})
+                
+                for order_id_kr, order_data in closed_orders.items():
+                    # Filtrer par symbole si spécifié
+                    order_symbol = self.denormalize_symbol(order_data.get('descr', {}).get('pair', ''))
+                    if symbol and symbol != order_symbol:
+                        continue
+                    
+                    # Conversion format standardisé
+                    standardized_order = {
+                        'id': order_id_kr,
+                        'symbol': order_symbol,
+                        'side': order_data.get('descr', {}).get('type', '').lower(),
+                        'type': order_data.get('descr', {}).get('ordertype', '').lower(),
+                        'amount': float(order_data.get('vol', 0)),
+                        'price': self._extract_order_price_kraken(order_data, is_history=True),
+                        'filled': float(order_data.get('vol_exec', 0)),
+                        'remaining': float(order_data.get('vol', 0)) - float(order_data.get('vol_exec', 0)),
+                        'status': self._map_kraken_status(order_data.get('status', '')),
+                        'timestamp': int(float(order_data.get('opentm', 0)) * 1000),
+                        'updated': int(float(order_data.get('closetm', 0)) * 1000) if order_data.get('closetm') else None,
+                        'info': order_data  # Données brutes
+                    }
+                    orders.append(standardized_order)
+                
+                # Trier par timestamp décroissant et limiter
+                orders.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+                if limit:
+                    orders = orders[:limit]
+                
+                logger.info(f"📚 Historique unifié Kraken: {len(orders)} ordres")
+                return {
+                    'success': True,
+                    'orders': orders,
+                    'count': len(orders)
+                }
                 
         except Exception as e:
             logger.error(f"❌ Erreur get_order_history Kraken: {e}")
@@ -746,105 +868,6 @@ class KrakenNativeClient(BaseExchangeClient):
         # 3. Aucun prix disponible
         return None
     
-    async def get_order_history(self, symbol: str = None, limit: int = 100) -> Dict:
-        """
-        📚 HISTORIQUE ORDRES KRAKEN
-        
-        Récupère l'historique des ordres via ClosedOrders API.
-        Kraken ne nécessite pas de symbole spécifique.
-        """
-        try:
-            # Paramètres pour Kraken ClosedOrders
-            params = {}
-            
-            # Nonce obligatoire
-            nonce = str(int(time.time() * 1000))
-            params['nonce'] = nonce
-            
-            if limit:
-                params['ofs'] = '0'  # Offset
-                # Kraken utilise 'count' au lieu de 'limit'
-            
-            # Construction du path
-            path = '/0/private/ClosedOrders'
-            
-            # Conversion en query string pour signature
-            param_str = '&'.join([f"{k}={v}" for k, v in params.items()])
-            
-            # Signature Kraken
-            headers = self._sign_request('POST', path, param_str)
-            
-            url = f"{self.base_url}{path}"
-            
-            await self._create_session()
-            async with self.session.post(
-                url, 
-                headers=headers,
-                data=param_str
-            ) as response:
-                data = await response.json()
-                
-                if response.status != 200:
-                    return {
-                        'success': False,
-                        'error': data.get('error', f'HTTP {response.status}'),
-                        'orders': []
-                    }
-                
-                # Kraken retourne des erreurs dans le JSON même en 200
-                if data.get('error') and len(data['error']) > 0:
-                    return {
-                        'success': False,
-                        'error': ', '.join(data['error']),
-                        'orders': []
-                    }
-                
-                # Transformation format Aristobot
-                orders = []
-                closed_orders = data.get('result', {}).get('closed', {})
-                
-                for order_id, order_data in closed_orders.items():
-                    # Filtrer par symbole si spécifié
-                    order_symbol = self.denormalize_symbol(order_data.get('descr', {}).get('pair', ''))
-                    if symbol and symbol != order_symbol:
-                        continue
-                    
-                    # Conversion format standard - CORRECTION prix exécution
-                    standardized_order = {
-                        'id': order_id,
-                        'symbol': order_symbol,
-                        'side': order_data.get('descr', {}).get('type', '').lower(),
-                        'type': order_data.get('descr', {}).get('ordertype', '').lower(),
-                        'amount': float(order_data.get('vol', 0)),
-                        'price': self._extract_order_price_kraken(order_data, is_history=True),
-                        'filled': float(order_data.get('vol_exec', 0)),
-                        'remaining': float(order_data.get('vol', 0)) - float(order_data.get('vol_exec', 0)),
-                        'status': self._map_kraken_status(order_data.get('status', '')),
-                        'timestamp': int(float(order_data.get('opentm', 0)) * 1000),
-                        'updated': int(float(order_data.get('closetm', 0)) * 1000) if order_data.get('closetm') else None,
-                        'info': order_data  # Données brutes
-                    }
-                    orders.append(standardized_order)
-                
-                # Trier par timestamp décroissant et limiter
-                orders.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
-                if limit:
-                    orders = orders[:limit]
-                
-                logger.info(f"📚 Historique Kraken: {len(orders)} ordres")
-                return {
-                    'success': True,
-                    'orders': orders,
-                    'count': len(orders)
-                }
-                
-        except Exception as e:
-            logger.error(f"❌ Erreur get_order_history Kraken: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'orders': []
-            }
     
     def _map_kraken_status(self, kraken_status: str) -> str:
         """Mappe les statuts Kraken vers format standard"""

@@ -414,20 +414,95 @@ class NativeExchangeManager:
                     return {'success': False, 'error': 'Modification d\'ordre non supportée par cet exchange'}
             
             elif action == 'fetch_open_orders':
+                # 🆕 SUPPORT COMPLET PARAMÈTRES BITGET OPEN ORDERS
                 symbol = params.get('symbol')
-                result = await client.get_open_orders(symbol)
+                
+                # 📋 NOUVEAUX PARAMÈTRES ÉTENDUS BITGET
+                start_time = params.get('start_time') or params.get('startTime')
+                end_time = params.get('end_time') or params.get('endTime') 
+                id_less_than = params.get('id_less_than') or params.get('idLessThan')
+                limit = params.get('limit', 100)
+                order_id = params.get('order_id') or params.get('orderId')
+                tpsl_type = params.get('tpsl_type') or params.get('tpslType')
+                request_time = params.get('request_time') or params.get('requestTime')
+                receive_window = params.get('receive_window') or params.get('receiveWindow')
+                
+                # Sécuriser conversion limit
+                try:
+                    limit = int(limit)
+                except (ValueError, TypeError):
+                    limit = 100
+                
+                # Appel avec TOUS les paramètres (compatibilité BitgetNativeClient étendu)
+                result = await client.get_open_orders(
+                    symbol=symbol,
+                    start_time=start_time,
+                    end_time=end_time,
+                    id_less_than=id_less_than,
+                    limit=limit,
+                    order_id=order_id,
+                    tpsl_type=tpsl_type,
+                    request_time=request_time,
+                    receive_window=receive_window
+                )
                 return {'success': result['success'], 'data': result.get('orders'), 'error': result.get('error')}
             
             elif action == 'fetch_closed_orders':
+                # 🆕 SUPPORT COMPLET PARAMÈTRES BITGET HISTORY ORDERS
                 symbol = params.get('symbol')
-                # Convertir limit en int pour éviter l'erreur de comparaison str vs int
-                limit_raw = params.get('limit', 100)
+                
+                # 📋 NOUVEAUX PARAMÈTRES ÉTENDUS BITGET
+                start_time = params.get('start_time') or params.get('startTime')
+                end_time = params.get('end_time') or params.get('endTime')
+                id_less_than = params.get('id_less_than') or params.get('idLessThan')
+                limit = params.get('limit', 100)
+                order_id = params.get('order_id') or params.get('orderId')
+                tpsl_type = params.get('tpsl_type') or params.get('tpslType')
+                request_time = params.get('request_time') or params.get('requestTime')
+                receive_window = params.get('receive_window') or params.get('receiveWindow')
+                
+                # Sécuriser conversion limit
                 try:
-                    limit = int(limit_raw)
+                    limit = int(limit)
                 except (ValueError, TypeError):
-                    limit = 100  # Valeur par défaut si conversion échoue
-                result = await client.get_order_history(symbol, limit)
+                    limit = 100
+                
+                # Appel avec TOUS les paramètres (compatibilité BitgetNativeClient étendu)
+                result = await client.get_order_history(
+                    symbol=symbol,
+                    start_time=start_time,
+                    end_time=end_time,
+                    id_less_than=id_less_than,
+                    limit=limit,
+                    order_id=order_id,
+                    tpsl_type=tpsl_type,
+                    request_time=request_time,
+                    receive_window=receive_window
+                )
                 return {'success': result['success'], 'data': result.get('orders'), 'error': result.get('error')}
+            
+            elif action == 'get_order_info':
+                # 🆕 NOUVEAU ENDPOINT ORDRE SPÉCIFIQUE
+                order_id = params.get('order_id') or params.get('orderId')
+                client_oid = params.get('client_oid') or params.get('clientOid')
+                request_time = params.get('request_time') or params.get('requestTime')
+                receive_window = params.get('receive_window') or params.get('receiveWindow')
+                
+                # Validation: soit order_id soit client_oid requis
+                if not order_id and not client_oid:
+                    return {'success': False, 'error': 'order_id ou client_oid requis'}
+                
+                # Appel du client natif avec support get_order_info
+                if hasattr(client, 'get_order_info'):
+                    result = await client.get_order_info(
+                        order_id=order_id,
+                        client_oid=client_oid,
+                        request_time=request_time,
+                        receive_window=receive_window
+                    )
+                    return {'success': result['success'], 'data': result.get('order'), 'error': result.get('error')}
+                else:
+                    return {'success': False, 'error': 'get_order_info non supporté par cet exchange'}
             
             elif action == 'preload_brokers':
                 # Rechargement des brokers actifs

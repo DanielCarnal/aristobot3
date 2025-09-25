@@ -22,7 +22,7 @@ curl "https://api.bitget.com/api/v2/spot/trade/history-orders?symbol=BTCUSDT&sta
    -H "Content-Type: application/json"
 ```
 
-## Request Parameters
+##  
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
