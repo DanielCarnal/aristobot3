@@ -7,7 +7,7 @@ import logging
 import signal
 import sys
 from datetime import datetime
-from apps.core.services.ccxt_client import CCXTClient
+from apps.core.services.exchange_client import ExchangeClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,8 @@ class Command(BaseCommand):
         super().__init__()
         self.running = True
         self.channel_layer = get_channel_layer()
-        self.ccxt_client = CCXTClient()
+        # 🔒 SÉCURITÉ: Trading Engine est multi-user - ExchangeClient créé par stratégie utilisateur
+        # self.ccxt_client sera remplacé par des clients spécifiques dans process_signal()
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -53,14 +54,11 @@ class Command(BaseCommand):
         # Écouter les réponses CCXT
         asyncio.create_task(self.listen_ccxt_responses())
         
-        # Demander le préchargement des brokers
-        try:
-            success_count, error_count = await self.ccxt_client.preload_all_brokers()
-            self.stdout.write(
-                self.style.SUCCESS(f"✅ Brokers préchargés: {success_count} succès, {error_count} erreurs")
-            )
-        except Exception as e:
-            logger.error(f"❌ Erreur préchargement brokers: {e}")
+        # TODO MODULE 7: Préchargement brokers sera fait par stratégie utilisateur
+        # Le Trading Engine n'a plus de client global - chaque stratégie aura son ExchangeClient
+        self.stdout.write(
+            self.style.SUCCESS("✅ Trading Engine multi-user prêt (Module 7: stratégies utilisateur)")
+        )
         
         # Boucle principale
         while self.running:
@@ -81,9 +79,8 @@ class Command(BaseCommand):
         """Écoute les réponses du service CCXT"""
         while self.running:
             try:
-                # TODO: Implémenter la vraie écoute des réponses Redis
-                # response = await self.channel_layer.receive('ccxt_responses')
-                # await self.ccxt_client.handle_response(response)
+                # TODO MODULE 7: Écoute des signaux Heartbeat et traitement des stratégies
+                # Chaque stratégie aura son propre ExchangeClient(user_id=strategy.user_id)
                 await asyncio.sleep(0.1)  # Placeholder
             except Exception as e:
                 logger.error(f"❌ Erreur réception réponse CCXT: {e}")

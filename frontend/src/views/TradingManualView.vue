@@ -426,7 +426,7 @@
           </div>
         </div>
 
-        <!-- Section Ordres & Positions - UNIFIÉE -->
+        <!-- Section Ordres & Positions - INTERFACE BITGET UNIFIÉE -->
         <div class="section-card orders-section">
           <div class="orders-header">
             <h2>Ordres & Positions</h2>
@@ -443,6 +443,41 @@
               >
                 Historique
               </button>
+            </div>
+          </div>
+
+          <!-- NOUVEAU: Filtres avancés style Bitget -->
+          <div class="orders-filters" v-if="orderViewMode === 'history'">
+            <!-- Onglets types d'ordres -->
+            <div class="order-type-filters">
+              <button 
+                v-for="typeFilter in orderTypeFilters" 
+                :key="typeFilter.value"
+                :class="['type-filter-btn', { active: selectedOrderTypeFilter === typeFilter.value }]"
+                @click="applyOrderTypeFilter(typeFilter.value)"
+              >
+                {{ typeFilter.label }}
+              </button>
+            </div>
+            
+            <!-- Filtres période et options -->
+            <div class="period-and-options">
+              <div class="period-selector">
+                <label>Période:</label>
+                <select v-model="selectedPeriod" @change="loadOrdersForCurrentMode">
+                  <option value="90">90 jours</option>
+                  <option value="30">30 jours</option>
+                  <option value="7">7 jours</option>
+                  <option value="1">24 heures</option>
+                </select>
+              </div>
+              
+              <div class="order-options">
+                <label>
+                  <input type="checkbox" v-model="showExecutedOnly" @change="loadOrdersForCurrentMode">
+                  Ordres exécutés uniquement
+                </label>
+              </div>
             </div>
           </div>
 
@@ -721,11 +756,29 @@ export default {
     const recentTrades = ref([])
     const tradesLoading = ref(false)
     
-    // Ordres + Positions - ARCHITECTURE TERMINAL 7 INTÉGRÉE
+    // Ordres + Positions - ARCHITECTURE TERMINAL 7 INTÉGRÉE + FILTRES BITGET
     const openOrders = ref([])
     const closedOrders = ref([])
     const orderViewMode = ref('open') // 'open', 'history' 
     const ordersLoading = ref(false)
+    
+    // NOUVEAU: Filtres avancés style Bitget
+    const selectedOrderTypeFilter = ref('all') // 'all', 'limit', 'market', 'trigger', 'tpsl', 'oco', 'trailing', 'iceberg', 'twap'
+    const selectedPeriod = ref(90) // Période en jours
+    const showExecutedOnly = ref(false) // Checkbox ordres exécutés uniquement
+    
+    // Types de filtres d'ordres Bitget
+    const orderTypeFilters = ref([
+      { value: 'all', label: 'Tous' },
+      { value: 'limit', label: 'Limit' },
+      { value: 'market', label: 'Market' },
+      { value: 'trigger', label: 'Trigger' },
+      { value: 'tpsl', label: 'TP/SL' },
+      { value: 'oco', label: 'OCO' },
+      { value: 'trailing', label: 'Trailing Stop' },
+      { value: 'iceberg', label: 'Iceberg' },
+      { value: 'twap', label: 'TWAP' }
+    ])
     
     // WebSocket pour notifications de trading (uniquement pour trade-summary maintenant)
     const notificationSocket = ref(null)  // WebSocket pour notifications
@@ -1559,22 +1612,24 @@ export default {
 
     // Fonction pour formater la date/heure d'un ordre
     const formatOrderDateTime = (order) => {
-      const timestamp = order.timestamp || order.created_at || order.cTime
+      const timestamp = order.created_at || order.cTime || order.timestamp
       if (!timestamp) return '-'
       
       try {
-        const date = new Date(parseInt(timestamp) > 1e12 ? parseInt(timestamp) : parseInt(timestamp) * 1000)
-        const now = new Date()
-        const diffInHours = (now - date) / (1000 * 60 * 60)
+        // Gérer format ISO du backend (ex: "2025-09-09T21:10:18.290000")
+        const date = new Date(timestamp)
         
-        if (diffInHours < 24) {
-          return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-        } else {
-          return date.toLocaleDateString('fr-FR', { 
-            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-          })
-        }
+        // Format AA-MM-JJ hh:mm:ss demandé
+        const yy = date.getFullYear().toString().slice(-2)
+        const mm = (date.getMonth() + 1).toString().padStart(2, '0')
+        const dd = date.getDate().toString().padStart(2, '0')
+        const hh = date.getHours().toString().padStart(2, '0')
+        const min = date.getMinutes().toString().padStart(2, '0')
+        const ss = date.getSeconds().toString().padStart(2, '0')
+        
+        return `${yy}-${mm}-${dd} ${hh}:${min}:${ss}`
       } catch (error) {
+        console.error('Erreur formatage date:', error, 'timestamp:', timestamp)
         return '-'
       }
     }
@@ -1755,9 +1810,107 @@ export default {
       if (orderViewMode.value === 'open') {
         await loadOpenOrders()
       } else {
-        // Mode historique: charger seulement les ordres fermés
-        await loadClosedOrders()
+        // Mode historique: charger avec filtres Bitget étendus
+        await loadClosedOrdersWithFilters()
       }
+    }
+    
+    // NOUVELLE FONCTION: Chargement ordres fermés avec filtres Bitget
+    const loadClosedOrdersWithFilters = async () => {
+      if (!selectedBroker.value) {
+        console.log('❌ loadClosedOrdersWithFilters: pas de broker sélectionné')
+        ordersLoading.value = false
+        return
+      }
+      
+      console.log('🔄 loadClosedOrdersWithFilters: chargement avec filtres Bitget')
+      ordersLoading.value = true
+      
+      try {
+        // Construire la période (jours → timestamp)
+        const daysAgo = selectedPeriod.value
+        const startTime = Date.now() - (daysAgo * 24 * 60 * 60 * 1000)
+        const endTime = Date.now()
+        
+        // Paramètres étendus Terminal 5 + filtres Bitget
+        const params = new URLSearchParams({
+          broker_id: selectedBroker.value,
+          start_time: startTime.toString(),
+          end_time: endTime.toString(),
+          limit: 100
+        })
+        
+        // Ajouter filtres type d'ordre si spécifique
+        if (selectedOrderTypeFilter.value !== 'all') {
+          if (selectedOrderTypeFilter.value === 'tpsl') {
+            params.append('tpsl_type', 'tpsl')  // Bitget tpslType filter
+          }
+          // Autres filtres peuvent être ajoutés via type_filter si Exchange supporte
+          params.append('order_type_filter', selectedOrderTypeFilter.value)
+        }
+        
+        // Filtre ordres exécutés uniquement
+        if (showExecutedOnly.value) {
+          params.append('status_filter', 'filled,closed')
+        }
+        
+        const url = `/api/trading-manual/closed-orders/?${params.toString()}`
+        console.log('📡 API URL ordres fermés avec filtres:', url)
+        
+        const response = await api.get(url)
+        console.log('📨 Réponse API ordres fermés filtrés:', response.data)
+        
+        let orders = response.data.orders || []
+        
+        // FILTRAGE CÔTÉ CLIENT pour types non supportés par Terminal 5
+        if (selectedOrderTypeFilter.value !== 'all') {
+          orders = orders.filter(order => filterOrderByType(order, selectedOrderTypeFilter.value))
+        }
+        
+        closedOrders.value = orders
+        console.log(`📋 Ordres fermés filtrés: ${orders.length} ordres (${selectedOrderTypeFilter.value}, ${daysAgo} jours)`)
+        
+      } catch (err) {
+        console.error('❌ Erreur chargement ordres fermés filtrés:', err)
+        closedOrders.value = []
+        error.value = `Erreur chargement historique: ${err.response?.data?.error || err.message}`
+      } finally {
+        ordersLoading.value = false
+      }
+    }
+    
+    // Fonction de filtrage côté client par type d'ordre
+    const filterOrderByType = (order, typeFilter) => {
+      const orderType = (order.type || order.orderType || '').toLowerCase()
+      
+      switch (typeFilter) {
+        case 'market':
+          return orderType === 'market'
+        case 'limit':
+          return orderType === 'limit'
+        case 'trigger':
+          return orderType.includes('trigger') || orderType.includes('stop')
+        case 'tpsl':
+          return orderType.includes('take_profit') || orderType.includes('stop_loss') || 
+                 order.tpslType === 'tpsl' || order.preset_take_profit_price || order.preset_stop_loss_price
+        case 'oco':
+          return orderType.includes('oco') || orderType.includes('one_cancel_other')
+        case 'trailing':
+          return orderType.includes('trailing')
+        case 'iceberg':
+          return orderType.includes('iceberg')
+        case 'twap':
+          return orderType.includes('twap') || orderType.includes('time_weighted')
+        default:
+          return true // 'all' case
+      }
+    }
+    
+    // Fonction pour appliquer le filtre de type d'ordre
+    const applyOrderTypeFilter = async (typeFilter) => {
+      selectedOrderTypeFilter.value = typeFilter
+      console.log(`🎯 Filtre type d'ordre appliqué: ${typeFilter}`)
+      await loadOrdersForCurrentMode()
     }
     
     // Gestion du changement de broker
@@ -2471,7 +2624,16 @@ export default {
       // FONCTIONS FORMATAGE TRADES
       formatTradeDateTime,
       formatTradeAmount,
-      clearExecutionResult
+      clearExecutionResult,
+      // NOUVELLES VARIABLES FILTRES BITGET
+      selectedOrderTypeFilter,
+      selectedPeriod,
+      showExecutedOnly,
+      orderTypeFilters,
+      // NOUVELLES FONCTIONS FILTRES BITGET
+      applyOrderTypeFilter,
+      loadClosedOrdersWithFilters,
+      filterOrderByType
     }
   }
 }
@@ -2528,6 +2690,119 @@ export default {
   color: var(--color-background);
   border-color: var(--color-primary);
   box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+}
+
+/* NOUVEAU: Filtres avancés style Bitget */
+.orders-filters {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.order-type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.type-filter-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.type-filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+  transform: translateY(-1px);
+}
+
+.type-filter-btn.active {
+  background: linear-gradient(135deg, var(--color-primary) 0%, rgba(0, 212, 255, 0.8) 100%);
+  color: var(--color-background);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+  font-weight: 600;
+}
+
+.period-and-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.period-selector label {
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.period-selector select {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.period-selector select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 4px rgba(0, 212, 255, 0.3);
+}
+
+.order-options {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.order-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.order-options input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.order-options input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 4px rgba(0, 212, 255, 0.3);
 }
 
 /* Container ordres avec scrollbar améliorer */

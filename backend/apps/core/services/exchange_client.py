@@ -74,12 +74,15 @@ class ExchangeClient:
     Compatible 100% avec l'utilisation existante dans tous les modules.
     """
     
-    def __init__(self):
+    def __init__(self, user_id: int = None):
         self.channel_layer = None
         self.pending_requests: Dict[str, asyncio.Future] = {}
         
         # Configuration compatible CCXTClient
         self._redis_client = None
+        
+        # 🔒 NOUVEAU: Stockage user_id pour sécurité multi-tenant
+        self._user_id = user_id
         
         # Définir cette instance comme globale pour compatibilité
         global _global_exchange_client
@@ -91,24 +94,33 @@ class ExchangeClient:
             self._redis_client = await get_redis_client()
         return self._redis_client
     
-    async def _send_request(self, action: str, params: Dict) -> Any:
+    async def _send_request(self, action: str, params: Dict, user_id: int = None) -> Any:
         """
-        📤 ENVOI REQUÊTE - COMPATIBLE CCXTCLIENT
+        📤 ENVOI REQUÊTE - COMPATIBLE CCXTCLIENT + SÉCURITÉ MULTI-TENANT
         
-        Même interface que CCXTClient._send_request mais utilise NativeExchangeManager.
-        Communication Redis identique (ccxt_requests/ccxt_responses).
+        NOUVEAUTÉ: Ajout user_id obligatoire pour sécurité Terminal 5.
+        Empêche accès non autorisé aux brokers d'autres utilisateurs.
         """
         request_id = str(uuid.uuid4())
+        
+        # SÉCURITÉ: Utiliser user_id du constructeur ou passé explicitement
+        if not user_id:
+            user_id = self._user_id
+        
+        # SÉCURITÉ: user_id obligatoire pour éviter faille multi-tenant
+        if not user_id and 'broker_id' in params:
+            raise ValueError(f"SÉCURITÉ: user_id obligatoire pour action {action} avec broker_id")
         
         # Log spécial pour place_order (compatibilité)
         if action == 'place_order':
             logger.info(f"🔥 ExchangeClient._send_request PLACE_ORDER START: {action} - {request_id[:8]}... - {params}")
         
-        # Construction de la requête (format identique Terminal 5)
+        # Construction de la requête avec user_id pour sécurité
         request = {
             'request_id': request_id,
             'action': action,
             'params': params,
+            'user_id': user_id,  # 🔒 NOUVEAU: Sécurité multi-tenant
             'timestamp': asyncio.get_event_loop().time()
         }
         
@@ -143,7 +155,11 @@ class ExchangeClient:
                     logger.info(f"📥 Réponse reçue: {action} - {request_id[:8]}... après {i*0.1:.1f}s")
                     
                     if response['success']:
-                        return response['data']
+                        # 🔧 FIX: Pour create_and_execute_trade, retourner la réponse complète
+                        if action == 'create_and_execute_trade':
+                            return response  # Réponse complète avec 'success', 'data', 'trade_id'
+                        else:
+                            return response['data']  # Comportement standard pour autres actions
                     else:
                         raise Exception(response['error'])
                 
@@ -231,26 +247,50 @@ class ExchangeClient:
         return await self._send_request('preload_brokers', {})
     
     async def fetch_open_orders(self, broker_id: int, symbol: str = None, 
-                               since: int = None, limit: int = None) -> list:
-        """📋 Récupère les ordres ouverts - COMPATIBLE CCXTCLIENT"""
+                               since: int = None, limit: int = None,
+                               start_time: str = None, end_time: str = None, 
+                               id_less_than: str = None, order_id: str = None,
+                               tpsl_type: str = None, request_time: str = None,
+                               receive_window: str = None) -> list:
+        """📋 Récupère les ordres ouverts - COMPATIBLE CCXTCLIENT + PARAMÈTRES ÉTENDUS"""
         params = {
             'broker_id': broker_id,
             'symbol': symbol,
             'since': since,
-            'limit': limit
+            'limit': limit,
+            # NOUVEAUX PARAMÈTRES ÉTENDUS TERMINAL 5
+            'start_time': start_time,
+            'end_time': end_time,
+            'id_less_than': id_less_than,
+            'order_id': order_id,
+            'tpsl_type': tpsl_type,
+            'request_time': request_time,
+            'receive_window': receive_window
         }
         # Supprimer les paramètres None (identique CCXTClient)
         params = {k: v for k, v in params.items() if v is not None}
         return await self._send_request('fetch_open_orders', params)
     
     async def fetch_closed_orders(self, broker_id: int, symbol: str = None, 
-                                 since: int = None, limit: int = None) -> list:
-        """📚 Récupère les ordres fermés - COMPATIBLE CCXTCLIENT"""
+                                 since: int = None, limit: int = None,
+                                 start_time: str = None, end_time: str = None, 
+                                 id_less_than: str = None, order_id: str = None,
+                                 tpsl_type: str = None, request_time: str = None,
+                                 receive_window: str = None) -> list:
+        """📚 Récupère les ordres fermés - COMPATIBLE CCXTCLIENT + PARAMÈTRES ÉTENDUS"""
         params = {
             'broker_id': broker_id,
             'symbol': symbol,
             'since': since,
-            'limit': limit
+            'limit': limit,
+            # NOUVEAUX PARAMÈTRES ÉTENDUS TERMINAL 5
+            'start_time': start_time,
+            'end_time': end_time,
+            'id_less_than': id_less_than,
+            'order_id': order_id,
+            'tpsl_type': tpsl_type,
+            'request_time': request_time,
+            'receive_window': receive_window
         }
         # Supprimer les paramètres None (identique CCXTClient)
         params = {k: v for k, v in params.items() if v is not None}
@@ -354,15 +394,32 @@ class ExchangeClient:
         pass
 
 
-def get_global_exchange_client():
+def get_global_exchange_client(user_id: int = None):
     """
-    🌍 RÉCUPÈRE L'INSTANCE GLOBALE - COMPATIBLE get_global_ccxt_client()
+    🌍 RÉCUPÈRE L'INSTANCE GLOBALE - COMPATIBLE get_global_ccxt_client() + SÉCURITÉ
     
-    Fonction de compatibilité pour remplacer get_global_ccxt_client()
+    ATTENTION: Cette fonction globale est maintenue pour rétrocompatibilité.
+    Pour une sécurité optimale, préférer l'instanciation directe avec user_id:
+    
+    ❌ PAS SÉCURISÉ: get_global_exchange_client()
+    ✅ SÉCURISÉ: ExchangeClient(user_id=request.user.id)
     """
     global _global_exchange_client
-    if _global_exchange_client is None:
+    
+    # Réutiliser instance existante SI user_id identique
+    if (_global_exchange_client is not None and 
+        hasattr(_global_exchange_client, '_user_id') and 
+        _global_exchange_client._user_id == user_id):
+        return _global_exchange_client
+    
+    # Créer nouvelle instance avec user_id
+    if user_id:
+        logger.warning(f"🔒 Création ExchangeClient global avec user_id {user_id} - Préférer instanciation directe")
+        _global_exchange_client = ExchangeClient(user_id=user_id)
+    else:
+        logger.warning(f"⚠️ ExchangeClient global SANS user_id - Risque sécurité multi-tenant")
         _global_exchange_client = ExchangeClient()
+    
     return _global_exchange_client
 
 

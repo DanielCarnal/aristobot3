@@ -456,6 +456,149 @@ class BaseExchangeClient(ABC):
         
         return status_mapping.get(native_status.lower() if native_status else '', 'open')
     
+    # === MÉTHODES DE NORMALISATION COMPLÈTE ARISTOBOT (NOUVEAU) ===
+    
+    def _standardize_complete_order_response(self, native_response: Dict) -> Dict:
+        """
+        🎯 NORMALISE ORDER COMPLET vers FORMAT ARISTOBOT UNIFIÉ COMPLET
+        
+        Extension de _standardize_order_response() pour capturer TOUS les champs
+        des exchanges natifs vers le modèle Trade Aristobot.
+        
+        Utilise la base existante + champs spécialisés par exchange.
+        Chaque exchange surcharge _extract_specialized_fields() pour ses spécificités.
+        
+        Args:
+            native_response: Réponse native de l'exchange (ordre complet)
+            
+        Returns:
+            Dict: Format Aristobot unifié avec TOUS les champs disponibles
+        """
+        # === BASE EXISTANTE (réutilise _standardize_order_response) ===
+        base_response = self._standardize_order_response(native_response)
+        
+        # === ENRICHISSEMENT COMPLET ===
+        complete_response = {
+            # Champs de base (déjà standardisés)
+            **base_response,
+            
+            # === CHAMPS UNIFIÉS ARISTOBOT (TOUS EXCHANGES) ===
+            'quote_volume': self._extract_quote_volume(native_response),
+            'base_volume': self._extract_base_volume(native_response),
+            'amount_total': self._extract_amount_total(native_response),
+            'update_time': self._extract_update_time(native_response),
+            'trade_id': self._extract_trade_id(native_response),
+            'executed_at': self._extract_executed_at(native_response),
+            
+            # === MÉTADONNÉES UNIFIÉES ===
+            'exchange_type': self.exchange_name,
+            'exchange_raw_data': native_response,  # TOUT pour audit complet
+            
+            # === CHAMPS SPÉCIALISÉS (Exchange-specific) ===
+            'specialized_fields': self._extract_specialized_fields(native_response),
+            
+            # === TRAÇABILITÉ ARISTOBOT ===
+            'ordre_existant': None,  # Sera renseigné par Terminal 5
+            'aristobot_normalized_at': int(time.time() * 1000)
+        }
+        
+        return complete_response
+    
+    # === MÉTHODES D'EXTRACTION ABSTRAITES (À IMPLÉMENTER PAR CHAQUE EXCHANGE) ===
+    
+    @abstractmethod  
+    def _extract_quote_volume(self, native_response: Dict) -> float:
+        """
+        Volume en devise de cotation (ex: USDT pour BTC/USDT)
+        Bitget: quoteVolume, Binance: cummulativeQuoteQty, Kraken: cost
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_base_volume(self, native_response: Dict) -> float:
+        """
+        Volume en devise de base (ex: BTC pour BTC/USDT)  
+        Bitget: baseVolume, Binance: executedQty, Kraken: vol_exec
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_amount_total(self, native_response: Dict) -> float:
+        """
+        Montant total de l'ordre (peut différer de quote_volume selon exchange)
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_update_time(self, native_response: Dict) -> Optional[datetime]:
+        """
+        Timestamp dernière mise à jour de l'ordre
+        Bitget: uTime, Binance: updateTime, Kraken: opentm
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_trade_id(self, native_response: Dict) -> Optional[str]:
+        """
+        ID unique du trade/exécution (différent de order_id)
+        Bitget: tradeId, Binance: tradeId dans fills, Kraken: postxid
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_executed_at(self, native_response: Dict) -> Optional[datetime]:
+        """
+        Timestamp d'exécution de l'ordre (si différent d'update_time)
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_specialized_fields(self, native_response: Dict) -> Dict:
+        """
+        🔥 CHAMPS SPÉCIFIQUES À CHAQUE EXCHANGE vers FORMAT UNIFIÉ
+        
+        Chaque exchange implémente cette méthode pour mapper ses champs uniques
+        vers le format Aristobot standardisé.
+        
+        Returns:
+            Dict: Mapping des champs spécialisés vers format Aristobot
+            {
+                'enter_point_source': str,    # WEB, API, APP, etc.
+                'order_source': str,          # normal, market, elite_trade, etc.  
+                'force': str,                 # GTC, FOK, IOC, post_only
+                'trade_scope': str,           # taker, maker
+                'cancel_reason': str,         # normal_cancel, stp_cancel, etc.
+                'stp_mode': str,              # none, cancel_taker, etc.
+                'tpsl_type': str,             # normal, tpsl
+                # + champs spécifiques exchange
+            }
+        """
+        pass
+    
+    # === NOUVELLE MÉTHODE ABSTRAITE OBLIGATOIRE ===
+    
+    @abstractmethod
+    async def get_complete_order_details(self, order_id: str, client_order_id: str = None) -> Dict:
+        """
+        🆕 RÉCUPÉRATION DÉTAILS COMPLETS D'UN ORDRE
+        
+        Méthode obligatoire que chaque exchange doit implémenter pour récupérer
+        TOUS les détails d'un ordre après sa création/modification.
+        
+        Utilise les endpoints natifs les plus complets de chaque exchange :
+        - Bitget: get_order_info() 
+        - Binance: get_order()
+        - Kraken: QueryOrders()
+        
+        Args:
+            order_id: ID système de l'ordre
+            client_order_id: ID client optionnel
+            
+        Returns:
+            Format standardisé complet via _standardize_complete_order_response()
+        """
+        pass
+    
     # === MÉTHODES D'INTERFACE OBLIGATOIRES ===
     
     @abstractmethod

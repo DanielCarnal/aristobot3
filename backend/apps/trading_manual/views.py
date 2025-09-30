@@ -31,8 +31,26 @@ class TradeViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filtrage multi-tenant strict"""
-        return Trade.objects.filter(user=self.request.user)
+        """Filtrage multi-tenant strict avec validation broker"""
+        from rest_framework.exceptions import ValidationError
+        from apps.brokers.models import Broker
+        
+        # 1. SÉCURITÉ: Filtrage user obligatoire
+        queryset = Trade.objects.filter(user=self.request.user)
+        
+        # 2. VALIDATION: broker_id requis
+        broker_id = self.request.query_params.get('broker')
+        if not broker_id:
+            raise ValidationError("Le parametre 'broker' est obligatoire")
+        
+        # 3. SÉCURITÉ: Vérifier que le broker appartient à l'utilisateur
+        try:
+            broker = Broker.objects.get(id=broker_id, user=self.request.user)
+        except Broker.DoesNotExist:
+            raise ValidationError(f"Broker {broker_id} non trouve ou non autorise")
+        
+        # 4. FILTRAGE: Trades du broker spécifique
+        return queryset.filter(broker_id=broker_id).order_by('-created_at')
     
     def perform_create(self, serializer):
         """Associer l'user et le broker lors de la creation"""
@@ -336,53 +354,54 @@ class ExecuteTradeView(APIView):
             execution_start = time.time()
             logger.info(f"🚀 Début exécution trade...")
             
-            # Créer Trade DIRECTEMENT en DB (pas async - évite deadlock)
+            # 🔥 NOUVELLE APPROCHE: Terminal 5 gère création ET exécution Trade
             try:
-                from apps.trading_manual.models import Trade
+                logger.info(f"🔥 Exécution via Terminal 5 (création + exécution complète)...")
                 
-                logger.info(f"💾 Création Trade directe en DB...")
-                trade = Trade.objects.create(
-                    user=request.user,
-                    broker=broker,
-                    trade_type='manual',
-                    symbol=data['symbol'],
-                    side=data['side'],
-                    order_type=data['order_type'],
-                    quantity=data['quantity'],
-                    price=data.get('price'),
-                    total_value=data['total_value'],
+                # Préparer toutes les données pour Terminal 5
+                trade_data = {
+                    'symbol': data['symbol'],
+                    'side': data['side'],
+                    'order_type': data['order_type'],
+                    'quantity': data['quantity'],
+                    'price': data.get('price'),
+                    'total_value': data['total_value'],
                     # Nouveaux champs pour ordres avancés
-                    stop_loss_price=data.get('stop_loss_price'),
-                    take_profit_price=data.get('take_profit_price'),
-                    trigger_price=data.get('trigger_price'),
-                    status='pending'
-                )
-                logger.info(f"✅ Trade {trade.id} créé en DB")
+                    'stop_loss_price': data.get('stop_loss_price'),
+                    'take_profit_price': data.get('take_profit_price'),
+                    'trigger_price': data.get('trigger_price'),
+                    # Métadonnées Trading Manuel
+                    'trade_type': 'manual',
+                    'ordre_existant': "By Trading Manuel",
+                }
                 
-                # Puis exécuter via _execute_trade_order (ancienne méthode)
+                # Déléguer à Terminal 5 via TradingService refactorisé
                 trading_service = TradingService(request.user, broker)
-                order_result = asyncio.run(trading_service._execute_trade_order(trade))
+                trade_result = asyncio.run(trading_service.execute_trade_via_terminal5(trade_data))
                 
-                # Récupérer le trade mis à jour depuis la DB
-                trade.refresh_from_db()
-                
-                # Sérialiser le trade retourné
-                trade_serializer = TradeSerializer(trade)
-                total_time = time.time() - request_start
-                logger.info(f"✅ ExecuteTradeView: Succès en {total_time:.2f}s")
-                
-                return Response(trade_serializer.data, status=status.HTTP_201_CREATED)
+                # Terminal 5 retourne le Trade créé et exécuté
+                if trade_result and 'trade' in trade_result:
+                    trade = trade_result['trade']
+                    logger.info(f"✅ Trade {trade.id} créé et exécuté par Terminal 5")
+                    
+                    # Sérialiser le trade retourné
+                    trade_serializer = TradeSerializer(trade)
+                    total_time = time.time() - request_start
+                    logger.info(f"✅ ExecuteTradeView: Succès via Terminal 5 en {total_time:.2f}s")
+                    
+                    return Response(trade_serializer.data, status=status.HTTP_201_CREATED)
+                else:
+                    raise Exception("Terminal 5 n'a pas retourné de Trade valide")
                 
             except Exception as e:
-                logger.error(f"❌ Erreur exécution trade: {e}")
+                logger.error(f"❌ Erreur exécution trade via Terminal 5: {e}")
                 
-                # Envoyer notification d'erreur
+                # Envoyer notification d'erreur générique (pas de trade créé)
                 try:
-                    if 'trade' in locals():
-                        asyncio.run(self._send_error_notification(
-                            request.user, trade.id,
-                            f'Erreur lors de l\'execution: {str(e)}', str(e)
-                        ))
+                    asyncio.run(self._send_error_notification(
+                        request.user, None,
+                        f'Erreur lors de l\'execution via Terminal 5: {str(e)}', str(e)
+                    ))
                 except:
                     pass
                 
@@ -519,12 +538,27 @@ class CurrentPriceView(APIView):
 
 
 class OpenOrdersView(APIView):
-    """Gestion des ordres ouverts"""
+    """Gestion des ordres ouverts - ÉTENDU pour paramètres Terminal 5"""
     
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Récupère les ordres ouverts"""
+        """Récupère les ordres ouverts avec paramètres étendus Terminal 5
+        
+        Paramètres de base (rétrocompatibilité):
+        - broker_id: ID du broker (obligatoire)
+        - symbol: Symbole à filtrer (optionnel)
+        - limit: Nombre max d'ordres (défaut: 100)
+        
+        Nouveaux paramètres Terminal 5 (étendus):
+        - start_time: Timestamp début (ms)
+        - end_time: Timestamp fin (ms)
+        - order_id: ID d'ordre spécifique
+        - tpsl_type: Type TP/SL ('normal' ou 'tpsl')
+        - id_less_than: Pagination Bitget
+        - request_time: Timestamp requête
+        - receive_window: Fenêtre validité
+        """
         broker_id = request.GET.get('broker_id')
         if not broker_id:
             return Response({'error': 'broker_id requis'}, status=status.HTTP_400_BAD_REQUEST)
@@ -535,15 +569,70 @@ class OpenOrdersView(APIView):
             return Response({'error': 'Broker introuvable'}, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            trading_service = TradingService(request.user, broker)
-            open_orders = asyncio.run(trading_service.get_open_orders(
-                symbol=request.GET.get('symbol'),
-                limit=request.GET.get('limit', 100)
-            ))
+            # Extraction paramètres de base (compatibilité)
+            symbol = request.GET.get('symbol')
+            limit = int(request.GET.get('limit', 100))
             
-            return Response({'orders': open_orders})
+            # Extraction paramètres étendus Terminal 5
+            start_time = request.GET.get('start_time')
+            end_time = request.GET.get('end_time')
+            order_id = request.GET.get('order_id')
+            tpsl_type = request.GET.get('tpsl_type')
+            id_less_than = request.GET.get('id_less_than')
+            request_time = request.GET.get('request_time')
+            receive_window = request.GET.get('receive_window')
+            
+            # Log des paramètres étendus utilisés
+            extended_params = {
+                k: v for k, v in {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'order_id': order_id,
+                    'tpsl_type': tpsl_type,
+                    'id_less_than': id_less_than
+                }.items() if v is not None
+            }
+            
+            if extended_params:
+                logger.info(f"🎆 OpenOrdersView ÉTENDU: {len(extended_params)} paramètres avancés utilisés: {extended_params}")
+            
+            trading_service = TradingService(request.user, broker)
+            
+            # Construire les paramètres dynamiquement (ne passer que les non-None)
+            order_params = {
+                'symbol': symbol,
+                'limit': limit
+            }
+            
+            # Ajouter paramètres étendus seulement s'ils sont fournis
+            if start_time:
+                order_params['start_time'] = start_time
+            if end_time:
+                order_params['end_time'] = end_time
+            if order_id:
+                order_params['order_id'] = order_id
+            if tpsl_type:
+                order_params['tpsl_type'] = tpsl_type
+            if id_less_than:
+                order_params['id_less_than'] = id_less_than
+            if request_time:
+                order_params['request_time'] = request_time
+            if receive_window:
+                order_params['receive_window'] = receive_window
+            
+            open_orders = asyncio.run(trading_service.get_open_orders(**order_params))
+            
+            return Response({
+                'orders': open_orders,
+                'metadata': {
+                    'broker_name': broker.name,
+                    'broker_exchange': broker.exchange,
+                    'extended_params_used': extended_params,
+                    'total_orders': len(open_orders) if open_orders else 0
+                }
+            })
         except Exception as e:
-            logger.error(f"Erreur récupération ordres ouverts: {e}")
+            logger.error(f"❌ Erreur récupération ordres ouverts: {e}")
             return Response(
                 {'error': f'Erreur récupération ordres: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -551,12 +640,28 @@ class OpenOrdersView(APIView):
 
 
 class ClosedOrdersView(APIView):
-    """Gestion des ordres fermés/exécutés"""
+    """Gestion des ordres fermés/exécutés - ÉTENDU pour paramètres Terminal 5"""
     
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Récupère les ordres fermés"""
+        """Récupère les ordres fermés avec paramètres étendus Terminal 5
+        
+        Paramètres de base (rétrocompatibilité):
+        - broker_id: ID du broker (obligatoire)
+        - symbol: Symbole à filtrer (optionnel)
+        - since: Timestamp début (compatibilité - map vers start_time)
+        - limit: Nombre max d'ordres (défaut: 100)
+        
+        Nouveaux paramètres Terminal 5 (étendus):
+        - start_time: Timestamp début (ms) - recommandé vs since
+        - end_time: Timestamp fin (ms)
+        - order_id: ID d'ordre spécifique
+        - tpsl_type: Type TP/SL ('normal' ou 'tpsl')
+        - id_less_than: Pagination Bitget
+        - request_time: Timestamp requête
+        - receive_window: Fenêtre validité
+        """
         broker_id = request.GET.get('broker_id')
         if not broker_id:
             return Response({'error': 'broker_id requis'}, status=status.HTTP_400_BAD_REQUEST)
@@ -567,16 +672,74 @@ class ClosedOrdersView(APIView):
             return Response({'error': 'Broker introuvable'}, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            trading_service = TradingService(request.user, broker)
-            closed_orders = asyncio.run(trading_service.get_closed_orders(
-                symbol=request.GET.get('symbol'),
-                since=request.GET.get('since'),
-                limit=request.GET.get('limit', 100)
-            ))
+            # Extraction paramètres de base (compatibilité)
+            symbol = request.GET.get('symbol')
+            since = request.GET.get('since')  # Compatibilité
+            limit = int(request.GET.get('limit', 100))
             
-            return Response({'orders': closed_orders})
+            # Extraction paramètres étendus Terminal 5
+            start_time = request.GET.get('start_time')
+            end_time = request.GET.get('end_time')
+            order_id = request.GET.get('order_id')
+            tpsl_type = request.GET.get('tpsl_type')
+            id_less_than = request.GET.get('id_less_than')
+            request_time = request.GET.get('request_time')
+            receive_window = request.GET.get('receive_window')
+            
+            # Log des paramètres étendus utilisés
+            extended_params = {
+                k: v for k, v in {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'order_id': order_id,
+                    'tpsl_type': tpsl_type,
+                    'id_less_than': id_less_than,
+                    'since_legacy': since  # Pour tracking compatibilité
+                }.items() if v is not None
+            }
+            
+            if extended_params:
+                logger.info(f"🎆 ClosedOrdersView ÉTENDU: {len(extended_params)} paramètres avancés utilisés: {extended_params}")
+            
+            trading_service = TradingService(request.user, broker)
+            
+            # Construire les paramètres dynamiquement (ne passer que les non-None)
+            order_params = {
+                'symbol': symbol,
+                'since': since,  # Garde compatibilité
+                'limit': limit
+            }
+            
+            # Ajouter paramètres étendus seulement s'ils sont fournis
+            if start_time:
+                order_params['start_time'] = start_time
+            if end_time:
+                order_params['end_time'] = end_time
+            if order_id:
+                order_params['order_id'] = order_id
+            if tpsl_type:
+                order_params['tpsl_type'] = tpsl_type
+            if id_less_than:
+                order_params['id_less_than'] = id_less_than
+            if request_time:
+                order_params['request_time'] = request_time
+            if receive_window:
+                order_params['receive_window'] = receive_window
+            
+            closed_orders = asyncio.run(trading_service.get_closed_orders(**order_params))
+            
+            return Response({
+                'orders': closed_orders,
+                'metadata': {
+                    'broker_name': broker.name,
+                    'broker_exchange': broker.exchange,
+                    'extended_params_used': extended_params,
+                    'total_orders': len(closed_orders) if closed_orders else 0,
+                    'compatibility_mode': 'since' in extended_params
+                }
+            })
         except Exception as e:
-            logger.error(f"Erreur récupération ordres fermés: {e}")
+            logger.error(f"❌ Erreur récupération ordres fermés: {e}")
             return Response(
                 {'error': f'Erreur récupération ordres fermés: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -559,15 +559,18 @@ class Command(BaseCommand):
     async def _get_broker_history_orders(self, broker_id: int, limit: int = None) -> List[Dict]:
         """
         Recupere les ordres history via Terminal 5 (NativeExchangeManager)
-        Compatible avec l'architecture existante
+        Compatible avec l'architecture existante + SÉCURITÉ MULTI-TENANT
         """
         if limit is None:
             limit = self.history_limit
         
         try:
-            # CORRECTION: Utiliser ExchangeClient pour uniformité avec Terminal 5
+            # 🔒 SÉCURITÉ: Récupérer user_id du broker avant création ExchangeClient
+            user_id = await self._get_broker_user_id(broker_id)
+            
+            # CORRECTION: Utiliser ExchangeClient avec user_id pour sécurité Terminal 5
             from apps.core.services.exchange_client import ExchangeClient
-            client = ExchangeClient()
+            client = ExchangeClient(user_id=user_id)
             return await client.fetch_closed_orders(broker_id, limit=limit)
                 
         except Exception as e:
@@ -646,8 +649,8 @@ class Command(BaseCommand):
             # CALCUL P&L avec Price Averaging (Phase 1)
             pnl_data = await self._calculate_pnl_price_averaging(broker_id, order_data)
             
-            # SAUVEGARDE EN BASE DE DONNEES
-            trade = await self._save_trade_to_db(broker_id, order_data, pnl_data, order)
+            # SAUVEGARDE/MISE A JOUR EN BASE DE DONNEES
+            trade = await self._save_or_update_trade(broker_id, order_data, pnl_data, order)
             
             # MISE A JOUR DES STATISTIQUES BROKER
             await self._update_broker_stats(broker_id, pnl_data)
@@ -953,51 +956,113 @@ class Command(BaseCommand):
 # SAUVEGARDE BASE DE DONNEES
 # ===============================================================
 
-    async def _save_trade_to_db(self, broker_id: int, order_data: Dict, pnl_data: Dict, raw_order: Dict) -> Trade:
+    async def _save_or_update_trade(self, broker_id: int, order_data: Dict, pnl_data: Dict, raw_order: Dict) -> Trade:
         """
-        Sauvegarde un trade en base de donnees avec toutes les donnees calculees
+        Met a jour un trade existant OU cree un nouveau trade pour ordres detectes
+        LOGIQUE CORRIGEE: UPDATE au lieu de CREATE systematique
         """
         try:
             # Recuperation de l'utilisateur du broker
             user_id = await self._get_broker_user_id(broker_id)
             
-            # Creation du trade
-            trade = await sync_to_async(Trade.objects.create)(
-                # Relations
-                user_id=user_id,
-                broker_id=broker_id,
-                source='terminal7',  # Identifier Terminal 7
+            # 1. RECHERCHER TRADE EXISTANT par exchange_order_id
+            try:
+                trade = await sync_to_async(Trade.objects.get)(
+                    exchange_order_id=order_data['order_id']
+                )
                 
-                # Donnees de l'ordre
-                symbol=order_data['symbol'],
-                side=order_data['side'],
-                order_type=order_data['type'],
-                quantity=order_data['quantity'],
-                filled_quantity=order_data['quantity'],  # Completement execute
-                price=order_data['avg_price'],
-                filled_price=order_data['avg_price'],
+                logger.info(f"✅ Trade existant trouve: {trade.id} - Mise a jour P&L")
                 
-                # Valeurs calculees
-                total_value=order_data['quantity'] * order_data['avg_price'],
-                fees=pnl_data['total_fees'],
-                realized_pnl=pnl_data['realized_pnl'],
+                # MISE A JOUR avec donnees Terminal 7
+                trade.realized_pnl = pnl_data['realized_pnl']
+                trade.fees = pnl_data['total_fees']
+                trade.filled_quantity = order_data['quantity']
+                trade.filled_price = order_data['avg_price']
+                trade.status = 'completed'
+                trade.exchange_order_status = 'filled'
+                trade.executed_at = order_data['executed_at']
                 
-                # Status et timing
-                status='completed',
-                exchange_order_status='filled',
-                exchange_order_id=order_data['order_id'],
-                exchange_client_order_id=order_data.get('client_order_id'),
-                executed_at=order_data['executed_at'],
+                # Enrichir avec TOUTES les donnees Exchange (NOUVEAU)
+                trade.exchange_user_id = raw_order.get('userId')
+                trade.enter_point_source = raw_order.get('enterPointSource')
+                trade.order_source = raw_order.get('orderSource')
+                trade.quote_volume = raw_order.get('quoteVolume')
+                trade.amount = raw_order.get('amount')
+                trade.trade_id = raw_order.get('tradeId')
+                trade.trade_scope = raw_order.get('tradeScope')
+                trade.tpsl_type = raw_order.get('tpslType')
+                trade.cancel_reason = raw_order.get('cancelReason')
                 
-                # Metadata pour debug et evolution
-                notes=f"P&L auto-calcule par Terminal 7 ({pnl_data['calculation_method']})",
-                raw_order_data=raw_order,  # JSON complet pour debug
+                # JSON complets (DEBUG + FRAIS)
+                trade.fee_detail = raw_order.get('feeDetail')
+                trade.exchange_raw_data = raw_order
                 
-                # Champs specifiques Terminal 7
-                pnl_calculation_method=pnl_data['calculation_method'],
-                avg_buy_price=pnl_data.get('avg_buy_price', 0.0),
-                position_quantity_after=pnl_data.get('position_quantity', 0.0)
-            )
+                # Metadonnees mise a jour
+                current_notes = trade.notes or ""
+                trade.notes = f"{current_notes}\nP&L enrichi par Terminal 7 ({pnl_data['calculation_method']})"
+                
+                await sync_to_async(trade.save)()
+                logger.info(f"✅ Trade {trade.id} mis a jour avec P&L: {trade.realized_pnl}")
+                return trade
+                
+            except Trade.DoesNotExist:
+                # 2. CREER NOUVEAU TRADE pour ordre "orphelin" detecte
+                logger.warning(f"⚠️ Ordre orphelin detecte: {order_data['order_id']} - Creation nouveau Trade")
+                
+                trade = await sync_to_async(Trade.objects.create)(
+                    # Relations
+                    user_id=user_id,
+                    broker_id=broker_id,
+                    source='terminal7',
+                    
+                    # TRAÇABILITÉ ORDRE DETECTE
+                    ordre_existant="By Terminal7 detection",
+                    
+                    # Donnees de l'ordre
+                    symbol=order_data['symbol'],
+                    side=order_data['side'],
+                    order_type=order_data['type'],
+                    quantity=order_data['quantity'],
+                    filled_quantity=order_data['quantity'],
+                    price=order_data['avg_price'],
+                    filled_price=order_data['avg_price'],
+                    
+                    # Valeurs calculees
+                    total_value=order_data['quantity'] * order_data['avg_price'],
+                    fees=pnl_data['total_fees'],
+                    realized_pnl=pnl_data['realized_pnl'],
+                    
+                    # Status et timing
+                    status='completed',
+                    exchange_order_status='filled',
+                    exchange_order_id=order_data['order_id'],
+                    exchange_client_order_id=order_data.get('client_order_id'),
+                    executed_at=order_data['executed_at'],
+                    
+                    # TOUS les champs Exchange (MAPPING COMPLET)
+                    exchange_user_id=raw_order.get('userId'),
+                    enter_point_source=raw_order.get('enterPointSource'),
+                    order_source=raw_order.get('orderSource'),
+                    quote_volume=raw_order.get('quoteVolume'),
+                    amount=raw_order.get('amount'),
+                    trade_id=raw_order.get('tradeId'),
+                    trade_scope=raw_order.get('tradeScope'),
+                    tpsl_type=raw_order.get('tpslType'),
+                    cancel_reason=raw_order.get('cancelReason'),
+                    
+                    # JSON complets
+                    fee_detail=raw_order.get('feeDetail'),
+                    exchange_raw_data=raw_order,
+                    
+                    # Metadata
+                    notes=f"Ordre detecte par Terminal 7 ({pnl_data['calculation_method']})",
+                    pnl_calculation_method=pnl_data['calculation_method'],
+                    avg_buy_price=pnl_data.get('avg_buy_price', 0.0),
+                    position_quantity_after=pnl_data.get('position_quantity', 0.0)
+                )
+                
+                logger.info(f"✅ Nouveau Trade orphelin cree: {trade.id} - {order_data['symbol']}")
+                return trade
             
             logger.info(f"Trade sauvegarde: ID {trade.id}, {order_data['symbol']} {order_data['side']}")
             return trade

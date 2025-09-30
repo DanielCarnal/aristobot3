@@ -14,7 +14,8 @@ class PortfolioService:
     def __init__(self, user, broker):
         self.user = user
         self.broker = broker
-        self.ccxt_client = CCXTClient()
+        # 🔒 SÉCURITÉ: Passer user_id à ExchangeClient pour éviter faille multi-tenant
+        self.ccxt_client = CCXTClient(user_id=user.id)
     
     async def get_portfolio_summary(self):
         """Resume complet du portfolio - OPTIMISÉ avec UNE SEULE requête batch"""

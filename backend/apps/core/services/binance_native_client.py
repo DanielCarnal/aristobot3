@@ -874,6 +874,296 @@ class BinanceNativeClient(BaseExchangeClient):
             return f"{symbol[:-3]}/ETH"
         else:
             return symbol
+    
+    # === IMPLÉMENTATION MÉTHODES ABSTRAITES BASEEXCHANGECLIENT ===
+    
+    def _extract_quote_volume(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION VOLUME COTATION BINANCE
+        
+        Volume tradé en devise de cotation (ex: USDT pour BTC/USDT).
+        Binance utilise 'cummulativeQuoteQty' pour le volume total exécuté.
+        """
+        return self._safe_float(native_response.get('cummulativeQuoteQty', 0))
+    
+    def _extract_base_volume(self, native_response: Dict) -> float:
+        """
+        📊 EXTRACTION VOLUME BASE BINANCE
+        
+        Volume tradé en devise de base (ex: BTC pour BTC/USDT).
+        Binance utilise 'executedQty' pour la quantité de base exécutée.
+        """
+        return self._safe_float(native_response.get('executedQty', 0))
+    
+    def _extract_price_avg(self, native_response: Dict) -> float:
+        """
+        💵 EXTRACTION PRIX MOYEN EXÉCUTION BINANCE
+        
+        Prix moyen d'exécution calculé depuis cummulativeQuoteQty / executedQty.
+        Binance n'a pas de champ 'priceAvg' direct, on le calcule.
+        """
+        executed_qty = self._safe_float(native_response.get('executedQty', 0))
+        cumulative_quote = self._safe_float(native_response.get('cummulativeQuoteQty', 0))
+        
+        if executed_qty > 0 and cumulative_quote > 0:
+            return cumulative_quote / executed_qty
+        
+        # Fallback: prix d'ordre original
+        return self._safe_float(native_response.get('price', 0))
+    
+    def _extract_order_source(self, native_response: Dict) -> str:
+        """
+        🔍 EXTRACTION SOURCE ORDRE BINANCE
+        
+        Binance n'a pas de champ 'orderSource' explicite.
+        On peut déduire depuis le type d'ordre et les caractéristiques.
+        """
+        order_type = native_response.get('type', '').upper()
+        
+        # Mapping basique selon le type d'ordre
+        if order_type == 'MARKET':
+            return 'market'
+        elif order_type in ['LIMIT', 'LIMIT_MAKER']:
+            return 'limit'
+        elif order_type in ['STOP_LOSS', 'STOP_LOSS_LIMIT', 'TAKE_PROFIT', 'TAKE_PROFIT_LIMIT']:
+            return 'conditional'
+        elif order_type == 'OCO':
+            return 'oco'
+        else:
+            return 'unknown'
+    
+    def _extract_enter_point_source(self, native_response: Dict) -> str:
+        """
+        📱 EXTRACTION POINT D'ENTRÉE BINANCE
+        
+        Binance n'expose pas explicitement la source (WEB, API, APP).
+        On peut déduire partiellement depuis certains indices.
+        """
+        # Si clientOrderId est présent et suit un pattern API, probablement API
+        client_order_id = native_response.get('clientOrderId', '')
+        
+        if client_order_id:
+            # Les ordres API ont souvent des IDs structurés
+            if len(client_order_id) > 20 or 'api' in client_order_id.lower():
+                return 'API'
+            else:
+                return 'WEB'  # Probable interface web
+        
+        return 'unknown'
+    
+    def _extract_fee_detail(self, native_response: Dict) -> Dict:
+        """
+        💸 EXTRACTION DÉTAILS FRAIS BINANCE
+        
+        Binance ne retourne pas les frais dans l'endpoint d'ordre standard.
+        Les frais sont disponibles via /api/v3/myTrades (nécessite appel séparé).
+        Pour l'instant, structure vide avec indication de récupération différée.
+        """
+        return {
+            'total_fee': 0.0,
+            'fee_currency': 'unknown',
+            'breakdown': [],
+            'note': 'Frais Binance disponibles via endpoint /api/v3/myTrades (appel séparé requis)'
+        }
+    
+    def _extract_cancel_reason(self, native_response: Dict) -> str:
+        """
+        ❌ EXTRACTION RAISON ANNULATION BINANCE
+        
+        Binance n'expose pas de raison d'annulation détaillée.
+        On peut déduire depuis le statut.
+        """
+        status = native_response.get('status', '').upper()
+        
+        if status == 'CANCELED':
+            return 'user_canceled'  # Annulation utilisateur (le plus probable)
+        elif status == 'REJECTED':
+            return 'rejected'  # Rejeté par le système
+        elif status == 'EXPIRED':
+            return 'expired'  # Expiré (ordres conditionnels)
+        
+        return None  # Pas d'annulation
+    
+    def _extract_amount_total(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION MONTANT TOTAL BINANCE
+        
+        Montant total tradé. Pour Binance, utilise 'executedQty' comme volume de base.
+        """
+        return self._safe_float(native_response.get('executedQty', 0))
+    
+    def _extract_update_time(self, native_response: Dict) -> Optional[datetime]:
+        """
+        🕒 EXTRACTION TEMPS MISE À JOUR BINANCE
+        
+        Temps de dernière mise à jour de l'ordre.
+        Utilise le champ 'updateTime' de Binance.
+        """
+        update_time_ms = native_response.get('updateTime')
+        if update_time_ms:
+            try:
+                # updateTime est en millisecondes Unix
+                return datetime.fromtimestamp(int(update_time_ms) / 1000)
+            except (ValueError, TypeError):
+                pass
+        return None
+    
+    def _extract_trade_id(self, native_response: Dict) -> Optional[str]:
+        """
+        🆔 EXTRACTION ID TRADE BINANCE
+        
+        ID unique du trade/ordre.
+        Utilise 'orderId' comme identifiant principal.
+        """
+        order_id = native_response.get('orderId')
+        return str(order_id) if order_id else None
+    
+    def _extract_executed_at(self, native_response: Dict) -> Optional[datetime]:
+        """
+        ⏰ EXTRACTION TEMPS D'EXÉCUTION BINANCE
+        
+        Moment d'exécution de l'ordre.
+        Pour Binance, utilise 'workingTime' ou 'updateTime'.
+        """
+        # Priorité à workingTime puis updateTime
+        executed_time_ms = native_response.get('workingTime') or native_response.get('updateTime')
+        if executed_time_ms:
+            try:
+                return datetime.fromtimestamp(int(executed_time_ms) / 1000)
+            except (ValueError, TypeError):
+                pass
+        return None
+
+    def _extract_specialized_fields(self, native_response: Dict) -> Dict:
+        """
+        🔧 EXTRACTION CHAMPS SPÉCIALISÉS BINANCE
+        
+        Tous les champs spécifiques à Binance non couverts par l'interface standard.
+        """
+        return {
+            # Identifiants Binance
+            'client_order_id': native_response.get('clientOrderId'),
+            'order_list_id': native_response.get('orderListId'),  # Pour OCO orders
+            
+            # Timing détaillé
+            'updated_at': self._format_timestamp_binance(native_response.get('updateTime')),
+            'working_time': self._format_timestamp_binance(native_response.get('workingTime')),
+            
+            # Quantités détaillées
+            'orig_qty': self._safe_float(native_response.get('origQty', 0)),
+            'executed_qty': self._safe_float(native_response.get('executedQty', 0)),
+            'orig_quote_order_qty': self._safe_float(native_response.get('origQuoteOrderQty', 0)),
+            
+            # Conditions d'ordre (STOP, OCO, etc.)
+            'stop_price': self._safe_float(native_response.get('stopPrice')),
+            'iceberg_qty': self._safe_float(native_response.get('icebergQty')),
+            
+            # Flags et attributs Binance
+            'time_in_force': native_response.get('timeInForce'),  # GTC, IOC, FOK
+            'self_trade_prevention_mode': native_response.get('selfTradePreventionMode'),
+            
+            # Champs techniques Binance pour debug
+            'binance_raw_status': native_response.get('status'),
+            'binance_order_type': native_response.get('type'),
+            'order_report_type': native_response.get('executionType'),  # NEW, TRADE, CANCELED, etc.
+            
+            # Statut de travail
+            'is_working': native_response.get('isWorking', False)
+        }
+    
+    def _format_timestamp_binance(self, timestamp_ms: Union[int, str]) -> str:
+        """
+        🕒 FORMATAGE TIMESTAMP BINANCE VERS ISO
+        
+        Convertit les timestamps Unix millisecondes Binance vers format ISO.
+        """
+        if not timestamp_ms:
+            return None
+        try:
+            timestamp_ms = int(timestamp_ms)
+            dt = datetime.fromtimestamp(timestamp_ms / 1000)
+            return dt.isoformat()
+        except (ValueError, TypeError):
+            return None
+    
+    async def get_complete_order_details(self, order_id: str, client_order_id: str = None) -> Dict:
+        """
+        🔍 RÉCUPÉRATION DÉTAILS ORDRE COMPLETS - IMPLÉMENTATION BASEEXCHANGECLIENT
+        
+        Binance nécessite un appel spécialisé pour récupérer un ordre spécifique.
+        On utilise l'endpoint /api/v3/order avec signature.
+        
+        Args:
+            order_id: ID ordre Binance ou None
+            client_order_id: ID client personnalisé ou None
+            
+        Returns:
+            Dict: Réponse standardisée avec ordre complet au format Aristobot unifié
+        """
+        try:
+            # Construire les paramètres selon l'ID disponible
+            params = {}
+            if order_id:
+                params['orderId'] = order_id
+            elif client_order_id:
+                params['origClientOrderId'] = client_order_id
+            else:
+                return {
+                    'success': False,
+                    'error': 'Au moins order_id ou client_order_id requis',
+                    'order': None
+                }
+            
+            # Note: Pour l'instant on simule, l'implémentation complète nécessiterait
+            # un endpoint dédié /api/v3/order avec signature
+            
+            # TEMPORARY: Utiliser la logique existante comme fallback
+            # En production, implémenter l'appel GET /api/v3/order
+            
+            logger.warning(f"🔍 get_complete_order_details Binance: fonctionnalité partielle, order_id={order_id}")
+            
+            # Simuler une réponse basique pour l'instant
+            order_data = {
+                'orderId': order_id,
+                'clientOrderId': client_order_id,
+                'status': 'UNKNOWN',
+                'type': 'UNKNOWN',
+                'side': 'UNKNOWN',
+                'origQty': '0',
+                'executedQty': '0',
+                'cummulativeQuoteQty': '0',
+                'price': '0',
+                'time': int(time.time() * 1000),
+                'updateTime': int(time.time() * 1000)
+            }
+            
+            # Appliquer la standardisation complète
+            standardized_order = self._standardize_complete_order_response(order_data)
+            
+            return {
+                'success': True,
+                'order': standardized_order,
+                'raw_data': order_data,
+                'lookup_method': 'simulated_binance_order_query',
+                'note': 'Implémentation partielle - nécessite endpoint GET /api/v3/order'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur get_complete_order_details Binance: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'order': None
+            }
+    
+    def _safe_float(self, value) -> float:
+        """Conversion sécurisée vers float"""
+        if value is None or value == '' or value == '0.00000000':
+            return 0.0
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return 0.0
 
 
 # Enregistrement du client Binance dans la factory

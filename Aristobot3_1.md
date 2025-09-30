@@ -10,8 +10,8 @@ Aristobot V3.1 est un bot de trading de cryptomonnaies personnel, développé so
   * **Shipping > Process** : Livrer des fonctionnalités fonctionnelles rapidement.
   * **Pragmatique > Enterprise** : Des solutions simples pour un projet à échelle humaine.
   * **Itération Rapide** : Des cycles de développement courts pour un feedback immédiat.
-* **Limites et Contraintes Fondamentales** :
 
+* **Limites et Contraintes Fondamentales** :
   * **Utilisateurs** : Strictement limité à 5 utilisateurs.
   * **Stratégies** : Limité à 20 stratégies actives simultanément.
   * **Environnement de Développement** : Conda avec Python 3.11, en utilisant VS Code et des assistants IA.
@@ -30,6 +30,7 @@ Aristobot V3.1 est un bot de trading de cryptomonnaies personnel, développé so
   * **Validation des Données** : La validation se fera à la fois côté client (pour une meilleure expérience utilisateur) et côté serveur via les **serializers Django Rest Framework** (pour la sécurité et l'intégrité).
   * **Format des Erreurs** : Les messages d'erreur retournés par l'API seront **techniques et en français** (ex: "Erreur de connexion à Binance : Invalid API Key"), pour faciliter le débogage.
   * **Les clés API doivent être chiffrées**, en utilisant la `SECRET_KEY` de Django comme clé de chiffrement pour plus de simplicité.
+  * **Implémentation des API externes**, TOUJOURS implémenter l'API dans son entier. Ne passe contenter de la partie utile au moment du développement, implémenter TOUTES les fonctionnalités de l'API afin qu'elle soit utile dans pour d'autre applications Aristobot3.
 
 ### Structure des Fichiers
 
@@ -215,16 +216,23 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
        * Affichage temps réel des données
        * Gestion locale de l'état UI (Pinia)
 
-##### **Terminal 5 : Native Exchange Gateway (Migré)**
+##### **Terminal 5 : Native Exchange Gateway**
    * **Commande** : `python manage.py run_native_exchange_service`
    * **Fichier de démarrage** : `Start2 - Terminal 5 _ Native Exchange Service.bat`
    * **Port** : Aucun (écoute Redis)
-   * **Rôle** : Le "hub" centralisé pour toutes les connexions aux exchanges avec APIs natives. Remplace l'ancien service CCXT. Maintient des connexions lazy loading et communique avec les autres services via Redis. Performance ~56% supérieure.
+   * **Rôle** : Le "hub" centralisé pour toutes les connexions aux exchanges avec APIs natives. Maintient des connexions lazy loading et communique avec les autres services via Redis. Enregistre toutes les demandes des applications (Trading Manuel, Wenhook, Trading Bot, Terminal 7) AVEC les réponses des exchanges dans la DB
    * **Responsabilités** :
-      - Exécuter les ordres de trading
-      - Récupérer les balances et positions
+      - Exécuter les **ordres** de trading
+      - Récupérer les **balances** et **positions**
       - Tester les connexions pour User Account
       - Charger les marchés à la demande pour User Account
+      - Proposer des **données unifiée** aux autres services, Terminaux et applications Django de Aristobot.
+          - Communication native avec les Exchanges
+          - Communication unifiée avec le reste des applications (conversion multi Exchanges).
+      - **Enregistrer dans la DB**, table `trade`, toutes les demandes d'exécution d'ordre (achat, vente, modification, suppression, insertion), **avec** la réponse de l'Exchange. Toutes les données reçues de l'Exchange doivent être enregistrées **avec** la demande initiale complète, incluant l'identifiant du demandeur ("Trading Manuel", "Webhooks", "Trading Bot", "Terminal 7") ainsi qu’un TimeStamp. Les données unifiées sont utilisées.
+.
+   * **DIRECTIVE à l'agent IA:**
+       * Les API natives des exchanges doivent **obligatoirement** être développées dans leur entièreté avec TOUTES les caractéristiques et paramètres qui les définissent.
      
 ##### **Terminal 6 : Service Webhook Receiver (NOUVEAU)**
 - **Commande** : `python manage.py run_webhook_receiver`
@@ -281,19 +289,21 @@ Ces services forment l'épine dorsale de l'application et fonctionnent en arriè
         │   • Retourne confirmations                                      │
         └───────────────────────────────────────────────────────────┘
 ```
-##### **Terminal 7 : Service de suivi des ordres (NOUVEAU)**
+##### **Terminal 7 : Service de suivi des ordres**
 * **Commande** : `python manage.py run_???`
 * **Port** : Aucun (écoute Redis)
-* **Rôle** : Il recherche les ordres qui ont été FILL et met à jours la DB à chaque signal. Il est responsable des calculs P&L, rendements et autres statistiques. Il communique les résultats par wevsocket avec les applications qui demande des informations. Ce service écoute les signaux émis par le `Heartbeat`, qui sert de déclencheur pour lexécution des prcessus. 
+* **Rôle** : Il recherche les ordres qui ont été FILL et met à jours la DB à chaque signal. Il est responsable des calculs P&L, rendements et autres statistiques. Il communique les résultats par websocket avec les applications qui demande des informations. Ce service écoute les signaux émis par le `Heartbeat`, qui sert de déclencheur pour l'exécution des processus. 
 * **Responsabilités** :
-  - Écouter signaux Heartbeat
-  - Charger les ordres ouverts des exchanges, vérifier leur présences dans la DB (enregistrés lors de la création). S'ils n'existent pas les ajouter (l'ordre a pu être passé dans la console de l'Exchange). Renseigner la colonne "OrdreExistant" par "Ajouté par Terminal 7"
+  - Le signal est l'horloge système, toute les 10 secondes
+  - Charger les ordres ouverts des exchanges, vérifier leur présences dans la DB table `trade` (enregistrés lors de la création par Terminal 5). S'ils n'existent pas les ajouter dans la DB (ces ordre pourraient avoir été passés directement depuis l'interface native de l'Exchange). Renseigner la colonne "ordre_existant" avec "Ajouté par Terminal 7"
   - Charger les ordres exécutés
-  - Comparer avec l'état précédent (est-ce qu'il y a des ordres ouverts qui ont été FILL ?)
-      - Oui, calculer le P&L
-      - Non, ne rien faire
-  * Est-ce qu'il y a des ordres Limit pas complétement Fill ?
-  - Communiquer avec Terminal 5 pour exécution
+  - Comparer avec l'état précédent (est-ce qu'il y a des ordres ouverts qui ont été FILL ? ou partiellement FILL ?)
+      - Oui
+          - Enregistrer dans la DB, table `trade` les ordres FIll, les identifier et les lier à, ou modifier, l'enregistrement correspondant AVEC la réponse de l'Exchange. TOUTES les informations reçue de l'Exchange doivent être enregistrées au format unifié Aristobot (conversion multi Exchanges).
+          - calculer le P&L
+      - Non
+          - ne rien faire
+  - Communiquer avec Terminal 5 via Redis pour exécution des demandes
 
 **ARCHITECTURE Block**
 ```ascii
@@ -596,7 +606,6 @@ Terminal 5 expose de nouvelles actions pour supporter User Account :
 
 Chaque application Django est un module spécialisé, interagissant avec les autres et la base de données.
 
-
 #### 4.2. **User Account (`apps/accounts` - Terminal 1)**
 
 * **Rôle** : Gérer le compte utilisateur, leurs paramètres de sécurité et leurs configurations personnelles4
@@ -641,6 +650,8 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
   * Définir un broker par défaut.
   * Configurer la connexion à une IA (OpenRouter ou Ollama) avec clé API/URL et un switch ON/OFF.
   * Gérer les paramètres d'affichage décrits.
+  * **Capacités Exchange**
+    * Un bouton "Capacités" lance une modale décrivant les capacités de l'Exchange sélectionné, sur chaque ligne d'Exchange
     
 * **DB** : Interagit principalement
     * Table `users` (étendue du modèle Django
@@ -662,20 +673,17 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
   * **Récupération** de la balance et des positions en cours.
       * Utiliser 
   * **Passer un ordre**
-      * Passage d'ordres (marché, limite). Exécution asynchrone pour éviter les timeouts HTTP
+      * Passage d'ordres (marché, limite et tous les autres types). Exécution asynchrone pour éviter les timeouts HTTP
   * Récupère le marché depuis **ExchangeClient**
-  * Récupère l'attribut **`exchange.has`** qui te donne la liste des capacités (fonctions) disponibles pour un exchange donné.
+
   * **Ordres ouverts et ordres fermés**
       * Récupère les ordres ouverts
       * Supprimer des ordres ouverts 
       * Modifier des ordres ouverts
-      * Exécution Exchange Gateway en thread séparé avec mise à jour DB automatique
-          - Mode Historique : (30 derniers jours, fix dans le code)
-              - Tri automatique par date (plus récent en premier)
-              - Chargement intelligent selon le mode sélectionné
-          - Gestion d'état réactive : Variables orderViewMode, closedOrders, ordersLoading
-          - Propriété calculée currentOrdersList : Fusion dynamique des listes d'ordres
-          - Mise à jour automatique : Rechargement des bonnes données après exécution/annulation
+  
+  * **Zone Trades récents**
+      * Lecture des données directement depuis la DB
+        
   * **Note technique** : Utilise **ExchangeClient** (service centralisé)
     
     
@@ -695,8 +703,7 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
           * Bouton Exécuter
           * Cadre _trade-summary_ AU-DESSUS des boutons valider et exécuter (Zone pour afficher différents messages par exemple résumé du trade calculé, message de confirmation de l'Exchange, etc.)
           * Cadre _validation-status_ EN-DESSOUS (statut de validation orange/vert avec timer)
-      * **Capacités Exchange**
-          * Une zone d'information décrivant les capacités de l'Exchange sélectionné, près de la liste des broker
+
       * **Ordres ouverts et fermés**
           * Voir l'historique complet des ordres (ouverts + fermés) via le toggle "Historique"
           * 
@@ -709,10 +716,13 @@ Chaque application Django est un module spécialisé, interagissant avec les aut
                   * Gestion d'état réactive : Variables orderViewMode, closedOrders, ordersLoading
                   * Propriété calculée currentOrdersList : Fusion dynamique des listes d'ordres
                   * Mise à jour automatique : Rechargement des bonnes données après exécution/annulation
-          *    
-* **DB** : Enregistre chaque transaction manuelle dans la table `trades`. **Important** renseigner dans un champ que c'est un Trade Manuel.
-    * **Ordres ouverts**
-      * rien à faire
+      * **Zone Trades récents**
+          * Afficher AA-MM-JJ HH:MM:SS, Symbole, Type, Side, Quantité, Prix/Trigger, Total, Status, P&L
+          * Ce sont les enregistrements de tous les trades passés. Terminal 5 est le maître d'ouvr pour ces opérations.
+            
+        
+* **REDIS** : Terminal 5 enregistre chaque transaction manuelle dans la table `trades`. Il est **Important** de renseigner dans le champ adhoc que c'est un "Trade Manuel" et passer un TimeStamp avec le reste de la demande d'exécution d'ordre.
+
 
 ##### 4.3.1 Ordre SL, TP, OCO (Rafactoring)
 * **But**: Ajouter les types d'ordres nécessaire au trading. Documentation des APIs natives des exchanges

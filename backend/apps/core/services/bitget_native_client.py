@@ -795,6 +795,22 @@ class BitgetNativeClient(BaseExchangeClient):
         size = self._safe_float(order_data.get('size', 0))
         fill_size = self._safe_float(order_data.get('fillSize', 0))
         
+        # 🔧 CORRECTION ORDRES MARKET: Utiliser base_volume au lieu de size pour quantité réelle
+        order_type_raw = order_data.get('orderType', 'unknown')
+        
+        # 🔍 DEBUG: Afficher les timestamps bruts pour diagnostic dates
+        if order_type_raw == 'market':
+            logger.warning(f"🕐 DEBUG TIMESTAMP: symbol={order_data.get('symbol')} | cTime={order_data.get('cTime')} | uTime={order_data.get('uTime')} | created_at_str={created_at_str}")
+        
+        if order_type_raw == 'market' and base_volume > 0:
+            # Pour ordres MARKET: base_volume = vraie quantité, size = montant USD demandé
+            actual_amount = base_volume
+            actual_filled = base_volume  # Les ordres market sont généralement entièrement remplis
+        else:
+            # Pour ordres LIMIT: size = quantité commandée
+            actual_amount = size
+            actual_filled = fill_size
+        
         # === PRIX ET EXÉCUTION ===
         price = self._extract_order_price(order_data)
         price_avg = self._safe_float(order_data.get('priceAvg'))
@@ -809,10 +825,10 @@ class BitgetNativeClient(BaseExchangeClient):
             'symbol': order_data.get('symbol'),
             'side': order_data.get('side'),
             'type': order_type,
-            'amount': size,
+            'amount': actual_amount,
             'price': price,
-            'filled': fill_size,
-            'remaining': max(0, size - fill_size),  # Sécuriser contre valeurs négatives
+            'filled': actual_filled,
+            'remaining': max(0, actual_amount - actual_filled),  # Sécuriser contre valeurs négatives
             'status': order_data.get('status', 'unknown'),
             'created_at': created_at_str,
             
@@ -858,15 +874,32 @@ class BitgetNativeClient(BaseExchangeClient):
     
     def _format_timestamp(self, timestamp_str: str) -> str:
         """
-        🕒 FORMATAGE TIMESTAMP BITGET VERS ISO
+        🕒 FORMATAGE TIMESTAMP BITGET VERS ISO + CORRECTION DÉCALAGE
         
         Convertit les timestamps Unix millisecondes Bitget vers format ISO.
         Utilisé pour cTime et uTime des ordres.
+        
+        CORRECTION: Les timestamps Bitget semblent avoir un décalage
+        (ex: 1757445018290 = 2025-09-09 au lieu de 2024-09-26)
         """
         if not timestamp_str:
             return None
         try:
-            dt = datetime.fromtimestamp(int(timestamp_str) / 1000)
+            timestamp_ms = int(timestamp_str)
+            
+            # 🔍 DEBUG: Calculer le décalage par rapport à maintenant
+            now_ms = int(datetime.now().timestamp() * 1000)
+            diff_days = (timestamp_ms - now_ms) / (1000 * 60 * 60 * 24)
+            
+            # Si le timestamp est dans le futur de plus de 30 jours, corriger
+            if diff_days > 30:
+                # Approximation: soustraire environ 365 jours (1 an)
+                corrected_ms = timestamp_ms - (365 * 24 * 60 * 60 * 1000)
+                logger.warning(f"🕐 CORRECTION TIMESTAMP: {timestamp_str} -> {corrected_ms} (diff: {diff_days:.1f} jours)")
+                dt = datetime.fromtimestamp(corrected_ms / 1000)
+            else:
+                dt = datetime.fromtimestamp(timestamp_ms / 1000)
+            
             return dt.isoformat()
         except (ValueError, TypeError):
             return None
@@ -957,13 +990,17 @@ class BitgetNativeClient(BaseExchangeClient):
     
     def _extract_order_price(self, order_data: Dict) -> float:
         """
-        💰 EXTRACTION PRIX ORDRE - CORRECTION POUR ORDRES LIMIT
+        💰 EXTRACTION PRIX ORDRE - CORRECTION POUR ORDRES LIMIT + DEBUG MARKET
         
         Bitget utilise différents champs selon le type d'ordre :
         - priceAvg : Prix des ordres LIMIT (doc ligne 81)
         - triggerPrice : Prix des ordres TRIGGER/TP/SL
         - price : Fallback générique (peut être vide)
         """
+        # 🔍 DEBUG: Afficher tous les champs de prix pour ordres MARKET
+        order_type = order_data.get('orderType', 'unknown')
+        if order_type == 'market':
+            logger.warning(f"🔍 DEBUG MARKET PRIX: orderType={order_type} | priceAvg={order_data.get('priceAvg')} | triggerPrice={order_data.get('triggerPrice')} | price={order_data.get('price')} | symbol={order_data.get('symbol')}")
         # 1. Essayer priceAvg (ordres LIMIT)
         price_avg = order_data.get('priceAvg')
         if price_avg and price_avg != "0" and price_avg != "":
@@ -1147,6 +1184,12 @@ class BitgetNativeClient(BaseExchangeClient):
                 orders.append(order)
             
             logger.info(f"📚 Historique Bitget: {len(orders)} ordres trouvés")
+            
+            # 🔍 DEBUG: Afficher TOUS les ordres pour diagnostic complet
+            if orders:
+                logger.warning(f"🔍 DEBUG: {len(orders)} ordres trouvés - Analyse détaillée:")
+                for i, order in enumerate(orders[:5]):  # Max 5 ordres pour éviter spam
+                    logger.warning(f"  [{i+1}] {order['symbol']} - amount:{order['amount']} filled:{order['filled']} base_volume:{order['base_volume']} quote_volume:{order['quote_volume']} price:{order['price']} status:{order['status']}")
             
             # 📊 INFO PLAGE UTILISÉE (pour debug/logs)
             period_info = {
@@ -1402,6 +1445,198 @@ class BitgetNativeClient(BaseExchangeClient):
         else:
             # Fallback : retourner tel quel
             return symbol
+    
+    # === IMPLÉMENTATION MÉTHODES ABSTRAITES BASEEXCHANGECLIENT ===
+    
+    def _extract_quote_volume(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION VOLUME COTATION BITGET
+        
+        Volume tradé en devise de cotation (ex: USDT pour BTC/USDT).
+        Utilise le champ 'quoteVolume' de l'API Bitget.
+        """
+        return self._safe_float(native_response.get('quoteVolume', 0))
+    
+    def _extract_base_volume(self, native_response: Dict) -> float:
+        """
+        📊 EXTRACTION VOLUME BASE BITGET
+        
+        Volume tradé en devise de base (ex: BTC pour BTC/USDT).
+        Utilise le champ 'baseVolume' de l'API Bitget.
+        """
+        return self._safe_float(native_response.get('baseVolume', 0))
+    
+    def _extract_price_avg(self, native_response: Dict) -> float:
+        """
+        💵 EXTRACTION PRIX MOYEN EXÉCUTION BITGET
+        
+        Prix moyen d'exécution réel (différent du prix d'ordre limite).
+        Utilise le champ 'priceAvg' de l'API Bitget.
+        """
+        return self._safe_float(native_response.get('priceAvg'))
+    
+    def _extract_order_source(self, native_response: Dict) -> str:
+        """
+        🔍 EXTRACTION SOURCE ORDRE BITGET
+        
+        Source/origine de l'ordre (normal, market, spot_trader_buy, etc.).
+        Utilise le champ 'orderSource' de l'API Bitget.
+        """
+        return native_response.get('orderSource', 'unknown')
+    
+    def _extract_enter_point_source(self, native_response: Dict) -> str:
+        """
+        📱 EXTRACTION POINT D'ENTRÉE BITGET
+        
+        Client/interface utilisé pour placer l'ordre (WEB, API, APP, etc.).
+        Utilise le champ 'enterPointSource' de l'API Bitget.
+        """
+        return native_response.get('enterPointSource', 'unknown')
+    
+    def _extract_fee_detail(self, native_response: Dict) -> Dict:
+        """
+        💸 EXTRACTION DÉTAILS FRAIS BITGET
+        
+        Parsing et structure des frais détaillés.
+        Réutilise la logique existante _parse_fee_detail().
+        """
+        return self._parse_fee_detail(native_response.get('feeDetail'))
+    
+    def _extract_cancel_reason(self, native_response: Dict) -> str:
+        """
+        ❌ EXTRACTION RAISON ANNULATION BITGET
+        
+        Raison de l'annulation si applicable.
+        Utilise le champ 'cancelReason' de l'API Bitget.
+        """
+        return native_response.get('cancelReason')
+    
+    def _extract_amount_total(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION MONTANT TOTAL BITGET
+        
+        Montant total tradé (base_volume pour Bitget).
+        Utilise le même champ que base_volume.
+        """
+        return self._safe_float(native_response.get('baseVolume', 0))
+    
+    def _extract_update_time(self, native_response: Dict) -> Optional[datetime]:
+        """
+        🕒 EXTRACTION TEMPS MISE À JOUR BITGET
+        
+        Temps de dernière mise à jour de l'ordre.
+        Utilise le champ 'uTime' de Bitget.
+        """
+        update_time_str = native_response.get('uTime')
+        if update_time_str:
+            try:
+                # uTime est en millisecondes Unix
+                timestamp_ms = int(update_time_str)
+                return datetime.fromtimestamp(timestamp_ms / 1000)
+            except (ValueError, TypeError):
+                pass
+        return None
+    
+    def _extract_trade_id(self, native_response: Dict) -> Optional[str]:
+        """
+        🆔 EXTRACTION ID TRADE BITGET
+        
+        ID unique du trade/ordre.
+        Utilise 'orderId' comme identifiant principal.
+        """
+        return native_response.get('orderId')
+    
+    def _extract_executed_at(self, native_response: Dict) -> Optional[datetime]:
+        """
+        ⏰ EXTRACTION TEMPS D'EXÉCUTION BITGET
+        
+        Moment d'exécution de l'ordre.
+        Pour Bitget, utilise 'cTime' (création) ou 'uTime' (mise à jour).
+        """
+        # Priorité à uTime (dernière mise à jour)
+        executed_time_str = native_response.get('uTime') or native_response.get('cTime')
+        if executed_time_str:
+            try:
+                timestamp_ms = int(executed_time_str)
+                return datetime.fromtimestamp(timestamp_ms / 1000)
+            except (ValueError, TypeError):
+                pass
+        return None
+
+    def _extract_specialized_fields(self, native_response: Dict) -> Dict:
+        """
+        🔧 EXTRACTION CHAMPS SPÉCIALISÉS BITGET
+        
+        Tous les champs spécifiques à Bitget non couverts par l'interface standard.
+        Inclut les champs TP/SL, timing, identifiants, etc.
+        """
+        return {
+            # Identifiants Bitget
+            'client_order_id': native_response.get('clientOid'),
+            'user_id': native_response.get('userId'),
+            
+            # Timing détaillé
+            'updated_at': self._format_timestamp(native_response.get('uTime')),
+            
+            # Champs TP/SL
+            'preset_take_profit_price': native_response.get('presetTakeProfitPrice'),
+            'preset_stop_loss_price': native_response.get('presetStopLossPrice'),
+            'trigger_price': native_response.get('triggerPrice'),
+            'tpsl_type': native_response.get('tpslType', 'normal'),
+            
+            # Champs techniques Bitget pour debug
+            'bitget_raw_status': native_response.get('status'),
+            'bitget_order_type': native_response.get('orderType'),
+            
+            # Taille originale vs volumes réels (pour ordres market)
+            'size_original': self._safe_float(native_response.get('size', 0)),
+            'fill_size': self._safe_float(native_response.get('fillSize', 0))
+        }
+    
+    async def get_complete_order_details(self, order_id: str, client_order_id: str = None) -> Dict:
+        """
+        🔍 RÉCUPÉRATION DÉTAILS ORDRE COMPLETS - IMPLÉMENTATION BASEEXCHANGECLIENT
+        
+        Interface standardisée utilisant la méthode get_order_info() existante
+        pour récupérer tous les détails d'un ordre Bitget.
+        
+        Args:
+            order_id: ID ordre Exchange ou None
+            client_order_id: ID client personnalisé ou None
+            
+        Returns:
+            Dict: Réponse standardisée avec ordre complet au format Aristobot unifié
+        """
+        try:
+            # Utiliser la méthode existante get_order_info
+            response = await self.get_order_info(
+                order_id=order_id,
+                client_oid=client_order_id
+            )
+            
+            if not response['success']:
+                return response
+            
+            # L'ordre est déjà au format Aristobot unifié grâce à _transform_order_data()
+            order = response['order']
+            
+            # Appliquer la standardisation complète de BaseExchangeClient
+            standardized_order = self._standardize_complete_order_response(response['raw_data'])
+            
+            return {
+                'success': True,
+                'order': standardized_order,
+                'raw_data': response['raw_data'],
+                'lookup_method': response.get('lookup_method', 'get_order_info')
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur get_complete_order_details: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'order': None
+            }
 
 
 # Enregistrement du client dans la factory

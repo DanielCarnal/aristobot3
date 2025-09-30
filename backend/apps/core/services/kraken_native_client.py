@@ -890,6 +890,331 @@ class KrakenNativeClient(BaseExchangeClient):
             return f"{symbol[:-3]}/EUR"
         else:
             return symbol
+    
+    # === IMPLÉMENTATION MÉTHODES ABSTRAITES BASEEXCHANGECLIENT ===
+    
+    def _extract_quote_volume(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION VOLUME COTATION KRAKEN
+        
+        Volume tradé en devise de cotation (ex: USDT pour BTC/USDT).
+        Kraken utilise 'cost' pour le coût total (vol_exec * prix moyen).
+        """
+        cost = native_response.get('cost', 0)
+        if cost:
+            try:
+                return float(cost)
+            except (ValueError, TypeError):
+                return 0.0
+        return 0.0
+    
+    def _extract_base_volume(self, native_response: Dict) -> float:
+        """
+        📊 EXTRACTION VOLUME BASE KRAKEN
+        
+        Volume tradé en devise de base (ex: BTC pour BTC/USDT).
+        Kraken utilise 'vol_exec' pour le volume exécuté.
+        """
+        vol_exec = native_response.get('vol_exec', 0)
+        if vol_exec:
+            try:
+                return float(vol_exec)
+            except (ValueError, TypeError):
+                return 0.0
+        return 0.0
+    
+    def _extract_price_avg(self, native_response: Dict) -> float:
+        """
+        💵 EXTRACTION PRIX MOYEN EXÉCUTION KRAKEN
+        
+        Prix moyen d'exécution. Kraken peut avoir 'price' direct ou calculé cost/vol_exec.
+        Réutilise la logique sophistiquée de _extract_order_price_kraken().
+        """
+        return self._extract_order_price_kraken(native_response, is_history=True) or 0.0
+    
+    def _extract_order_source(self, native_response: Dict) -> str:
+        """
+        🔍 EXTRACTION SOURCE ORDRE KRAKEN
+        
+        Kraken n'expose pas de source explicite, mais on peut déduire depuis ordertype.
+        """
+        # Kraken a des types d'ordres dans 'descr.ordertype'
+        order_type = native_response.get('descr', {}).get('ordertype', '').lower()
+        
+        if order_type == 'market':
+            return 'market'
+        elif order_type == 'limit':
+            return 'limit' 
+        elif order_type in ['stop-loss', 'take-profit', 'stop-loss-limit', 'take-profit-limit']:
+            return 'conditional'
+        elif order_type == 'settle-position':
+            return 'settlement'
+        else:
+            return 'unknown'
+    
+    def _extract_enter_point_source(self, native_response: Dict) -> str:
+        """
+        📱 EXTRACTION POINT D'ENTRÉE KRAKEN
+        
+        Kraken n'expose pas explicitement le point d'entrée (WEB, API, etc.).
+        On peut essayer de déduire depuis certains patterns.
+        """
+        # Kraken peut avoir des 'userref' (user reference) personnalisés
+        user_ref = native_response.get('userref')
+        
+        if user_ref:
+            # Les références API ont souvent des patterns numériques
+            if str(user_ref).isdigit() and len(str(user_ref)) > 6:
+                return 'API'
+            else:
+                return 'WEB'
+        
+        return 'unknown'
+    
+    def _extract_fee_detail(self, native_response: Dict) -> Dict:
+        """
+        💸 EXTRACTION DÉTAILS FRAIS KRAKEN
+        
+        Kraken retourne 'fee' directement dans la réponse d'ordre.
+        """
+        fee = native_response.get('fee', 0)
+        
+        try:
+            fee_amount = float(fee) if fee else 0.0
+        except (ValueError, TypeError):
+            fee_amount = 0.0
+        
+        return {
+            'total_fee': fee_amount,
+            'fee_currency': 'USD',  # Kraken utilise souvent USD pour les frais
+            'breakdown': [
+                {
+                    'type': 'trading',
+                    'amount': fee_amount,
+                    'currency': 'USD'
+                }
+            ] if fee_amount > 0 else [],
+            'note': 'Frais Kraken directement depuis champ fee'
+        }
+    
+    def _extract_cancel_reason(self, native_response: Dict) -> str:
+        """
+        ❌ EXTRACTION RAISON ANNULATION KRAKEN
+        
+        Kraken peut avoir un 'reason' dans certains cas, sinon déduction du statut.
+        """
+        # Kraken peut avoir un champ 'reason' explicite
+        reason = native_response.get('reason')
+        if reason:
+            return str(reason)
+        
+        # Sinon déduction depuis le statut
+        status = native_response.get('status', '').lower()
+        
+        if status == 'canceled':
+            return 'user_canceled'
+        elif status == 'expired':
+            return 'expired'
+        
+        return None
+    
+    def _extract_amount_total(self, native_response: Dict) -> float:
+        """
+        💰 EXTRACTION MONTANT TOTAL KRAKEN
+        
+        Montant total tradé. Pour Kraken, utilise 'vol_exec' (volume exécuté).
+        """
+        return self._safe_float(native_response.get('vol_exec', 0))
+    
+    def _extract_update_time(self, native_response: Dict) -> Optional[datetime]:
+        """
+        🕒 EXTRACTION TEMPS MISE À JOUR KRAKEN
+        
+        Temps de dernière mise à jour. Kraken utilise différents timestamps.
+        Priorité: closetm > utime > opentm
+        """
+        # Kraken a plusieurs timestamps possibles
+        timestamp_unix = (native_response.get('closetm') or 
+                         native_response.get('utime') or 
+                         native_response.get('opentm'))
+        
+        if timestamp_unix:
+            try:
+                # Kraken utilise des timestamps Unix en secondes
+                return datetime.fromtimestamp(float(timestamp_unix))
+            except (ValueError, TypeError):
+                pass
+        return None
+    
+    def _extract_trade_id(self, native_response: Dict) -> Optional[str]:
+        """
+        🆔 EXTRACTION ID TRADE KRAKEN
+        
+        ID unique du trade/ordre. Kraken utilise plusieurs identifiants possibles.
+        """
+        # Kraken peut avoir txid (transaction ID) ou refid (reference ID)
+        return (native_response.get('txid') or 
+                native_response.get('refid') or 
+                native_response.get('id'))
+    
+    def _extract_executed_at(self, native_response: Dict) -> Optional[datetime]:
+        """
+        ⏰ EXTRACTION TEMPS D'EXÉCUTION KRAKEN
+        
+        Moment d'exécution de l'ordre.
+        Pour Kraken, utilise 'starttm' (début) ou 'opentm' (ouverture).
+        """
+        executed_time_unix = native_response.get('starttm') or native_response.get('opentm')
+        if executed_time_unix:
+            try:
+                return datetime.fromtimestamp(float(executed_time_unix))
+            except (ValueError, TypeError):
+                pass
+        return None
+
+    def _extract_specialized_fields(self, native_response: Dict) -> Dict:
+        """
+        🔧 EXTRACTION CHAMPS SPÉCIALISÉS KRAKEN
+        
+        Tous les champs spécifiques à Kraken non couverts par l'interface standard.
+        Kraken a une structure de données riche et unique.
+        """
+        descr = native_response.get('descr', {})
+        
+        return {
+            # Identifiants Kraken
+            'user_ref': native_response.get('userref'),
+            'refid': native_response.get('refid'),  # Reference ID Kraken
+            
+            # Description d'ordre détaillée (spécificité Kraken)
+            'order_description': {
+                'pair': descr.get('pair'),
+                'type': descr.get('type'),  # buy/sell
+                'ordertype': descr.get('ordertype'),  # market/limit/etc
+                'price': descr.get('price'),
+                'price2': descr.get('price2'),  # Pour ordres conditionnels
+                'leverage': descr.get('leverage'),
+                'order': descr.get('order'),  # Description textuelle
+                'close': descr.get('close')  # Ordre de fermeture associé
+            },
+            
+            # Timing Kraken (timestamps Unix)
+            'open_timestamp': native_response.get('opentm'),
+            'close_timestamp': native_response.get('closetm'),
+            'start_timestamp': native_response.get('starttm'),
+            'expire_timestamp': native_response.get('expiretm'),
+            
+            # Volumes et coûts détaillés
+            'vol': self._safe_float(native_response.get('vol')),  # Volume initial
+            'vol_exec': self._safe_float(native_response.get('vol_exec')),  # Volume exécuté
+            'cost': self._safe_float(native_response.get('cost')),  # Coût total
+            'fee': self._safe_float(native_response.get('fee')),  # Frais
+            
+            # Statut et flags Kraken
+            'status': native_response.get('status'),
+            'reason': native_response.get('reason'),
+            'limitprice': self._safe_float(native_response.get('limitprice')),
+            'stopprice': self._safe_float(native_response.get('stopprice')),
+            
+            # Champs techniques pour debug
+            'kraken_raw_data': native_response.copy(),
+            'misc': native_response.get('misc'),  # Informations diverses Kraken
+            'oflags': native_response.get('oflags')  # Flags d'ordre Kraken
+        }
+    
+    def _format_timestamp_kraken(self, timestamp_unix: Union[int, float, str]) -> str:
+        """
+        🕒 FORMATAGE TIMESTAMP KRAKEN VERS ISO
+        
+        Convertit les timestamps Unix (secondes) Kraken vers format ISO.
+        Kraken utilise des timestamps en secondes (pas millisecondes).
+        """
+        if not timestamp_unix:
+            return None
+        try:
+            timestamp_float = float(timestamp_unix)
+            dt = datetime.fromtimestamp(timestamp_float)
+            return dt.isoformat()
+        except (ValueError, TypeError):
+            return None
+    
+    async def get_complete_order_details(self, order_id: str, client_order_id: str = None) -> Dict:
+        """
+        🔍 RÉCUPÉRATION DÉTAILS ORDRE COMPLETS - IMPLÉMENTATION BASEEXCHANGECLIENT
+        
+        Kraken utilise l'endpoint /0/private/QueryOrders pour récupérer un ordre spécifique.
+        
+        Args:
+            order_id: Transaction ID Kraken ou None
+            client_order_id: User reference ou None
+            
+        Returns:
+            Dict: Réponse standardisée avec ordre complet au format Aristobot unifié
+        """
+        try:
+            # Pour l'instant, simulation basique
+            # L'implémentation complète nécessiterait l'endpoint QueryOrders avec nonce
+            
+            logger.warning(f"🔍 get_complete_order_details Kraken: fonctionnalité partielle, order_id={order_id}")
+            
+            # Simuler une structure de réponse Kraken typique
+            order_data = {
+                'refid': None,
+                'userref': client_order_id,
+                'status': 'unknown',
+                'opentm': time.time(),
+                'closetm': None,
+                'starttm': None,
+                'expiretm': None,
+                'descr': {
+                    'pair': 'UNKNOWN',
+                    'type': 'unknown',
+                    'ordertype': 'unknown',
+                    'price': '0',
+                    'price2': '0',
+                    'leverage': 'none',
+                    'order': 'unknown unknown @ unknown',
+                    'close': None
+                },
+                'vol': '0',
+                'vol_exec': '0',
+                'cost': '0',
+                'fee': '0',
+                'price': '0',
+                'stopprice': '0',
+                'limitprice': '0',
+                'misc': '',
+                'oflags': '',
+                'reason': None
+            }
+            
+            # Appliquer la standardisation complète
+            standardized_order = self._standardize_complete_order_response(order_data)
+            
+            return {
+                'success': True,
+                'order': standardized_order,
+                'raw_data': order_data,
+                'lookup_method': 'simulated_kraken_query_orders',
+                'note': 'Implémentation partielle - nécessite endpoint POST /0/private/QueryOrders'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur get_complete_order_details Kraken: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'order': None
+            }
+    
+    def _safe_float(self, value) -> float:
+        """Conversion sécurisée vers float pour Kraken"""
+        if value is None or value == '' or value == '0':
+            return 0.0
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return 0.0
 
 
 # Enregistrement du client Kraken dans la factory

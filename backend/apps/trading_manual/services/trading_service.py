@@ -17,7 +17,8 @@ class TradingService:
     def __init__(self, user, broker):
         self.user = user
         self.broker = broker
-        self.ccxt_client = CCXTClient()
+        # 🔒 SÉCURITÉ: Passer user_id à ExchangeClient pour éviter faille multi-tenant
+        self.ccxt_client = CCXTClient(user_id=user.id)
     
     async def get_balance(self):
         """Récupère le solde du broker"""
@@ -181,8 +182,158 @@ class TradingService:
             'current_price': current_price if 'current_price' in locals() else None
         }
     
+    async def execute_trade_via_terminal5(self, trade_data):
+        """
+        🔥 NOUVELLE MÉTHODE REFACTORISÉE: Exécute un trade via Terminal 5 
+        
+        Terminal 5 devient responsable de la création ET de l'exécution du Trade.
+        Plus de Trade.objects.create côté Trading Manuel.
+        
+        Args:
+            trade_data: Données du trade (symbol, side, quantity, etc.)
+            
+        Returns:
+            Trade-like object avec les informations créées par Terminal 5
+        """
+        import time
+        
+        start_time = time.time()
+        logger.info(f"🚀 TradingService.execute_trade_via_terminal5: {trade_data}")
+        
+        try:
+            # 🔥 NOUVEAUTÉ: Préparer requête complète pour Terminal 5
+            logger.info(f"📦 Préparation données complètes pour Terminal 5 - Terminal 5 gérera la persistence")
+            
+            complete_trade_request = {
+                # === MÉTADONNÉES DEMANDEUR ===
+                'action': 'create_and_execute_trade',  # Nouvelle action Terminal 5
+                'demandeur': 'Trading Manuel',  # Traçabilité Aristobot
+                'user_id': self.user.id,
+                'broker_id': self.broker.id,
+                'timestamp': int(time.time() * 1000),
+                
+                # === DONNÉES TRADE COMPLÈTES (remplace Trade.objects.create local) ===
+                'trade_type': 'manual',
+                'source': 'trading_manual', 
+                'symbol': trade_data['symbol'],
+                'side': trade_data['side'],
+                'order_type': trade_data['order_type'],
+                'quantity': float(trade_data['quantity']),
+                'price': float(trade_data['price']) if trade_data.get('price') else None,
+                'total_value': float(trade_data['total_value']),
+                
+                # === ORDRES AVANCÉS ===
+                'stop_loss_price': float(trade_data['stop_loss_price']) if trade_data.get('stop_loss_price') else None,
+                'take_profit_price': float(trade_data['take_profit_price']) if trade_data.get('take_profit_price') else None,
+                'trigger_price': float(trade_data['trigger_price']) if trade_data.get('trigger_price') else None
+            }
+            
+            # 🚀 APPEL TERMINAL 5 - Terminal 5 crée ET exécute le Trade 
+            logger.info(f"🎯 NOUVEAU FLUX: Terminal 5 fera création + exécution Trade en une seule opération")
+            logger.info(f"📤 Données -> Terminal 5: {complete_trade_request['demandeur']} | {complete_trade_request['symbol']} {complete_trade_request['side']} {complete_trade_request['quantity']}")
+            
+            terminal5_start = time.time()
+            
+            # 🔥 NOUVEAU FLUX COMPLET - Terminal 5 create_and_execute_trade
+            logger.info("🔥 Utilisation NOUVELLE action Terminal 5: create_and_execute_trade")
+            
+            # Appel direct à Terminal 5 avec la nouvelle action
+            terminal5_result = await self.ccxt_client._send_request(
+                action='create_and_execute_trade',
+                params=complete_trade_request,
+                user_id=self.user.id
+            )
+            
+            terminal5_time = time.time() - terminal5_start
+            logger.info(f"📥 Réponse Terminal 5: create_and_execute_trade en {terminal5_time:.2f}s")
+            
+            # 🔍 DEBUG: Examiner la réponse Terminal 5 complète
+            logger.info(f"🔍 DEBUG Terminal 5 response: {terminal5_result}")
+            logger.info(f"🔍 DEBUG Terminal 5 response type: {type(terminal5_result)}")
+            if isinstance(terminal5_result, dict):
+                logger.info(f"🔍 DEBUG Terminal 5 keys: {list(terminal5_result.keys())}")
+                logger.info(f"🔍 DEBUG Terminal 5 success: {terminal5_result.get('success')}")
+                logger.info(f"🔍 DEBUG Terminal 5 trade_id (old location): {terminal5_result.get('trade_id')}")
+                trade_data = terminal5_result.get('data', {})
+                logger.info(f"🔍 DEBUG Terminal 5 data keys: {list(trade_data.keys()) if trade_data else 'No data'}")
+                logger.info(f"🔍 DEBUG Terminal 5 trade_id (correct location): {trade_data.get('trade_id')}")
+            
+            if not terminal5_result:
+                raise Exception("Terminal 5 n'a pas retourné de réponse")
+            
+            # 🔥 NOUVEAU FORMAT Terminal 5: {'success': bool, 'data': {...}, 'trade_id': int}
+            if not terminal5_result.get('success'):
+                error_msg = terminal5_result.get('error', 'Erreur inconnue Terminal 5')
+                logger.error(f"❌ Terminal 5 create_and_execute_trade échoué: {error_msg}")
+                raise Exception(error_msg)
+            
+            # 🔥 FIX ARCHITECTURAL: Utiliser données Terminal 5 DIRECTEMENT (pas de DB fetch)
+            trade_data = terminal5_result.get('data', {})
+            trade_id = trade_data.get('trade_id')
+            
+            if not trade_id:
+                raise Exception("Terminal 5 n'a pas retourné de trade_id")
+            
+            # 🎯 NOUVELLE APPROCHE: Créer objet Trade virtuel depuis données Terminal 5
+            from types import SimpleNamespace
+            
+            # Construire objet Trade virtuel avec toutes les données de Terminal 5
+            trade_object = SimpleNamespace(
+                id=trade_id,
+                status=trade_data.get('status', 'pending'),
+                exchange_order_id=trade_data.get('exchange_order_id'),
+                symbol=trade_data.get('symbol', complete_trade_request.get('symbol')),
+                side=trade_data.get('side', complete_trade_request.get('side')),
+                quantity=complete_trade_request.get('quantity'),
+                price=complete_trade_request.get('price'),
+                total_value=complete_trade_request.get('total_value'),
+                order_type=complete_trade_request.get('order_type'),
+                created_at=None,  # Sera mis à jour par la zone "Trades récents" via WebSocket
+                message=trade_data.get('message', 'Trade exécuté avec succès')
+            )
+            
+            logger.info(f"✅ NOUVEAU FLUX REDIS: Trade {trade_object.id} créé par Terminal 5 - Données complètes via Redis")
+            logger.info(f"📊 Status: {trade_object.status} | Exchange ID: {trade_object.exchange_order_id}")
+            logger.info(f"🎯 ARCHITECTURE CORRECTE: Frontend utilise données Redis, DB pour 'Trades récents' seulement")
+            
+            total_time = time.time() - start_time
+            logger.info(f"✅ execute_trade_via_terminal5 COMPLET en {total_time:.2f}s")
+            
+            # Retourner le vrai Trade object créé par Terminal 5
+            return {
+                'trade': trade_object,
+                'data': trade_data,
+                'success': True,
+                'execution_time': total_time
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ Erreur execute_trade_via_terminal5: {error_msg}")
+            
+            # Structure d'erreur compatible
+            from types import SimpleNamespace
+            error_trade = SimpleNamespace(
+                id='ERROR',
+                exchange_order_id=None,
+                status='failed', 
+                error_message=error_msg,
+                symbol=trade_data.get('symbol', 'unknown'),
+                side=trade_data.get('side', 'unknown'),
+                quantity=trade_data.get('quantity', 0)
+            )
+            
+            raise Exception(f"execute_trade_via_terminal5 failed: {error_msg}")
+    
     async def execute_trade(self, trade_data):
-        """Exécute un trade et sauvegarde en DB avec logs complets"""
+        """
+        ⚠️ ANCIENNE MÉTHODE (dépréciée) - Exécute un trade avec création locale Trade
+        
+        ATTENTION: Cette méthode crée un Trade en local puis appelle Terminal 5.
+        Cela va à l'encontre de la nouvelle architecture où Terminal 5 gère tout.
+        
+        À terme, cette méthode sera supprimée au profit d'execute_trade_via_terminal5().
+        """
         from apps.trading_manual.models import Trade
         from asgiref.sync import sync_to_async
         import time
@@ -250,13 +401,75 @@ class TradingService:
             ccxt_time = time.time() - ccxt_start
             logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
             
-            # Mettre à jour le Trade avec le résultat
+            # === MISE À JOUR TRADE AVEC RÉPONSE ENRICHIE INTERFACE UNIFIÉE ===
+            
+            # 🎯 CHAMPS DE BASE (existants - préservés pour compatibilité)
             trade.status = 'filled'
             trade.exchange_order_id = order_result.get('id')
             trade.filled_quantity = order_result.get('filled', trade.quantity)
             trade.filled_price = order_result.get('price', trade.price)
             trade.fees = order_result.get('fee', {}).get('cost', 0)
-            trade.executed_at = datetime.now()
+            trade.executed_at = datetime.now()  # Fallback si pas dans réponse
+            
+            # 🔥 NOUVEAUX CHAMPS INTERFACE UNIFIÉE (Terminal 5 enrichi)
+            
+            # Volumes détaillés
+            if order_result.get('quote_volume') is not None:
+                trade.quote_volume = order_result['quote_volume']
+            if order_result.get('amount_total') is not None:
+                trade.amount = order_result['amount_total']
+            
+            # Timestamps exchange avec priorité sur réponse enrichie
+            if order_result.get('update_time'):
+                trade.update_time = order_result['update_time']
+            if order_result.get('executed_at'):
+                trade.executed_at = order_result['executed_at']  # Override fallback si disponible
+            
+            # Identifiants exchange complets
+            if order_result.get('trade_id'):
+                trade.trade_id = order_result['trade_id']
+            
+            # 📊 CHAMPS SPÉCIALISÉS EXCHANGE (via specialized_fields)
+            specialized = order_result.get('specialized_fields', {})
+            if specialized:
+                # Métadonnées client/source
+                if specialized.get('enter_point_source'):
+                    trade.enter_point_source = specialized['enter_point_source']
+                if specialized.get('order_source'):
+                    trade.order_source = specialized['order_source']
+                
+                # Paramètres exécution
+                if specialized.get('force'):
+                    trade.force = specialized['force']
+                if specialized.get('trade_scope'):
+                    trade.trade_scope = specialized['trade_scope']
+                if specialized.get('tpsl_type'):
+                    trade.tpsl_type = specialized['tpsl_type']
+                
+                # Gestion annulation et STP
+                if specialized.get('cancel_reason'):
+                    trade.cancel_reason = specialized['cancel_reason']
+                if specialized.get('stp_mode'):
+                    trade.stp_mode = specialized['stp_mode']
+                
+                # Prix TP/SL spécialisés (si différents des champs de base)
+                if specialized.get('preset_take_profit_price'):
+                    trade.preset_take_profit_price = specialized['preset_take_profit_price']
+                if specialized.get('execute_take_profit_price'):
+                    trade.execute_take_profit_price = specialized['execute_take_profit_price']
+                if specialized.get('preset_stop_loss_price'):
+                    trade.preset_stop_loss_price = specialized['preset_stop_loss_price']
+                if specialized.get('execute_stop_loss_price'):
+                    trade.execute_stop_loss_price = specialized['execute_stop_loss_price']
+            
+            # 💾 AUDIT COMPLET - Données brutes pour debugging
+            if order_result.get('exchange_raw_data'):
+                trade.exchange_raw_data = order_result['exchange_raw_data']
+            
+            # 🔒 TRAÇABILITÉ ARISTOBOT - Marquer comme créé par Trading Manuel
+            trade.ordre_existant = 'By Trading Manuel'
+            
+            logger.info(f"✅ Trade {trade.id} enrichi avec {len([k for k in order_result.keys() if order_result.get(k) is not None])} champs interface unifiée")
             
             await sync_to_async(trade.save)()
             
@@ -376,11 +589,13 @@ class TradingService:
             ccxt_time = time.time() - ccxt_start
             logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
             
-            # Mettre à jour le Trade avec le résultat (gestion des None de Bitget)
+            # === MISE À JOUR TRADE AVEC RÉPONSE ENRICHIE INTERFACE UNIFIÉE (_execute_trade_order) ===
+            
+            # 🎯 CHAMPS DE BASE (existants - gestion robuste des None)
             trade.status = 'filled'
             trade.exchange_order_id = order_result.get('id') if order_result else None
             
-            # Gérer les valeurs None retournées par Bitget
+            # Gérer les valeurs None retournées par certains exchanges
             if order_result:
                 trade.filled_quantity = order_result.get('filled') or trade.quantity
                 trade.filled_price = order_result.get('price') or trade.price
@@ -394,7 +609,57 @@ class TradingService:
                 trade.filled_price = trade.price
                 trade.fees = 0
                 
-            trade.executed_at = timezone.now()
+            trade.executed_at = timezone.now()  # Fallback si pas dans réponse
+            
+            # 🔥 NOUVEAUX CHAMPS INTERFACE UNIFIÉE (si order_result disponible)
+            if order_result:
+                # Volumes détaillés
+                if order_result.get('quote_volume') is not None:
+                    trade.quote_volume = order_result['quote_volume']
+                if order_result.get('amount_total') is not None:
+                    trade.amount = order_result['amount_total']
+                
+                # Timestamps exchange avec priorité sur réponse enrichie
+                if order_result.get('update_time'):
+                    trade.update_time = order_result['update_time']
+                if order_result.get('executed_at'):
+                    trade.executed_at = order_result['executed_at']  # Override fallback si disponible
+                
+                # Identifiants exchange complets
+                if order_result.get('trade_id'):
+                    trade.trade_id = order_result['trade_id']
+                
+                # 📊 CHAMPS SPÉCIALISÉS EXCHANGE (via specialized_fields)
+                specialized = order_result.get('specialized_fields', {})
+                if specialized:
+                    # Métadonnées client/source
+                    if specialized.get('enter_point_source'):
+                        trade.enter_point_source = specialized['enter_point_source']
+                    if specialized.get('order_source'):
+                        trade.order_source = specialized['order_source']
+                    
+                    # Paramètres exécution
+                    if specialized.get('force'):
+                        trade.force = specialized['force']
+                    if specialized.get('trade_scope'):
+                        trade.trade_scope = specialized['trade_scope']
+                    if specialized.get('tpsl_type'):
+                        trade.tpsl_type = specialized['tpsl_type']
+                    
+                    # Gestion annulation et STP
+                    if specialized.get('cancel_reason'):
+                        trade.cancel_reason = specialized['cancel_reason']
+                    if specialized.get('stp_mode'):
+                        trade.stp_mode = specialized['stp_mode']
+                
+                # 💾 AUDIT COMPLET - Données brutes pour debugging
+                if order_result.get('exchange_raw_data'):
+                    trade.exchange_raw_data = order_result['exchange_raw_data']
+                
+                # 🔒 TRAÇABILITÉ ARISTOBOT - Marquer comme créé par Trading Manuel
+                trade.ordre_existant = 'By Trading Manuel'
+                
+                logger.info(f"✅ Trade {trade.id} enrichi (_execute_trade_order) avec {len([k for k in order_result.keys() if order_result.get(k) is not None])} champs interface unifiée")
             
             # Utiliser database_sync_to_async pour éviter les deadlocks
             from django.db import transaction
@@ -656,25 +921,64 @@ class TradingService:
             logger.error(f"❌ Erreur calcul trade {symbol}: {e}")
             raise
     
-    async def get_open_orders(self, symbol=None, limit=100):
-        """Récupère les ordres ouverts via CCXTClient"""
+    async def get_open_orders(
+        self, 
+        symbol=None, 
+        limit=100,
+        start_time=None,
+        end_time=None,
+        id_less_than=None,
+        order_id=None,
+        tpsl_type=None,
+        request_time=None,
+        receive_window=None
+    ):
+        """Récupère les ordres ouverts via CCXTClient - SIGNATURE ÉTENDUE
+        
+        Compatible rétroactivement - anciens appels continuent de fonctionner.
+        Nouveaux paramètres passés directement à Terminal 5 via CCXTClient.
+        """
         try:
             open_orders = await self.ccxt_client.fetch_open_orders(
                 broker_id=self.broker.id,
                 symbol=symbol,
-                limit=limit
+                limit=limit,
+                # Nouveaux paramètres étendus Terminal 5
+                start_time=start_time,
+                end_time=end_time,
+                id_less_than=id_less_than,
+                order_id=order_id,
+                tpsl_type=tpsl_type,
+                request_time=request_time,
+                receive_window=receive_window
             )
             
-            logger.info(f"📋 Récupérés {len(open_orders)} ordres ouverts pour {self.broker.name}")
+            logger.info(f"📋 Récupérés {len(open_orders)} ordres ouverts pour {self.broker.name} [ÉTENDU]")
             return open_orders
         except Exception as e:
             logger.error(f"❌ Erreur récupération ordres ouverts: {e}")
             raise
     
-    async def get_closed_orders(self, symbol=None, since=None, limit=100):
-        """Récupère les ordres fermés/exécutés via CCXTClient"""
+    async def get_closed_orders(
+        self, 
+        symbol=None, 
+        since=None, 
+        limit=100,
+        start_time=None,
+        end_time=None,
+        id_less_than=None,
+        order_id=None,
+        tpsl_type=None,
+        request_time=None,
+        receive_window=None
+    ):
+        """Récupère les ordres fermés/exécutés via CCXTClient - SIGNATURE ÉTENDUE
+        
+        Compatible rétroactivement - anciens appels continuent de fonctionner.
+        Paramètre 'since' conservé pour compatibilité, mais start_time/end_time recommandés.
+        """
         try:
-            # Convertir since en timestamp si c'est une chaîne
+            # Convertir since en timestamp si c'est une chaîne (compatibilité)
             if since and isinstance(since, str):
                 try:
                     since = int(since)
@@ -682,14 +986,27 @@ class TradingService:
                     logger.warning(f"Paramètre 'since' invalide: {since}, ignoré")
                     since = None
             
+            # Mapping intelligent : since → start_time si pas déjà fourni
+            if since and not start_time:
+                start_time = str(since)
+                logger.info(f"🔄 Mapping compatibilité: since={since} → start_time={start_time}")
+            
             closed_orders = await self.ccxt_client.fetch_closed_orders(
                 broker_id=self.broker.id,
                 symbol=symbol,
-                since=since,
-                limit=limit
+                since=since,  # Garder pour compatibilité CCXTClient
+                limit=limit,
+                # Nouveaux paramètres étendus Terminal 5
+                start_time=start_time,
+                end_time=end_time,
+                id_less_than=id_less_than,
+                order_id=order_id,
+                tpsl_type=tpsl_type,
+                request_time=request_time,
+                receive_window=receive_window
             )
             
-            logger.info(f"📋 Récupérés {len(closed_orders)} ordres fermés pour {self.broker.name}")
+            logger.info(f"📋 Récupérés {len(closed_orders)} ordres fermés pour {self.broker.name} [ÉTENDU]")
             return closed_orders
         except Exception as e:
             logger.error(f"❌ Erreur récupération ordres fermés: {e}")

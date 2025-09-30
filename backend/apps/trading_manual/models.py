@@ -108,6 +108,93 @@ class Trade(models.Model):
     # Prix moyen d'achat pour calcul P&L
     avg_buy_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
     
+    # === CHAMPS EXCHANGE COMPLETS (TERMINAL 5 UNIFIED) ===
+    
+    # 1. Traçabilite source ordre
+    ordre_existant = models.CharField(max_length=100, null=True, blank=True)
+    # "By Trading Manuel", "By strategie {nom}", "By Webhook", "By Terminal7 detection"
+    
+    # 2. Métadonnées client/source 
+    ENTER_POINT_CHOICES = [
+        ('WEB', 'Web Client'),
+        ('APP', 'App Client'), 
+        ('API', 'API Client'),
+        ('SYS', 'System Client'),
+        ('ANDROID', 'Android Client'),
+        ('IOS', 'iOS Client'),
+    ]
+    enter_point_source = models.CharField(max_length=20, choices=ENTER_POINT_CHOICES, null=True, blank=True)
+    
+    ORDER_SOURCE_CHOICES = [
+        ('normal', 'Normal Order'),
+        ('market', 'Market Order'),
+        ('spot_trader_buy', 'Elite Spot Trade Buy'),
+        ('spot_follower_buy', 'Copy Trade Buy'),
+        ('spot_trader_sell', 'Elite Spot Trade Sell'),
+        ('spot_follower_sell', 'Copy Trade Sell'),
+        ('strategy_oco_limit', 'OCO Orders'),
+    ]
+    order_source = models.CharField(max_length=50, choices=ORDER_SOURCE_CHOICES, null=True, blank=True)
+    
+    # 3. Volumes detailles  
+    quote_volume = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)  # Volume quote coin
+    amount = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)  # Montant total trading
+    
+    # 4. Timestamps Exchange
+    update_time = models.DateTimeField(null=True, blank=True)  # uTime Exchange
+    
+    # 5. Gestion annulation
+    CANCEL_REASON_CHOICES = [
+        ('normal_cancel', 'Normal Cancel'),
+        ('stp_cancel', 'Cancelled by STP'),
+    ]
+    cancel_reason = models.CharField(max_length=50, choices=CANCEL_REASON_CHOICES, null=True, blank=True)
+    
+    # 6. TP/SL avances Bitget
+    preset_take_profit_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    execute_take_profit_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)  
+    preset_stop_loss_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    execute_stop_loss_price = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    
+    TPSL_TYPE_CHOICES = [
+        ('normal', 'Spot Order'),
+        ('tpsl', 'Spot TPSL Order'),
+    ]
+    tpsl_type = models.CharField(max_length=20, choices=TPSL_TYPE_CHOICES, null=True, blank=True)
+    
+    # 7. Execution details (Fills API)
+    trade_id = models.CharField(max_length=100, null=True, blank=True)  # tradeId unique
+    
+    TRADE_SCOPE_CHOICES = [
+        ('taker', 'Taker'),
+        ('maker', 'Maker'),
+    ]
+    trade_scope = models.CharField(max_length=10, choices=TRADE_SCOPE_CHOICES, null=True, blank=True)
+    
+    # 8. Options trading avancees
+    STP_MODE_CHOICES = [
+        ('none', 'No STP'),
+        ('cancel_taker', 'Cancel Taker'),
+        ('cancel_maker', 'Cancel Maker'), 
+        ('cancel_both', 'Cancel Both'),
+    ]
+    stp_mode = models.CharField(max_length=20, choices=STP_MODE_CHOICES, null=True, blank=True)
+    
+    FORCE_CHOICES = [
+        ('GTC', 'Good Till Cancel'),
+        ('FOK', 'Fill or Kill'),
+        ('IOC', 'Immediate or Cancel'),
+        ('post_only', 'Post Only'),
+    ]
+    force = models.CharField(max_length=10, choices=FORCE_CHOICES, null=True, blank=True)
+    
+    # 9. User ID Exchange pour validation
+    exchange_user_id = models.CharField(max_length=50, null=True, blank=True)
+    
+    # 10. Donnees JSON completes
+    fee_detail = models.JSONField(null=True, blank=True)  # Frais detailles Exchange
+    exchange_raw_data = models.JSONField(null=True, blank=True)  # Donnees brutes DEBUG
+    
     # Quantite de position apres ce trade
     position_quantity_after = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
     
@@ -130,9 +217,16 @@ class Trade(models.Model):
             models.Index(fields=['created_at']),
             # Index Terminal 7
             models.Index(fields=['source']),
+            # Index optimisé pour TradeViewSet filtrage broker
+            models.Index(fields=['user', 'broker', '-created_at']),
             models.Index(fields=['exchange_order_id']),
             models.Index(fields=['executed_at']),
             models.Index(fields=['user', 'broker', 'symbol', 'side']),  # Pour position tracking
+            # Index nouveaux champs
+            models.Index(fields=['ordre_existant']),
+            models.Index(fields=['enter_point_source']),
+            models.Index(fields=['trade_id']),  # Fills API
+            models.Index(fields=['exchange_user_id']),
         ]
         
     def __str__(self):

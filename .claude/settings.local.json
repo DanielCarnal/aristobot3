@@ -36,7 +36,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(dir \"Start2 - \":*)",
       "Bash(where python)",
-      "Bash(dir)"
+      "Bash(dir)",
+      "Bash(redis-cli:*)",
+      "Bash(daphne:*)",
+      "Read(//var/log/**)"
     ],
     "deny": []
   }
