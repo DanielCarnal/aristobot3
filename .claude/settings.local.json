@@ -39,7 +39,9 @@
       "Bash(dir)",
       "Bash(redis-cli:*)",
       "Bash(daphne:*)",
-      "Read(//var/log/**)"
+      "Read(//var/log/**)",
+      "Bash(git config:*)",
+      "Bash(git log:*)"
     ],
     "deny": []
   }
