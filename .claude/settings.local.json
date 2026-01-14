@@ -41,7 +41,9 @@
       "Bash(daphne:*)",
       "Read(//var/log/**)",
       "Bash(git config:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(dir:*)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }
