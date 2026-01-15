@@ -5,7 +5,7 @@
 ### ✅ MODULE 1 - USER ACCOUNT & BROKERS (✅ COMPLÉTÉ)
 - **Authentification** : Système multi-tenant sécurisé ✅
 - **Mode DEBUG** : Gestion via table DebugMode ✅  
-- **Brokers CCXT** : CRUD complet avec test connexion ✅
+- **Brokers** : CRUD complet avec test connexion ✅
 - **Frontend AccountView** : Interface complète avec modale ✅
 - **Services** : SymbolUpdaterService + endpoints API ✅
 - **Sécurité** : Chiffrement clés API + permissions ✅
@@ -23,7 +23,7 @@
 #### ✅ **MODULE 3 - TRADING MANUEL** (✅ COMPLÉTÉ)
 **Réalisé :** Base nécessaire pour tous les autres modules
 - Interface trading manuelle complète ✅
-- Passage d'ordres CCXT (buy/sell, market/limit) ✅  
+- Passage d'ordres via APIs natives (buy/sell, market/limit) ✅  
 - Calcul automatique quantité/montant ✅
 - Historique des trades avec persistance ✅
 
@@ -62,11 +62,11 @@
 - **UTC en DB**, affichage selon préférence utilisateur
 
 ### Architecture
-- **CCXT** pour multi-exchange (version gratuite, REST API)
-- **Singleton pattern** pour instances CCXT (une par exchange/user)
+- **APIs natives** pour trading (Bitget, Binance, Kraken) + **CCXT métadonnées** (liste exchanges, validation)
+- **Singleton pattern** pour instances Exchange (une par exchange/user)
 - **asyncio** pour parallélisme (pas de Celery)
 - **Django Channels** pour WebSocket
-- **Heartbeat** : WebSocket natif Binance (indépendant de CCXT)
+- **Heartbeat** : WebSocket natif Binance
 
 ### Développement
 - **Mode DEBUG** : `DEBUG_ARISTOBOT=True` -> Table DebugMode + user "dev" normal
@@ -86,7 +86,7 @@
 
 ### Objectifs
 1. Créer le système d'authentification multi-tenant
-2. Gérer les brokers (exchanges) avec CCXT
+2. Gérer les brokers (exchanges) avec APIs natives
 3. Implémenter le mode DEBUG avec user "dev"
 4. Créer la table partagée des symboles
 5. Frontend de gestion des comptes et brokers
@@ -114,16 +114,16 @@
 
 **📊 Détails complets :** Voir `MODULE2_IMPLEMENTATION.md`
 
-## 📦 MODULE 2 : Service CCXT Centralisé** (Terminal 5) ✅ **TERMINÉ
-**Le Service CCXT Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
+## 📦 MODULE 2 : Service Exchange Centralisé (Terminal 5) ✅ **TERMINÉ**
+**Le Service Exchange Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges via APIs natives. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
 
 **Principe de fonctionnement :**
-* **Service dédié** : Processus indépendant qui maintient toutes les connexions CCXT
+* **Service dédié** : Processus indépendant qui maintient toutes les connexions natives (Bitget, Binance, Kraken)
 * **Une instance par broker** : Dictionnaire `{(user_id, broker_id): exchange_instance}` centralisé
-* **Communication Redis** : Tous les autres services communiquent via channels `ccxt_requests` et `ccxt_responses`
-* **Coexistence intelligente** : CCXT direct pour tests ponctuels (User Account) + service centralisé pour opérations répétées (Trading)
-  
-**Consulter** le fichier `MODULE2-Refacto-CCXT_MicroServ.md` qui a servi à l'implémentation. Des modifications ont ensuite été apportées:
+* **Communication Redis** : Tous les autres services communiquent via channels `exchange_requests` et `exchange_responses`
+* **Architecture native** : Clients natifs haute performance pour toutes les opérations de trading
+
+**Optimisations implémentées** :
   1. Architecture optimisée: Un seul exchange par type (bitget, binance, etc.) au lieu d'une instance par (user_id, broker_id)
   2. Injection de credentials: Les credentials sont injectés dynamiquement avant chaque appel API
   3. Affichage optimisé:
@@ -157,7 +157,7 @@
 
 ### ✅ Objectifs réalisés
 1. ✅ Interface de trading manuel complète
-2. ✅ Passage d'ordres via Service CCXT centralisé
+2. ✅ Passage d'ordres via Service Exchange centralisé
 3. ✅ Visualisation du portfolio temps réel
 4. ✅ Historique des trades avec persistance
 
@@ -274,7 +274,7 @@ Actions à réaliser dans l'ordre :
 2. Créer backend/apps/accounts/backends.py (DevModeBackend)
 3. Créer les services dans backend/apps/core/services/ :
    - __init__.py
-   - ccxt_service.py
+   - exchange_service.py
    - symbol_updater.py
 4. Créer les management commands :
    - backend/apps/accounts/management/commands/init_aristobot.py
@@ -308,7 +308,7 @@ Contraintes importantes :
 - Multi-tenant strict (toujours filtrer par user_id)
 - Chiffrement avec Django SECRET_KEY
 - Mode DEBUG = connexion auto avec user "dev"
-- CCXT avec enableRateLimit: true
+- APIs avec rate limiting activé
 
 Tests après chaque étape :
 1. Vérifier que le serveur démarre : python manage.py runserver
@@ -343,7 +343,7 @@ Aide-moi à corriger sans casser le reste du code.
 - [✅] Table HeartbeatStatus initialisée
 - [✅] Mode DEBUG : connexion auto avec user "dev"
 - [✅] CRUD Brokers fonctionnel
-- [✅] Test connexion CCXT réussi
+- [✅] Test connexion API réussi
 - [✅] Service SymbolUpdater fonctionnel
 - [✅] Mise à jour symboles en arrière-plan
 - [✅] Trading Engine démarre sans erreur (mode test)
@@ -371,7 +371,7 @@ Aide-moi à corriger sans casser le reste du code.
 - [✅] Passage d'ordres buy/sell market/limit opérationnel
 - [✅] Filtrage symboles USDT/USDC + recherche
 - [✅] WebSocket notifications temps réel
-- [✅] Intégration Service CCXT centralisé validée
+- [✅] Intégration Service Exchange centralisé validée
 
 ### Points d'attention
 - Toujours utiliser `request.user` pour le multi-tenant
@@ -383,12 +383,12 @@ Aide-moi à corriger sans casser le reste du code.
 
 ## 📝 NOTES IMPORTANTES
 
-1. **CCXT Rate Limiting** : Toujours activer `enableRateLimit: true`
+1. **Rate Limiting API** : Les clients natifs gèrent le rate limiting automatiquement
 2. **Multi-tenant** : Ne jamais oublier de filtrer par `user_id`
 3. **Mode Dev** : L'user "dev" a accès à TOUTES les données
 4. **Testnet** : À implémenter progressivement
-5. **Symboles** : Table partagée mise à jour en async
-6. **Instances CCXT** : Singleton pattern obligatoire
+5. **Symboles** : Table partagée mise à jour en async (via CCXT métadonnées)
+6. **Instances Exchange** : Singleton pattern obligatoire
 
 Ce plan est votre guide de référence. Suivez-le étape par étape avec Claude Code.
 

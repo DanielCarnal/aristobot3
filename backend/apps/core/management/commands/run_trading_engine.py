@@ -19,7 +19,6 @@ class Command(BaseCommand):
         self.running = True
         self.channel_layer = get_channel_layer()
         # 🔒 SÉCURITÉ: Trading Engine est multi-user - ExchangeClient créé par stratégie utilisateur
-        # self.ccxt_client sera remplacé par des clients spécifiques dans process_signal()
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -48,11 +47,11 @@ class Command(BaseCommand):
         """Boucle principale du Trading Engine"""
         
         self.stdout.write(
-            self.style.SUCCESS("✅ Connexion au service CCXT centralisé...")
+            self.style.SUCCESS("✅ Connexion au service Exchange centralisé...")
         )
-        
-        # Écouter les réponses CCXT
-        asyncio.create_task(self.listen_ccxt_responses())
+
+        # Écouter les réponses Exchange
+        asyncio.create_task(self.listen_exchange_responses())
         
         # TODO MODULE 7: Préchargement brokers sera fait par stratégie utilisateur
         # Le Trading Engine n'a plus de client global - chaque stratégie aura son ExchangeClient
@@ -75,31 +74,32 @@ class Command(BaseCommand):
                 logger.error(f"❌ Erreur Trading Engine: {e}")
                 await asyncio.sleep(5)
     
-    async def listen_ccxt_responses(self):
-        """Écoute les réponses du service CCXT"""
+    async def listen_exchange_responses(self):
+        """Écoute les réponses du service Exchange"""
         while self.running:
             try:
                 # TODO MODULE 7: Écoute des signaux Heartbeat et traitement des stratégies
                 # Chaque stratégie aura son propre ExchangeClient(user_id=strategy.user_id)
                 await asyncio.sleep(0.1)  # Placeholder
             except Exception as e:
-                logger.error(f"❌ Erreur réception réponse CCXT: {e}")
+                logger.error(f"❌ Erreur réception réponse Exchange: {e}")
                 await asyncio.sleep(1)
     
     async def process_signal(self, signal_data):
         """
         Traite un signal reçu du Heartbeat.
-        Utilise maintenant le CCXTClient au lieu du CCXTManager direct.
+        Utilise ExchangeClient pour les opérations exchange.
         """
         timeframe = signal_data.get('timeframe')
         timestamp = signal_data.get('timestamp')
-        
+
         self.stdout.write(f"📊 Signal reçu: {timeframe} à {timestamp}")
-        
-        # TODO: Module 7 - Utiliser self.ccxt_client au lieu de CCXTManager
+
+        # TODO: Module 7 - Utiliser ExchangeClient(user_id=strategy.user_id)
         # Exemple:
-        # balance = await self.ccxt_client.get_balance(broker_id)
-        # candles = await self.ccxt_client.get_candles(broker_id, symbol, timeframe)
+        # exchange_client = ExchangeClient(user_id=strategy.user_id)
+        # balance = await exchange_client.get_balance(broker_id)
+        # candles = await exchange_client.get_candles(broker_id, symbol, timeframe)
         pass
     
     def shutdown(self, signum, frame):

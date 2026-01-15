@@ -215,7 +215,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS("[OK] Service Native Exchange demarre avec succes")
             )
-            self.stdout.write("[INFO] Ecoute des requetes ccxt_requests...")
+            self.stdout.write("[INFO] Ecoute des requetes exchange_requests...")
             self.stdout.write("[TIP] Appuyez sur Ctrl+C pour arreter proprement")
             self.stdout.write(f"[DEBUG] Entree boucle: shutdown={self.shutdown_requested}, running={self.manager.running}")
             

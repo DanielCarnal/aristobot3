@@ -21,7 +21,7 @@ Pour une vue d'ensemble détaillée de l'architecture, consulter [docs/CODEBASE_
 @backend/requirements.txt
 @frontend/package.json
 ### **Services et logique métier**
-@backend/apps/core/services/exchange_client.py     # Client Exchange natif (remplace CCXT)
+@backend/apps/core/services/exchange_client.py     # Client Exchange natif
 @backend/apps/core/consumers.py                     # WebSocket consumers
 @backend/apps/core/management/commands/run_heartbeat.py              # Service Heartbeat (Terminal 2)
 @backend/apps/core/management/commands/run_native_exchange_service.py # Service Exchange natif (Terminal 5)

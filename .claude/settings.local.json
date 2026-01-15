@@ -43,7 +43,11 @@
       "Bash(git config:*)",
       "Bash(git log:*)",
       "Bash(dir:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(if not exist \"_Archives\" mkdir \"_Archives\")",
+      "Bash(move \"MODULE2-Refacto-CCXT_MicroServ.md\" \"_Archives\"\" && move \"MIGRATION_STATUS.md\" \"_Archives\"\")",
+      "Skill(cartographer)",
+      "Bash(findstr:*)"
     ],
     "deny": []
   }

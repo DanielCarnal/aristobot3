@@ -87,11 +87,11 @@ class TradingManualConsumer(AsyncWebsocketConsumer):
             broker_id = user_data['broker_id']
             symbol = user_data['symbol']
             
-            # Récupérer le nouveau prix via CCXT
-            from apps.core.services.ccxt_client import CCXTClient
-            ccxt_client = CCXTClient()
-            
-            ticker = await ccxt_client.get_ticker(broker_id, symbol)
+            # Récupérer le nouveau prix via Exchange Client
+            from apps.core.services.exchange_client import ExchangeClient
+            exchange_client = ExchangeClient()
+
+            ticker = await exchange_client.get_ticker(broker_id, symbol)
             
             if ticker and ticker['last'] is not None:
                 current_price = float(ticker['last'])

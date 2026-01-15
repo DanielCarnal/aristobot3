@@ -3,24 +3,24 @@
 Service pour calculs de portfolio
 """
 import logging
-from apps.core.services.exchange_client import ExchangeClient as CCXTClient
+from apps.core.services.exchange_client import ExchangeClient
 
 logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
     """Service pour calculs de portfolio"""
-    
+
     def __init__(self, user, broker):
         self.user = user
         self.broker = broker
         # 🔒 SÉCURITÉ: Passer user_id à ExchangeClient pour éviter faille multi-tenant
-        self.ccxt_client = CCXTClient(user_id=user.id)
-    
+        self.exchange_client = ExchangeClient(user_id=user.id)
+
     async def get_portfolio_summary(self):
         """Resume complet du portfolio - OPTIMISÉ avec UNE SEULE requête batch"""
         # 1. Récupérer balance
-        balance = await self.ccxt_client.get_balance(self.broker.id)
+        balance = await self.exchange_client.get_balance(self.broker.id)
         
         # 2. Identifier assets non-stables pour récupération prix
         tradable_assets = []

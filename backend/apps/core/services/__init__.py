@@ -2,15 +2,11 @@
 """
 SERVICES CORE ARISTOBOT3.1 - NATIVE EXCHANGE ARCHITECTURE
 
-🎯 ARCHITECTURE MODERNE:
+🎯 ARCHITECTURE:
 - Clients natifs par exchange (Bitget, Binance, Kraken)
-- NativeExchangeManager centralisé
-- ExchangeClient compatible avec ancienne interface CCXT
-
-✅ NETTOYAGE CCXT COMPLET:
-- CCXTManager supprimé (obsolète)
-- ccxt_client supprimé (obsolète)  
-- Migration 100% terminée vers architecture native
+- NativeExchangeManager centralisé (Terminal 5)
+- ExchangeClient interface unifiée
+- Communication Redis: exchange_requests/exchange_responses
 """
 
 # Native Exchange Architecture - Core services
@@ -21,7 +17,7 @@ from .kraken_native_client import KrakenNativeClient
 from .native_exchange_manager import NativeExchangeManager, get_native_exchange_manager
 from .exchange_client import ExchangeClient, get_global_exchange_client
 
-# Compatibility aliases pour migration transparente
+# ⚠️ DEPRECATED: Aliases pour rétrocompatibilité temporaire (à supprimer)
 from .exchange_client import CCXTClient, get_global_ccxt_client
 
 # Utilities
@@ -33,10 +29,10 @@ __all__ = [
     'BitgetNativeClient', 'BinanceNativeClient', 'KrakenNativeClient',
     'NativeExchangeManager', 'get_native_exchange_manager',
     'ExchangeClient', 'get_global_exchange_client',
-    
-    # Compatibility aliases (pour modules existants)
+
+    # ⚠️ DEPRECATED: Aliases rétrocompatibilité
     'CCXTClient', 'get_global_ccxt_client',
-    
+
     # Utilities
     'get_redis_client'
 ]

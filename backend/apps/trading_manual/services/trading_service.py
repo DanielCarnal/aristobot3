@@ -6,23 +6,23 @@ import logging
 from datetime import datetime
 from django.utils import timezone
 from asgiref.sync import sync_to_async
-from apps.core.services.exchange_client import ExchangeClient as CCXTClient
+from apps.core.services.exchange_client import ExchangeClient
 
 logger = logging.getLogger(__name__)
 
 
 class TradingService:
     """Service principal pour le trading manuel"""
-    
+
     def __init__(self, user, broker):
         self.user = user
         self.broker = broker
         # 🔒 SÉCURITÉ: Passer user_id à ExchangeClient pour éviter faille multi-tenant
-        self.ccxt_client = CCXTClient(user_id=user.id)
+        self.exchange_client = ExchangeClient(user_id=user.id)
     
     async def get_balance(self):
         """Récupère le solde du broker"""
-        return await self.ccxt_client.get_balance(self.broker.id)
+        return await self.exchange_client.get_balance(self.broker.id)
     
     def get_available_symbols(self, filters=None, page=1, page_size=100):
         """Récupère les symboles disponibles depuis la base de données PostgreSQL - VERSION SYNCHRONE"""
@@ -78,7 +78,7 @@ class TradingService:
         
         # Vérifier que le symbole existe
         try:
-            ticker = await self.ccxt_client.get_ticker(self.broker.id, symbol)
+            ticker = await self.exchange_client.get_ticker(self.broker.id, symbol)
             if ticker['last'] is None:
                 errors.append(f"Prix non disponible pour {symbol}")
                 return {'valid': False, 'errors': errors}
@@ -89,7 +89,7 @@ class TradingService:
         
         # Vérifier la balance suffisante - CORRIGÉ FORMAT NATIF
         try:
-            balance = await self.ccxt_client.get_balance(self.broker.id)
+            balance = await self.exchange_client.get_balance(self.broker.id)
             
             if side == 'buy':
                 # Pour un achat, vérifier USDT disponible - FORMAT NATIF
@@ -238,7 +238,7 @@ class TradingService:
             logger.info("🔥 Utilisation NOUVELLE action Terminal 5: create_and_execute_trade")
             
             # Appel direct à Terminal 5 avec la nouvelle action
-            terminal5_result = await self.ccxt_client._send_request(
+            terminal5_result = await self.exchange_client._send_request(
                 action='create_and_execute_trade',
                 params=complete_trade_request,
                 user_id=self.user.id
@@ -368,7 +368,7 @@ class TradingService:
             db_time = time.time() - start_time
             logger.info(f"🔄 Exécution trade {trade.id}: {trade.side} {trade.quantity} {trade.symbol} (DB: {db_time:.2f}s)")
             
-            # NOUVELLE ARCHITECTURE - Méthode unifiée CCXTClient.place_order()
+            # Méthode unifiée ExchangeClient.place_order()
             ccxt_start = time.time()
             
             # Préparer les paramètres selon le type d'ordre
@@ -395,11 +395,11 @@ class TradingService:
                 order_params['trigger_price'] = float(trade.trigger_price)
             
             # APPEL UNIFIÉ via place_order()
-            logger.info(f"🎯 TradingService: Appel CCXTClient.place_order avec: {order_params}")
-            order_result = await self.ccxt_client.place_order(**order_params)
-            
+            logger.info(f"🎯 TradingService: Appel ExchangeClient.place_order avec: {order_params}")
+            order_result = await self.exchange_client.place_order(**order_params)
+
             ccxt_time = time.time() - ccxt_start
-            logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
+            logger.info(f"📡 Exchange response reçue en {ccxt_time:.2f}s: {order_result}")
             
             # === MISE À JOUR TRADE AVEC RÉPONSE ENRICHIE INTERFACE UNIFIÉE ===
             
@@ -525,15 +525,15 @@ class TradingService:
             raise
     
     async def _execute_trade_order(self, trade):
-        """Exécute l'ordre CCXT pour un Trade existant et met à jour le statut"""
+        """Exécute l'ordre via ExchangeClient pour un Trade existant et met à jour le statut"""
         from datetime import datetime
         import time
         
         start_time = time.time()
         logger.info(f"🔥 _execute_trade_order START: Trade {trade.id}")
-        
+
         try:
-            # Envoyer l'ordre via CCXTClient selon le type
+            # Envoyer l'ordre via ExchangeClient selon le type
             ccxt_start = time.time()
             if trade.order_type == 'market':
                 logger.info(f"🔥 Exécution ordre marché: {trade.side} {trade.quantity} {trade.symbol}")
@@ -541,16 +541,16 @@ class TradingService:
                 # Pour Bitget market buy, utiliser la valeur totale USD au lieu de la quantité
                 if self.broker.exchange.lower() == 'bitget' and trade.side == 'buy' and trade.total_value:
                     logger.info(f"🔥 Bitget market buy: utilisation total_value=${trade.total_value} au lieu de quantity={trade.quantity}")
-                    order_result = await self.ccxt_client.place_market_order(
+                    order_result = await self.exchange_client.place_market_order(
                         self.broker.id, trade.symbol, trade.side, float(trade.total_value)
                     )
                 else:
-                    order_result = await self.ccxt_client.place_market_order(
+                    order_result = await self.exchange_client.place_market_order(
                         self.broker.id, trade.symbol, trade.side, float(trade.quantity)
                     )
             elif trade.order_type == 'limit':
                 logger.info(f"🔥 Exécution ordre limite: {trade.side} {trade.quantity} {trade.symbol} @ {trade.price}")
-                order_result = await self.ccxt_client.place_limit_order(
+                order_result = await self.exchange_client.place_limit_order(
                     self.broker.id, trade.symbol, trade.side, 
                     float(trade.quantity), float(trade.price)
                 )
@@ -583,11 +583,11 @@ class TradingService:
                     order_params['trigger_price'] = float(trade.trigger_price)
                 
                 # APPEL UNIFIÉ via place_order()
-                logger.info(f"🎯 _execute_trade_order: Appel CCXTClient.place_order avec: {order_params}")
-                order_result = await self.ccxt_client.place_order(**order_params)
-            
+                logger.info(f"🎯 _execute_trade_order: Appel ExchangeClient.place_order avec: {order_params}")
+                order_result = await self.exchange_client.place_order(**order_params)
+
             ccxt_time = time.time() - ccxt_start
-            logger.info(f"📡 CCXT response reçue en {ccxt_time:.2f}s: {order_result}")
+            logger.info(f"📡 Exchange response reçue en {ccxt_time:.2f}s: {order_result}")
             
             # === MISE À JOUR TRADE AVEC RÉPONSE ENRICHIE INTERFACE UNIFIÉE (_execute_trade_order) ===
             
@@ -866,7 +866,7 @@ class TradingService:
                 logger.info(f"💰 Prix limite {symbol}: {used_price}")
             else:
                 # Récupérer le prix actuel du marché
-                ticker = await self.ccxt_client.get_ticker(self.broker.id, symbol)
+                ticker = await self.exchange_client.get_ticker(self.broker.id, symbol)
                 
                 # Vérifier si le prix est disponible
                 if ticker['last'] is None:
@@ -875,7 +875,7 @@ class TradingService:
                 used_price = float(ticker['last'])
                 timestamp = ticker.get('timestamp')  # Timestamp Unix en millisecondes
                 
-                # Si pas de timestamp CCXT, générer timestamp actuel
+                # Si pas de timestamp Exchange, générer timestamp actuel
                 if timestamp is None:
                     from datetime import datetime
                     timestamp = int(datetime.now().timestamp() * 1000)  # Unix milliseconds
@@ -933,13 +933,13 @@ class TradingService:
         request_time=None,
         receive_window=None
     ):
-        """Récupère les ordres ouverts via CCXTClient - SIGNATURE ÉTENDUE
-        
+        """Récupère les ordres ouverts via ExchangeClient - SIGNATURE ÉTENDUE
+
         Compatible rétroactivement - anciens appels continuent de fonctionner.
-        Nouveaux paramètres passés directement à Terminal 5 via CCXTClient.
+        Nouveaux paramètres passés directement à Terminal 5 via ExchangeClient.
         """
         try:
-            open_orders = await self.ccxt_client.fetch_open_orders(
+            open_orders = await self.exchange_client.fetch_open_orders(
                 broker_id=self.broker.id,
                 symbol=symbol,
                 limit=limit,
@@ -972,8 +972,8 @@ class TradingService:
         request_time=None,
         receive_window=None
     ):
-        """Récupère les ordres fermés/exécutés via CCXTClient - SIGNATURE ÉTENDUE
-        
+        """Récupère les ordres fermés/exécutés via ExchangeClient - SIGNATURE ÉTENDUE
+
         Compatible rétroactivement - anciens appels continuent de fonctionner.
         Paramètre 'since' conservé pour compatibilité, mais start_time/end_time recommandés.
         """
@@ -991,10 +991,10 @@ class TradingService:
                 start_time = str(since)
                 logger.info(f"🔄 Mapping compatibilité: since={since} → start_time={start_time}")
             
-            closed_orders = await self.ccxt_client.fetch_closed_orders(
+            closed_orders = await self.exchange_client.fetch_closed_orders(
                 broker_id=self.broker.id,
                 symbol=symbol,
-                since=since,  # Garder pour compatibilité CCXTClient
+                since=since,  # Garder pour compatibilité ExchangeClient
                 limit=limit,
                 # Nouveaux paramètres étendus Terminal 5
                 start_time=start_time,
@@ -1013,9 +1013,9 @@ class TradingService:
             raise
     
     async def cancel_order(self, order_id, symbol=None):
-        """Annule un ordre ouvert via CCXTClient"""
+        """Annule un ordre ouvert via ExchangeClient"""
         try:
-            result = await self.ccxt_client.cancel_order(
+            result = await self.exchange_client.cancel_order(
                 broker_id=self.broker.id,
                 order_id=order_id,
                 symbol=symbol
@@ -1028,9 +1028,9 @@ class TradingService:
             raise
     
     async def edit_order(self, order_id, symbol, order_type='limit', side=None, amount=None, price=None):
-        """Modifie un ordre ouvert via CCXTClient"""
+        """Modifie un ordre ouvert via ExchangeClient"""
         try:
-            result = await self.ccxt_client.edit_order(
+            result = await self.exchange_client.edit_order(
                 broker_id=self.broker.id,
                 order_id=order_id,
                 symbol=symbol,
@@ -1068,7 +1068,7 @@ class TradingService:
         if symbols:
             try:
                 # Récupérer tous les prix via fetchTickers en une requête
-                tickers = await self.ccxt_client.get_tickers(self.broker.id, symbols)
+                tickers = await self.exchange_client.get_tickers(self.broker.id, symbols)
                 
                 # Transformer pour le frontend: BTC/USDT → BTC
                 for symbol, ticker in tickers.items():

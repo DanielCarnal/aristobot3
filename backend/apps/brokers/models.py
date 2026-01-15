@@ -94,7 +94,26 @@ class Broker(models.Model):
         return f.decrypt(encrypted_value.encode()).decode()
     
     def get_ccxt_client(self):
-        """Retourne une instance CCXT configuree pour ce broker"""
+        """
+        ⚠️ DEPRECATED: Retourne une instance CCXT configuree pour ce broker.
+
+        ATTENTION: Cette methode cree une connexion CCXT directe.
+        Preferez utiliser ExchangeClient via Terminal 5 pour:
+        - Rate limiting centralise
+        - Meilleure gestion des connexions
+        - Architecture native plus performante
+
+        Usage recommande:
+            from apps.core.services.exchange_client import ExchangeClient
+            client = ExchangeClient(user_id=user.id)
+            balance = await client.get_balance(broker_id)
+        """
+        import warnings
+        warnings.warn(
+            "get_ccxt_client() est deprecated. Utilisez ExchangeClient via Terminal 5.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         exchange_class = getattr(ccxt, self.exchange)
         config = {
             'apiKey': self.decrypt_field(self.api_key),

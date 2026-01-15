@@ -140,7 +140,7 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'INFO',
         },
-        'apps.core.services.ccxt_client': {
+        'apps.core.services.exchange_client': {
             'handlers': ['console'],
             'level': 'INFO',
         },

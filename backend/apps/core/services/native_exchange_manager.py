@@ -8,8 +8,8 @@ Remplace Terminal 5 (run_ccxt_service.py) avec une architecture native optimisé
 📋 ARCHITECTURE NATIVE:
 - NativeExchangeManager: Gestionnaire central des clients exchanges
 - Pooling intelligent des connexions par exchange type
-- Communication Redis identique (ccxt_requests/ccxt_responses)
-- Interface 100% compatible avec CCXTClient existant
+- Communication Redis (exchange_requests/exchange_responses)
+- Interface ExchangeClient unifiée
 
 🚀 AVANTAGES vs SERVICE CCXT:
 - Performance: ~3x plus rapide (clients natifs directs)
@@ -18,10 +18,10 @@ Remplace Terminal 5 (run_ccxt_service.py) avec une architecture native optimisé
 - Extensibilité: Support facile nouveaux exchanges
 
 🔧 FONCTIONNEMENT:
-1. Écoute Redis ccxt_requests (comme Terminal 5 existant)
+1. Écoute Redis exchange_requests (Terminal 5)
 2. Route vers le client native approprié (Bitget, Binance, etc.)
-3. Retourne résultats via Redis ccxt_responses
-4. Compatible avec TradingService, TradingManual, Webhooks existants
+3. Retourne résultats via Redis exchange_responses
+4. Compatible avec TradingService, TradingManual, Webhooks
 """
 
 import asyncio
@@ -66,20 +66,20 @@ class NativeExchangeManager:
     
     🎯 FONCTIONNALITÉS:
     - Gestion pool de clients natifs par exchange type
-    - Communication Redis compatible Terminal 5
+    - Communication Redis (exchange_requests/exchange_responses)
     - Rate limiting intelligent par exchange
     - Hot-reload des credentials sans redémarrage
     - Monitoring et statistiques avancées
-    
+
     🔧 PATTERN DE POOLING:
     - Un client par type d'exchange (bitget, binance, etc.)
     - Injection dynamique des credentials par requête
     - Réutilisation optimale des connexions HTTP
     - Cache intelligent des contraintes de marché
-    
-    📊 ENDPOINTS SUPPORTÉS (compatible CCXTClient):
+
+    📊 ENDPOINTS SUPPORTÉS:
     - get_balance, get_markets, get_ticker, get_tickers
-    - place_order, cancel_order, edit_order  
+    - place_order, cancel_order, edit_order
     - fetch_open_orders, fetch_closed_orders
     - preload_brokers (optimisé natif)
     """
@@ -186,20 +186,19 @@ class NativeExchangeManager:
     
     async def _main_loop(self):
         """
-        🔄 BOUCLE PRINCIPALE D'ÉCOUTE REDIS - CORRIGÉE SELON RUN_WORKING_NATIVE_SERVICE
-        
-        Écoute les requêtes ccxt_requests et traite en parallèle.
-        Compatible 100% avec le format Terminal 5 existant.
+        🔄 BOUCLE PRINCIPALE D'ÉCOUTE REDIS
+
+        Écoute les requêtes exchange_requests et traite en parallèle.
         """
-        print("[MANAGER] Ecoute des requetes ccxt_requests...")
-        logger.info("[INFO] Ecoute des requetes ccxt_requests...")
+        print("[MANAGER] Ecoute des requetes exchange_requests...")
+        logger.info("[INFO] Ecoute des requetes exchange_requests...")
         
         iteration = 0
         while self.running:
             iteration += 1
             try:
-                # CORRECTION : Utiliser blpop comme Terminal 5 et run_working_native_service
-                result = await self.redis_client.blpop('ccxt_requests', timeout=1)
+                # Utiliser blpop pour écouter exchange_requests
+                result = await self.redis_client.blpop('exchange_requests', timeout=1)
                 
                 if result:
                     # CORRECTION : Décomposer le tuple comme Terminal 5
@@ -293,7 +292,7 @@ class NativeExchangeManager:
                 }
             
             # CORRECTION : Envoi via Redis avec setex comme Terminal 5
-            response_key = f"ccxt_response_{request_id}"
+            response_key = f"exchange_response_{request_id}"
             await self.redis_client.setex(response_key, 30, json.dumps(response))
             
             print(f"[MANAGER] Reponse envoyee: {action} - {request_id[:8]}... ({response_time:.0f}ms)")
@@ -313,7 +312,7 @@ class NativeExchangeManager:
                 }
                 
                 try:
-                    response_key = f"ccxt_response_{request_data['request_id']}"
+                    response_key = f"exchange_response_{request_data['request_id']}"
                     await self.redis_client.setex(response_key, 30, json.dumps(error_response))
                 except:
                     pass  # Échec silencieux si Redis indisponible
