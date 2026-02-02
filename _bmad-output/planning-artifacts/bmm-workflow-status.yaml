@@ -1,0 +1,44 @@
+# Workflow Status - Aristobot3
+# Tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/prd.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-30"
+project: "Aristobot3"
+project_type: "software"
+selected_track: "bmad-method"
+field_type: "brownfield"
+workflow_path: "_bmad/bmm/workflows/workflow-status/paths/method-brownfield.yaml"
+
+workflow_status:
+  # Phase 0 - Documentation (Optional for brownfield)
+  document-project: optional
+
+  # Phase 1 - Analysis (Skipped per user request)
+  brainstorm-project: skipped
+  research: skipped
+  product-brief: skipped
+
+  # Phase 2 - Planning
+  prd: "_bmad-output/planning-artifacts/prd.md"
+  create-ux-design: required
+
+  # Phase 3 - Solutioning
+  create-architecture: required
+  create-epics-and-stories: required
+  test-design: optional
+  implementation-readiness: required
+
+  # Phase 4 - Implementation
+  sprint-planning: required

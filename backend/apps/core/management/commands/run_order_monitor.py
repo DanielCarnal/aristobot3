@@ -29,10 +29,11 @@ import signal
 import sys
 import time
 import json
-import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
+
+from loguru import logger
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
@@ -42,9 +43,11 @@ from channels.layers import get_channel_layer
 # Aristobot imports
 from apps.brokers.models import Broker
 from apps.trading_manual.models import Trade
+from apps.webhooks.models import WebhookState
 from apps.core.services.native_exchange_manager import get_native_exchange_manager
+from apps.core.services.exchange_client import ExchangeClient
+from apps.core.services.loguru_config import setup_loguru
 
-logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -113,15 +116,12 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         """Point d'entree principal - Pattern identique Terminal 5"""
-        
+        setup_loguru("terminal7")
+
         # Configuration depuis arguments
         self.scan_interval = options['scan_interval']
         self.broker_delay = options['broker_delay'] 
         self.history_limit = options['history_limit']
-        
-        # Configuration logging
-        if options['verbose']:
-            logging.getLogger('apps.core.management.commands.run_order_monitor').setLevel(logging.DEBUG)
         
         # Affichage banniere
         self._print_banner()
@@ -242,10 +242,7 @@ class Command(BaseCommand):
         # Initialisation
         await self._initialize_service()
         
-        self.stdout.write(
-            self.style.SUCCESS("[OK] Terminal 7 demarre avec succes")
-        )
-        self.stdout.write(f"[INFO] Surveillance {len(self.broker_states)} brokers toutes les {self.scan_interval}s")
+        logger.info(f"Terminal 7 demarre avec succes - {len(self.broker_states)} brokers surveilles toutes les {self.scan_interval}s")
         self.stdout.write("[TIP] Appuyez sur Ctrl+C pour arreter proprement")
         
         # BOUCLE PRINCIPALE - TIMING INTERNE (comme Terminal 5)
@@ -257,7 +254,10 @@ class Command(BaseCommand):
             try:
                 # SCAN DE TOUS LES BROKERS SEQUENTIELLEMENT
                 await self._scan_all_brokers(cycle_count)
-                
+
+                # NOUVEAU: POSITION GUARDIAN - Validation SL/TP coherence
+                await self._validate_webhook_positions(cycle_count)
+
                 # Mise a jour des statistiques
                 cycle_time = time.time() - cycle_start_time
                 self.stats['cycles_completed'] = cycle_count
@@ -272,7 +272,6 @@ class Command(BaseCommand):
                 
             except Exception as e:
                 self.stats['errors'] += 1
-                self.stdout.write(f"[ERROR] Erreur cycle {cycle_count}: {e}")
                 logger.error(f"Erreur cycle {cycle_count}: {e}")
                 
                 # Continuer malgre l'erreur apres une pause
@@ -292,32 +291,32 @@ class Command(BaseCommand):
     
     async def _initialize_service(self):
         """Initialisation du service"""
-        self.stdout.write("[START] Initialisation Terminal 7...")
-        
+        logger.info("Initialisation Terminal 7")
+
         # Demarrage du service
         self.running = True
         self.stats['start_time'] = datetime.utcnow()
-        
+
         # Recuperation de l'Exchange Manager (Terminal 5)
         try:
             self.exchange_manager = get_native_exchange_manager()
             if not self.exchange_manager:
                 raise Exception("NativeExchangeManager indisponible")
-            
-            self.stdout.write("[OK] Connexion Terminal 5 etablie")
+
+            logger.info("Connexion Terminal 5 etablie")
         except Exception as e:
-            self.stdout.write(f"[ERROR] Erreur connexion Terminal 5: {e}")
+            logger.error(f"Erreur connexion Terminal 5: {e}")
             raise
-        
+
         # Chargement des brokers actifs
         await self._load_active_brokers()
-        
-        self.stdout.write(f"[OK] Service initialise - {len(self.broker_states)} brokers surveilles")
+
+        logger.info(f"Service initialise - {len(self.broker_states)} brokers surveilles")
     
     async def _load_active_brokers(self):
         """Charge la liste des brokers actifs a surveiller"""
         try:
-            self.stdout.write("[LOAD] Chargement des brokers actifs...")
+            logger.info("Chargement des brokers actifs")
             
             # Recuperation de tous les brokers actifs
             brokers = await sync_to_async(list)(
@@ -361,16 +360,16 @@ class Command(BaseCommand):
                     }
                     
                     loaded_count += 1
-                    self.stdout.write(f"  [+] {broker.name} ({broker.exchange}) - User: {broker.user.username}")
-                    
+                    logger.bind(broker_id=broker.id, exchange=broker.exchange).info(
+                        f"Broker charge: {broker.name} - User: {broker.user.username}"
+                    )
+
                 except Exception as e:
-                    self.stdout.write(f"  [ERROR] Erreur chargement broker {broker.id}: {e}")
                     logger.warning(f"Erreur chargement broker {broker.id}: {e}")
-            
-            self.stdout.write(f"[OK] {loaded_count}/{len(brokers)} brokers charges avec succes")
+
+            logger.info(f"{loaded_count}/{len(brokers)} brokers charges avec succes")
             
         except Exception as e:
-            self.stdout.write(f"[ERROR] Erreur chargement brokers: {e}")
             logger.error(f"Erreur chargement brokers: {e}")
             raise
     
@@ -379,7 +378,7 @@ class Command(BaseCommand):
         if not self.broker_states:
             return
         
-        self.stdout.write(f"[CYCLE {cycle_count}] Debut scan {len(self.broker_states)} brokers...")
+        logger.bind(cycle=cycle_count).info(f"Cycle {cycle_count} debut - {len(self.broker_states)} brokers")
         cycle_new_executions = 0
         cycle_errors = 0
         
@@ -402,8 +401,8 @@ class Command(BaseCommand):
                 
                 # Log si nouvelles executions
                 if new_executions > 0:
-                    self.stdout.write(
-                        f"  [EXEC] {broker_state['name']}: {new_executions} nouveaux ordres traites"
+                    logger.bind(broker_id=broker_id).info(
+                        f"Nouveaux ordres traites: {broker_state['name']} - {new_executions}"
                     )
                 
                 # DELAI ENTRE BROKERS (rate limiting)
@@ -416,8 +415,7 @@ class Command(BaseCommand):
                 broker_state['last_error'] = str(e)
                 broker_state['status'] = 'error' if broker_state['consecutive_errors'] >= 3 else 'active'
                 
-                self.stdout.write(f"  [ERROR] {broker_state['name']}: {e}")
-                logger.error(f"Erreur scan broker {broker_id}: {e}")
+                logger.bind(broker_id=broker_id).error(f"Erreur scan broker {broker_state['name']}: {e}")
         
         # Mise a jour statistiques globales
         self.stats['brokers_scanned'] += len(self.broker_states)
@@ -426,8 +424,8 @@ class Command(BaseCommand):
         
         # Resume du cycle
         if cycle_new_executions > 0 or cycle_errors > 0:
-            self.stdout.write(
-                f"[CYCLE {cycle_count}] Termine: {cycle_new_executions} executions, {cycle_errors} erreurs"
+            logger.bind(cycle=cycle_count).info(
+                f"Cycle {cycle_count} termine: {cycle_new_executions} executions, {cycle_errors} erreurs"
             )
     
     async def _scan_broker_orders(self, broker_id: int) -> int:
@@ -451,8 +449,7 @@ class Command(BaseCommand):
                     self.stats['orders_processed'] += 1
                     broker_state['trade_count'] += 1
                 except Exception as e:
-                    self.stdout.write(f"[ERROR] Erreur traitement ordre {order.get('id', 'unknown')}: {e}")
-                    logger.error(f"Erreur traitement ordre: {e}")
+                    logger.error(f"Erreur traitement ordre {order.get('id', 'unknown')}: {e}")
             
             # 4. MISE A JOUR TIMESTAMP ET STATISTIQUES
             broker_state['last_check'] = int(time.time() * 1000)
@@ -460,19 +457,207 @@ class Command(BaseCommand):
             return len(new_executed_orders)
             
         except Exception as e:
-            self.stdout.write(f"[ERROR] Erreur scan broker {broker_id}: {e}")
+            logger.error(f"Erreur scan broker {broker_id}: {e}")
             raise
-    
+
+    async def _validate_webhook_positions(self, cycle_count: int):
+        """
+        POSITION GUARDIAN - Validation coherence SL/TP pour positions webhooks
+
+        Verifie toutes les positions WebhookState (status='open') et s'assure qu'elles
+        ont bien leurs ordres SL/TP actifs. Si manquant, les recree automatiquement
+        depuis les valeurs stockees dans position.current_sl/tp.
+
+        Cette fonction repare automatiquement les echecs de Terminal 3 dans max 10s.
+        """
+        try:
+            logger.bind(cycle=cycle_count, component="position_guardian").debug(
+                "Position Guardian: debut validation"
+            )
+
+            # 1. CHARGER TOUTES LES POSITIONS OUVERTES
+            open_positions = await sync_to_async(list)(
+                WebhookState.objects.filter(status='open').select_related('broker', 'user')
+            )
+
+            if not open_positions:
+                logger.bind(component="position_guardian").debug(
+                    "Aucune position webhook ouverte"
+                )
+                return
+
+            logger.bind(component="position_guardian").info(
+                f"Position Guardian: {len(open_positions)} positions a valider"
+            )
+
+            repairs_made = 0
+
+            # 2. VALIDER CHAQUE POSITION
+            for position in open_positions:
+                try:
+                    # 3. VERIFIER SL ACTIF EN DB
+                    sl_exists = await sync_to_async(
+                        Trade.objects.filter(
+                            user=position.user,
+                            broker=position.broker,
+                            symbol=position.symbol,
+                            type='stop_loss',
+                            status='open'
+                        ).exists
+                    )()
+
+                    # 4. VERIFIER TP ACTIF EN DB
+                    tp_exists = await sync_to_async(
+                        Trade.objects.filter(
+                            user=position.user,
+                            broker=position.broker,
+                            symbol=position.symbol,
+                            type='take_profit',
+                            status='open'
+                        ).exists
+                    )()
+
+                    # 5. REPARER SL SI MANQUANT
+                    if not sl_exists and position.current_sl:
+                        logger.bind(
+                            component="position_guardian",
+                            position_id=position.id,
+                            symbol=position.symbol,
+                        ).warning(
+                            "SL manquant - reparation en cours",
+                            current_sl=float(position.current_sl),
+                        )
+
+                        try:
+                            # Calcul side: LONG → SL sell, SHORT → SL buy
+                            sl_side = 'sell' if position.side == 'buy' else 'buy'
+
+                            # Creation SL via ExchangeClient (Terminal 5)
+                            exchange_client = ExchangeClient(user_id=position.user.id)
+                            sl_result = await exchange_client.place_order(
+                                broker_id=position.broker.id,
+                                symbol=position.symbol,
+                                side=sl_side,
+                                amount=float(position.quantity),
+                                order_type='stop_loss',
+                                stop_price=float(position.current_sl),
+                            )
+
+                            # Mise a jour position
+                            def update_sl():
+                                position.sl_order_id = sl_result.get('id', '')
+                                position.save()
+
+                            await sync_to_async(update_sl)()
+
+                            logger.bind(
+                                component="position_guardian",
+                                position_id=position.id,
+                                symbol=position.symbol,
+                            ).info(
+                                "SL repare avec succes",
+                                sl_order_id=position.sl_order_id,
+                            )
+
+                            repairs_made += 1
+
+                        except Exception as e:
+                            logger.bind(
+                                component="position_guardian",
+                                position_id=position.id,
+                            ).error(
+                                "Echec reparation SL",
+                                error=str(e),
+                            )
+
+                    # 6. REPARER TP SI MANQUANT
+                    if not tp_exists and position.current_tp:
+                        logger.bind(
+                            component="position_guardian",
+                            position_id=position.id,
+                            symbol=position.symbol,
+                        ).warning(
+                            "TP manquant - reparation en cours",
+                            current_tp=float(position.current_tp),
+                        )
+
+                        try:
+                            # Calcul side: LONG → TP sell, SHORT → TP buy
+                            tp_side = 'sell' if position.side == 'buy' else 'buy'
+
+                            # Creation TP via ExchangeClient (Terminal 5)
+                            exchange_client = ExchangeClient(user_id=position.user.id)
+                            tp_result = await exchange_client.place_order(
+                                broker_id=position.broker.id,
+                                symbol=position.symbol,
+                                side=tp_side,
+                                amount=float(position.quantity),
+                                order_type='take_profit',
+                                price=float(position.current_tp),
+                            )
+
+                            # Mise a jour position
+                            def update_tp():
+                                position.tp_order_id = tp_result.get('id', '')
+                                position.save()
+
+                            await sync_to_async(update_tp)()
+
+                            logger.bind(
+                                component="position_guardian",
+                                position_id=position.id,
+                                symbol=position.symbol,
+                            ).info(
+                                "TP repare avec succes",
+                                tp_order_id=position.tp_order_id,
+                            )
+
+                            repairs_made += 1
+
+                        except Exception as e:
+                            logger.bind(
+                                component="position_guardian",
+                                position_id=position.id,
+                            ).error(
+                                "Echec reparation TP",
+                                error=str(e),
+                            )
+
+                except Exception as e:
+                    logger.bind(
+                        component="position_guardian",
+                        position_id=position.id,
+                    ).error(
+                        "Erreur validation position",
+                        error=str(e),
+                    )
+
+            # 7. LOG FINAL
+            if repairs_made > 0:
+                logger.bind(component="position_guardian").info(
+                    f"Position Guardian: {repairs_made} ordres repares"
+                )
+            else:
+                logger.bind(component="position_guardian").debug(
+                    "Position Guardian: aucune reparation necessaire"
+                )
+
+        except Exception as e:
+            logger.bind(component="position_guardian").error(
+                "Erreur globale Position Guardian",
+                error=str(e),
+            )
+
     async def _shutdown_service(self):
         """Arret propre du service"""
-        self.stdout.write("[STOP] Arret propre Terminal 7...")
-        
+        logger.info("Arret propre Terminal 7")
+
         self.running = False
-        
+
         # Affichage statistiques finales
         self._display_final_stats()
-        
-        self.stdout.write("[OK] Terminal 7 arrete proprement")
+
+        logger.info("Terminal 7 arrete proprement")
     
     def _display_service_stats(self):
         """Affiche les statistiques du service Terminal 7"""
@@ -643,7 +828,7 @@ class Command(BaseCommand):
             order_data = self._extract_order_data(order)
             
             if not order_data['symbol'] or not order_data['side']:
-                self.stdout.write(f"[WARN] Ordre incomplet ignore: {order_data}")
+                logger.warning(f"Ordre incomplet ignore: {order_data}")
                 return
             
             # CALCUL P&L avec Price Averaging (Phase 1)
@@ -659,8 +844,8 @@ class Command(BaseCommand):
             await self._send_notifications(broker_id, trade, pnl_data)
             
             # LOG DU RESULTAT
-            self.stdout.write(
-                f"[PNL] {order_data['symbol']} {order_data['side']} "
+            logger.bind(symbol=order_data['symbol'], side=order_data['side']).info(
+                f"P&L calcule: {order_data['symbol']} {order_data['side']} "
                 f"${pnl_data['realized_pnl']:+.2f} (fees: ${pnl_data['total_fees']:.2f})"
             )
             
@@ -668,10 +853,7 @@ class Command(BaseCommand):
             self.stats['pnl_calculations'] += 1
             
         except Exception as e:
-            self.stdout.write(f"[ERROR] Erreur traitement ordre: {e}")
-            logger.error(f"Erreur traitement ordre: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Erreur traitement ordre: {e}", exc_info=True)
     
     def _extract_order_data(self, order: Dict) -> Dict:
         """

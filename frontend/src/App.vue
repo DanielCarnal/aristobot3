@@ -19,35 +19,26 @@
 </template>
 
 <script setup>
-console.log('DEBUG: App.vue - Script setup demarre')
-
 import { onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
 import { useAuthStore } from './stores/auth'
 
-console.log('DEBUG: App.vue - Imports termines')
-
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-
-console.log('DEBUG: App.vue - AuthStore cree')
 
 const isLoginPage = computed(() => route.path === '/login')
 const showLayout = computed(() => authStore.isAuthenticated && !isLoginPage.value)
 
 onMounted(async () => {
-  console.log('DEBUG: App.vue - onMounted execute')
-  
   try {
     // D'abord vérifier le mode debug
     await authStore.checkDebugConfig()
     
     // Si mode debug actif, login automatique avec 'dev'
     if (authStore.debugEnabled && authStore.debugActive) {
-      console.log('DEBUG: App.vue - Mode debug actif, login automatique avec dev')
       const debugLoginSuccess = await authStore.debugLogin()
       
       if (debugLoginSuccess) {
@@ -61,7 +52,6 @@ onMounted(async () => {
     
     // Sinon, vérification auth normale
     const isAuth = await authStore.checkAuth()
-    console.log('DEBUG: App.vue - Auth check termine, authenticated:', isAuth)
     
     // Si pas authentifié et pas sur la page login, rediriger
     if (!isAuth && route.path !== '/login') {
@@ -72,7 +62,7 @@ onMounted(async () => {
       router.push('/')
     }
   } catch (error) {
-    console.error('DEBUG: App.vue - Erreur auth check:', error)
+    console.error('App.vue - Erreur auth check:', error)
     if (route.path !== '/login') {
       router.push('/login')
     }

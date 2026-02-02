@@ -111,6 +111,7 @@ class ExchangeClient:
             'action': action,
             'params': params,
             'user_id': user_id,  # 🔒 NOUVEAU: Sécurité multi-tenant
+            'trace_id': getattr(self, 'trace_id', None),  # Propagation trace causale vers T5
             'timestamp': asyncio.get_event_loop().time()
         }
         

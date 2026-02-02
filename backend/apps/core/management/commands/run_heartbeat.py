@@ -1,14 +1,15 @@
+# -*- coding: utf-8 -*-
 import asyncio
 import json
 import websockets
 from django.core.management.base import BaseCommand
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import sync_to_async
 from django.utils import timezone
 from apps.core.models import HeartbeatStatus, CandleHeartbeat
-import logging
+from loguru import logger
+from apps.core.services.loguru_config import setup_loguru
 
-logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'Run Binance WebSocket heartbeat service avec persistance'
@@ -16,93 +17,93 @@ class Command(BaseCommand):
     def __init__(self):
         super().__init__()
         self.heartbeat_status = None
-        
+
     def handle(self, *args, **options):
+        setup_loguru("terminal2")
         self.stdout.write('Starting Enhanced Heartbeat service...')
-        
-        # Initialiser ou récupérer le statut
+
         self.heartbeat_status, created = HeartbeatStatus.objects.get_or_create(
-            id=1,  # Singleton
+            id=1,
             defaults={
                 'is_connected': False,
                 'symbols_monitored': ['BTCUSDT']
             }
         )
-        
-        # Enregistrer le démarrage
+
         self.heartbeat_status.record_start()
-        self.stdout.write(
-            self.style.SUCCESS(f'[OK] Heartbeat demarre a {self.heartbeat_status.last_application_start}')
+        logger.info(
+            "Service Heartbeat demarre",
+            start_time=self.heartbeat_status.last_application_start.isoformat()
         )
-        
+
         try:
             asyncio.run(self.run_heartbeat())
         except KeyboardInterrupt:
             self.shutdown()
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Erreur critique: {e}'))
+            logger.error("Erreur critique", error=str(e))
             self.shutdown()
 
     def shutdown(self):
-        """Arrêt propre du service"""
         if self.heartbeat_status:
             self.heartbeat_status.record_stop()
-            self.stdout.write(
-                self.style.WARNING(f'[STOP] Heartbeat arrete a {self.heartbeat_status.last_application_stop}')
+            logger.info(
+                "Service Heartbeat arrete",
+                stop_time=self.heartbeat_status.last_application_stop.isoformat()
             )
 
     async def run_heartbeat(self):
-        """Boucle principale du Heartbeat avec persistance"""
         channel_layer = get_channel_layer()
-        
-        # URL WebSocket Binance multi-timeframes
-        stream_url = "wss://stream.binance.com:9443/ws/btcusdt@kline_1m/btcusdt@kline_3m/btcusdt@kline_5m/btcusdt@kline_15m/btcusdt@kline_1h/btcusdt@kline_4h"
-        
+
+        stream_url = (
+            "wss://stream.binance.com:9443/ws/"
+            "btcusdt@kline_1m/btcusdt@kline_3m/btcusdt@kline_5m/"
+            "btcusdt@kline_15m/btcusdt@kline_1h/btcusdt@kline_4h"
+        )
+
         while True:
             try:
                 async with websockets.connect(stream_url) as websocket:
-                    self.stdout.write('[CONNECT] Connecte a Binance WebSocket')
+                    logger.info("Connexion WebSocket Binance etablie")
                     self.heartbeat_status.is_connected = True
                     await sync_to_async(self.heartbeat_status.save)()
-                    
+
                     async for message in websocket:
                         await self.process_message(message, channel_layer)
-                        
+
             except Exception as e:
-                self.stdout.write(f'WebSocket error: {e}')
+                logger.warning(
+                    "Perte connexion WebSocket Binance",
+                    error=str(e),
+                    reconnect_delay="5s"
+                )
                 self.heartbeat_status.is_connected = False
                 self.heartbeat_status.last_error = str(e)
                 await sync_to_async(self.heartbeat_status.save)()
                 await asyncio.sleep(5)
 
     async def process_message(self, message, channel_layer):
-        """Traite un message WebSocket avec sauvegarde"""
         try:
             data = json.loads(message)
-            
-            # Diffuser le stream brut (existant)
+
+            # Diffuser le stream brut vers le frontend
             await channel_layer.group_send(
                 "stream",
-                {
-                    "type": "stream_message",
-                    "message": data
-                }
+                {"type": "stream_message", "message": data}
             )
-            
-            # Traiter les bougies fermées
-            if 'k' in data and data['k']['x']:  # Bougie fermée
+
+            # Traiter les bougies fermees
+            if 'k' in data and data['k']['x']:
                 await self.process_closed_candle(data, channel_layer)
-                
+
         except Exception as e:
-            logger.error(f"Erreur traitement message: {e}")
+            logger.error("Erreur traitement message WebSocket", error=str(e))
 
     async def process_closed_candle(self, data, channel_layer):
-        """Traite une bougie fermée avec sauvegarde DB"""
         k = data['k']
         dhm_reception = timezone.now()
         dhm_candle = timezone.datetime.fromtimestamp(k['T'] / 1000, tz=timezone.utc)
-        
-        # Préparer les données
+
         kline_data = {
             'symbol': k['s'],
             'timeframe': k['i'],
@@ -117,10 +118,10 @@ class Command(BaseCommand):
             'dhm_reception': dhm_reception.isoformat(),
             'dhm_candle': dhm_candle.isoformat()
         }
-        
-        # SAUVEGARDE EN BASE (NOUVEAU) - Version async
+
+        # Sauvegarde en base de donnees
         try:
-            candle_signal = await sync_to_async(CandleHeartbeat.objects.create)(
+            await sync_to_async(CandleHeartbeat.objects.create)(
                 heartbeat_status=self.heartbeat_status,
                 dhm_reception=dhm_reception,
                 dhm_candle=dhm_candle,
@@ -132,22 +133,21 @@ class Command(BaseCommand):
                 close_price=kline_data['close_price'],
                 volume=kline_data['volume']
             )
-            
-            logger.info(f"[SAVE] Signal sauve: {candle_signal}")
-            
+
+            logger.bind(
+                symbol=k['s'],
+                timeframe=k['i'],
+                close_price=kline_data['close_price'],
+                candle_time=dhm_candle.isoformat(),
+            ).info(f"Signal {k['i']} sauve: {k['s']} @ {kline_data['close_price']}")
+
         except Exception as e:
-            logger.error(f"Erreur sauvegarde signal: {e}")
-        
-        # Diffuser le signal Heartbeat (existant + enrichi)
+            logger.bind(symbol=k['s'], timeframe=k['i']).error(
+                "Erreur sauvegarde signal DB", error=str(e)
+            )
+
+        # Diffuser le signal Heartbeat vers Terminal 3 et Frontend
         await channel_layer.group_send(
             "heartbeat",
-            {
-                "type": "heartbeat_message",
-                "message": kline_data
-            }
-        )
-        
-        self.stdout.write(
-            f'[SIGNAL] {kline_data["symbol"]} {kline_data["timeframe"]} @ {kline_data["close_price"]} '
-            f'[Sauve en DB]'
+            {"type": "heartbeat_message", "message": kline_data}
         )

@@ -48,7 +48,20 @@ class Broker(models.Model):
     is_default = models.BooleanField(default=False)
     is_testnet = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    
+
+    # Type de trading autorise (Module 4 - Webhooks)
+    TYPE_CHOICES = [
+        ('OFF', 'Desactive'),
+        ('Strategie', 'Strategies automatiques'),
+        ('Webhooks', 'Webhooks TradingView'),
+    ]
+    type_de_trading = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default='OFF',
+        help_text="Mode de trading autorise pour ce broker"
+    )
+
     # Statistiques
     last_connection_test = models.DateTimeField(null=True, blank=True)
     last_connection_success = models.BooleanField(default=False)

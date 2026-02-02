@@ -115,11 +115,14 @@
 **📊 Détails complets :** Voir `MODULE2_IMPLEMENTATION.md`
 
 ## 📦 MODULE 2 : Service Exchange Centralisé (Terminal 5) ✅ **TERMINÉ**
+
+⚠️ **DOCUMENTATION COMPLÈTE** : Voir `_bmad-output/planning-artifacts/Terminal5_Exchange_Gateway.md` pour architecture détaillée avec décisions Party Mode (2026-01-21)
+
 **Le Service Exchange Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges via APIs natives. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
 
 **Principe de fonctionnement :**
 * **Service dédié** : Processus indépendant qui maintient toutes les connexions natives (Bitget, Binance, Kraken)
-* **Une instance par broker** : Dictionnaire `{(user_id, broker_id): exchange_instance}` centralisé
+* **Option B : 1 instance par type d'exchange** : Dictionnaire `{'bitget': BitgetClient, 'binance': BinanceClient}` avec injection dynamique credentials
 * **Communication Redis** : Tous les autres services communiquent via channels `exchange_requests` et `exchange_responses`
 * **Architecture native** : Clients natifs haute performance pour toutes les opérations de trading
 

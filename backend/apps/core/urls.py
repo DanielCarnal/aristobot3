@@ -14,4 +14,6 @@ urlpatterns = [
     path('', include(router.urls)),
     # Route publique pour historique Heartbeat (sans auth)
     path('heartbeat-history/', views.HeartbeatHistoryView.as_view(), name='heartbeat-history'),
+    # Endpoint logging frontend (Phase 2 — Logging Infrastructure)
+    path('frontend-log', views.frontend_log_view, name='frontend-log'),
 ]

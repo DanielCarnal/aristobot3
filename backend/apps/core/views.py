@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
+from loguru import logger as loguru_logger
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -167,3 +168,37 @@ class HeartbeatHistoryView(View):
             'results': data,
             'count': len(data)
         })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def frontend_log_view(request):
+    """
+    Endpoint async pour recevoir les logs du frontend Vue.js.
+    Ecrit dans le fichier de log terminal1 via Loguru.
+    """
+    data = request.data
+
+    level = data.get('level', 'info').lower()
+    message = data.get('message', '')
+    component = data.get('component', 'unknown')
+    timestamp = data.get('timestamp', '')
+    log_data = data.get('data', {})
+
+    # Filtrer les niveaux valides
+    valid_levels = {'debug', 'info', 'warning', 'warn', 'error'}
+    if level not in valid_levels:
+        level = 'info'
+    # Normaliser 'warn' vers 'warning' pour loguru
+    if level == 'warn':
+        level = 'warning'
+
+    bound = loguru_logger.bind(
+        terminal_name="terminal1_frontend",
+        component=component,
+        frontend_timestamp=timestamp,
+        **{k: str(v) for k, v in log_data.items()} if log_data else {}
+    )
+    getattr(bound, level)(message)
+
+    return Response({'status': 'ok'}, status=200)

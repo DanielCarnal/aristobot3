@@ -113,7 +113,7 @@
                 <span v-if="broker.last_connection_success" class="status-dot success"></span>
                 <span v-else-if="broker.last_connection_test" class="status-dot error"></span>
                 <span v-else class="status-dot unknown"></span>
-                {{ broker.api_key ? '••••••••••' : 'Non configure' }}
+                {{ broker.has_api_key ? '••••••••••' : 'Non configure' }}
               </td>
               <td>
                 <span v-if="broker.is_default" class="badge success">✓</span>
@@ -212,14 +212,23 @@
         
         <div v-if="selectedExchange?.has_testnet" class="form-group">
           <label>
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               v-model="brokerForm.is_testnet"
             >
             Mode Testnet
           </label>
         </div>
-        
+
+        <div class="form-group">
+          <label>Type de trading :</label>
+          <select v-model="brokerForm.type_de_trading">
+            <option value="OFF">Desactive</option>
+            <option value="Strategie">Strategies automatiques</option>
+            <option value="Webhooks">Webhooks TradingView</option>
+          </select>
+        </div>
+
         <div class="modal-actions">
           <button @click="saveBroker" class="btn btn-primary">
             Sauvegarder
@@ -472,7 +481,8 @@ const brokerForm = ref({
   api_secret: '',
   api_password: '',
   subaccount_name: '',
-  is_testnet: false
+  is_testnet: false,
+  type_de_trading: 'OFF'
 })
 
 const connectionTest = ref(null)
@@ -544,11 +554,12 @@ function editBroker(broker) {
     exchange: broker.exchange,
     name: broker.name,
     description: broker.description || '',
-    api_key: '',  // Ne pas afficher la cle existante pour securite
-    api_secret: '',  // Ne pas afficher le secret existant
-    api_password: broker.api_password ? '••••••••' : '',
+    api_key: '',
+    api_secret: '',
+    api_password: broker.has_api_password ? '••••••••' : '',
     subaccount_name: broker.subaccount_name || '',
-    is_testnet: broker.is_testnet || false
+    is_testnet: broker.is_testnet || false,
+    type_de_trading: broker.type_de_trading || 'OFF'
   }
   showBrokerModal.value = true
 }

@@ -1,11 +1,8 @@
-console.log('DEBUG: main.js - Debut du chargement')
-
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
-
-console.log('DEBUG: main.js - Imports Vue charges')
+import frontendLogger from './services/logger.js'
 
 // Import views
 import HeartbeatView from './views/HeartbeatView.vue'
@@ -17,8 +14,6 @@ import WebhooksView from './views/WebhooksView.vue'
 import StatsView from './views/StatsView.vue'
 import AccountView from './views/AccountView.vue'
 import LoginView from './views/LoginView.vue'
-
-console.log('DEBUG: main.js - Toutes les vues importees')
 
 const routes = [
   { path: '/login', component: LoginView },
@@ -40,14 +35,32 @@ const router = createRouter({
 
 const pinia = createPinia()
 
-console.log('DEBUG: main.js - Creation de l\'app Vue')
-
 const app = createApp(App)
-console.log('DEBUG: main.js - App creee, ajout Pinia')
 app.use(pinia)
-console.log('DEBUG: main.js - Pinia ajoute, ajout Router')
 app.use(router)
-console.log('DEBUG: main.js - Router ajoute, montage sur #app')
+
+// Intercepteur console.error -> log structure backend (guard anti-recursion)
+let _loggingError = false
+const originalError = console.error
+console.error = function (...args) {
+  originalError.apply(console, args)
+  if (_loggingError) return
+  _loggingError = true
+  const message = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')
+  frontendLogger.error(message, { component: 'global' })
+  _loggingError = false
+}
+
+// Exceptions non catchees
+window.addEventListener('error', (event) => {
+  frontendLogger.error(event.message, {
+    component: 'window',
+    stack: event.stack,
+    filename: event.filename,
+    lineno: event.lineno
+  })
+})
+
 app.mount('#app')
 
-console.log('DEBUG: main.js - App montee avec succes!')
+frontendLogger.info('App montee avec succes', { component: 'main' })

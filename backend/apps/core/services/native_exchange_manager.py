@@ -26,7 +26,6 @@ Remplace Terminal 5 (run_ccxt_service.py) avec une architecture native optimisé
 
 import asyncio
 import json
-import logging
 import uuid
 import time
 from typing import Dict, List, Optional, Any
@@ -46,16 +45,10 @@ from .base_exchange_client import BaseExchangeClient, ExchangeClientFactory
 from .bitget_native_client import BitgetNativeClient
 from .binance_native_client import BinanceNativeClient
 from .kraken_native_client import KrakenNativeClient
+from loguru import logger
+from .loguru_config import trace_id_ctx
 
-logger = logging.getLogger(__name__)
 User = get_user_model()
-
-# 🔍 VERSION DE DEBUG POUR CLAUDE - LOGS GARANTIS AU DÉMARRAGE
-TERMINAL5_VERSION = "2.5.3-FIX-REDIS-JSON-SERIALIZATION"
-print(f"[STARTUP CLAUDE] ===== TERMINAL 5 VERSION {TERMINAL5_VERSION} =====")
-logger.info(f"🔍 TERMINAL 5 CHARGÉ - VERSION: {TERMINAL5_VERSION}")
-print(f"[STARTUP CLAUDE] Fichier: {__file__}")
-print(f"[STARTUP CLAUDE] Modifications Claude actives: create_and_execute_trade debug logs")
 
 
 class NativeExchangeManager:
@@ -122,30 +115,22 @@ class NativeExchangeManager:
         
         try:
             # Connexion Redis
-            print("[MANAGER DEBUG] Connexion Redis...")
             self.redis_client = await get_redis_client()
             await self.redis_client.ping()
-            print("[MANAGER DEBUG] Redis OK")
             logger.info("[OK] Connexion Redis etablie")
             
             # Préchargement des brokers actifs
-            print("[MANAGER DEBUG] Preload brokers...")
             await self._preload_active_brokers()
-            print("[MANAGER DEBUG] Preload OK")
             
             # Démarrage de la boucle d'écoute
-            print("[MANAGER DEBUG] Set running=True...")
             self.running = True
             self.stats['start_time'] = datetime.utcnow()
-            print(f"[MANAGER DEBUG] Running={self.running}")
             
             logger.info("[OK] NativeExchangeManager demarre avec succes")
-            print("[MANAGER DEBUG] Lancement _main_loop()...")
             
             # Lancement de la boucle principale
             logger.info("[DEBUG] Lancement _main_loop()...")
             await self._main_loop()
-            print("[MANAGER DEBUG] _main_loop() terminee")
             logger.info("[DEBUG] _main_loop() terminee normalement")
             
         except Exception as e:
@@ -190,7 +175,6 @@ class NativeExchangeManager:
 
         Écoute les requêtes exchange_requests et traite en parallèle.
         """
-        print("[MANAGER] Ecoute des requetes exchange_requests...")
         logger.info("[INFO] Ecoute des requetes exchange_requests...")
         
         iteration = 0
@@ -203,7 +187,6 @@ class NativeExchangeManager:
                 if result:
                     # CORRECTION : Décomposer le tuple comme Terminal 5
                     _, message_json = result
-                    print(f"[MANAGER] Requete recue: {message_json}")
                     
                     # Traitement async avec gestion d'erreur améliorée
                     task = asyncio.create_task(self._process_request(message_json))
@@ -214,28 +197,20 @@ class NativeExchangeManager:
                     if task.done():
                         try:
                             await task
-                            print(f"[MANAGER] Traitement OK (iteration {iteration})")
                         except Exception as e:
-                            print(f"[MANAGER ERROR] Exception traitement: {e}")
-                            import traceback
-                            traceback.print_exc()
+                            logger.error(f"[ERR] Exception tache traitement: {e}")
                 else:
                     # Timeout normal avec blpop
-                    if iteration % 50 == 0:  # Log toutes les 50 itérations (50s)
-                        print(f"[MANAGER] Iteration {iteration}: en attente de requetes...")
-                    
+                    pass
             except asyncio.TimeoutError:
                 # Timeout normal pour blpop
                 continue
             except Exception as e:
-                print(f"[MANAGER ERROR] Erreur boucle principale: {e}")
                 logger.error(f"[ERR] Erreur boucle principale: {e}")
                 import traceback
-                print(f"[MANAGER ERROR] Traceback: {traceback.format_exc()}")
                 logger.error(f"[ERR] Traceback: {traceback.format_exc()}")
                 await asyncio.sleep(1)  # Pause avant retry
         
-        print(f"[MANAGER] Sortie de _main_loop() après {iteration} iterations")
         logger.info("[INFO] Sortie de _main_loop(), service arrete")
     
     async def _process_request(self, raw_request):
@@ -258,9 +233,9 @@ class NativeExchangeManager:
             action = request_data.get('action')
             params = request_data.get('params', {})
             user_id = request_data.get('user_id')  # 🔒 NOUVEAU: Extraction user_id sécurité
-            
-            print(f"[MANAGER] Traitement: {action} - {request_id[:8]}... - User: {user_id}")
-            
+            trace_id = request_data.get('trace_id')  # Propagation trace causale depuis T3/T6
+            _trace_token = trace_id_ctx.set(trace_id) if trace_id else None
+
             # Mise à jour des statistiques
             self.stats['requests_by_action'][action] += 1
             
@@ -295,10 +270,8 @@ class NativeExchangeManager:
             response_key = f"exchange_response_{request_id}"
             await self.redis_client.setex(response_key, 30, json.dumps(response))
             
-            print(f"[MANAGER] Reponse envoyee: {action} - {request_id[:8]}... ({response_time:.0f}ms)")
             
         except Exception as e:
-            print(f"[MANAGER ERROR] Erreur traitement: {e}")
             logger.error(f"[ERR] Erreur traitement requête: {e}")
             self.stats['requests_failed'] += 1
             
@@ -316,11 +289,11 @@ class NativeExchangeManager:
                     await self.redis_client.setex(response_key, 30, json.dumps(error_response))
                 except:
                     pass  # Échec silencieux si Redis indisponible
-            
-            import traceback
-            print(f"[MANAGER ERROR] Traceback: {traceback.format_exc()}")
-            traceback.print_exc()
-    
+        finally:
+            # Reset trace_id après chaque requête via contextvar (coroutine-safe)
+            if '_trace_token' in locals() and _trace_token:
+                trace_id_ctx.reset(_trace_token)
+
     async def _handle_action(self, action: str, params: Dict, user_id: int = None) -> Dict:
         """
         🎯 ROUTAGE DES ACTIONS VERS LES CLIENTS NATIFS + SÉCURITÉ MULTI-TENANT
@@ -328,31 +301,20 @@ class NativeExchangeManager:
         Route chaque action vers la méthode appropriée du client exchange.
         NOUVEAU: Vérifie que le broker appartient à l'utilisateur demandeur.
         """
-        print(f"[DEBUG CLAUDE] _handle_action ENTRY: action={action}")
-        try:
-            logger.info(f"🔧 _handle_action: START action={action}, user_id={user_id}")
-        except Exception as e:
-            print(f"[DEBUG CLAUDE] LOGGER EXCEPTION: {e}")
-        print(f"[DEBUG CLAUDE] After logger.info, getting broker_id...")
+        logger.info(f"🔧 _handle_action: START action={action}, user_id={user_id}")
         broker_id = params.get('broker_id')
-        print(f"[DEBUG CLAUDE] Extracted broker_id: {broker_id}")
         
         if not broker_id:
-            print(f"[DEBUG CLAUDE] ERREUR: broker_id manquant")
             return {
                 'success': False,
                 'error': 'broker_id requis'
             }
         
-        print(f"[DEBUG CLAUDE] broker_id OK, checking security...")
         
         # 🔒 SÉCURITÉ: Vérifier ownership du broker AVANT de récupérer le client
         if user_id:
-            print(f"[DEBUG CLAUDE] Security check: user_id={user_id}, getting broker_info...")
             broker_info = await self._get_broker_info(broker_id)
-            print(f"[DEBUG CLAUDE] broker_info retrieved: {broker_info}")
             if not broker_info:
-                print(f"[DEBUG CLAUDE] ERREUR: broker_info non trouvé")
                 return {
                     'success': False,
                     'error': f'Broker {broker_id} non trouvé'
@@ -360,30 +322,23 @@ class NativeExchangeManager:
             
             # CRITIQUE: Vérifier que le broker appartient à cet utilisateur
             if broker_info.get('user_id') != user_id:
-                print(f"[DEBUG CLAUDE] ERREUR: Accès non autorisé user_id mismatch")
                 logger.warning(f"🚨 TENTATIVE ACCÈS NON AUTORISÉ: User {user_id} vers Broker {broker_id} (propriétaire: {broker_info.get('user_id')})")
                 return {
                     'success': False,
                     'error': f'Accès refusé: broker {broker_id} n\'appartient pas à l\'utilisateur'
                 }
-            print(f"[DEBUG CLAUDE] Security check OK: broker belongs to user")
         else:
             # AVERTISSEMENT: Requête sans user_id (rétrocompatibilité temporaire)
-            print(f"[DEBUG CLAUDE] WARNING: No user_id provided, using retrocompatibility")
             logger.warning(f"⚠️ SÉCURITÉ: Requête {action} sans user_id pour broker {broker_id} - Rétrocompatibilité temporaire")
         
         # Récupération du client exchange pour ce broker (après vérification sécurité)
-        print(f"[DEBUG CLAUDE] Getting exchange client for broker {broker_id}...")
         client = await self._get_exchange_client(broker_id)
-        print(f"[DEBUG CLAUDE] Client retrieved: {client}")
         if not client:
-            print(f"[DEBUG CLAUDE] ERREUR: Client exchange indisponible")
             return {
                 'success': False,
                 'error': f'Client exchange indisponible pour broker {broker_id}'
             }
         
-        print(f"[DEBUG CLAUDE] Client OK, starting action routing for: {action}")
         try:
             # Routage vers les méthodes natives
             if action == 'get_balance':
@@ -588,11 +543,8 @@ class NativeExchangeManager:
             
             elif action == 'create_and_execute_trade':
                 # 🔥 NOUVELLE ACTION: Création ET exécution Trade par Terminal 5
-                print(f"[DEBUG CLAUDE] ROUTING: Found create_and_execute_trade action!")
                 logger.info(f"🔥 _handle_action: Routage vers _handle_create_and_execute_trade - user_id={user_id}")
-                print(f"[DEBUG CLAUDE] About to call _handle_create_and_execute_trade...")
                 result = await self._handle_create_and_execute_trade(params, user_id)
-                print(f"[DEBUG CLAUDE] _handle_create_and_execute_trade returned: {result}")
                 logger.info(f"🔥 _handle_action: Retour de _handle_create_and_execute_trade - success={result.get('success')}")
                 return result
             
@@ -1226,19 +1178,19 @@ class NativeExchangeManager:
             order_params = {
                 'symbol': params['symbol'],
                 'side': params['side'],
-                'type': params['order_type'],
+                'order_type': params['order_type'],
                 'price': params.get('price')
             }
-            
+
             # 🔧 CORRECTION BITGET: Market Buy utilise total_value (USDT), pas quantity (base)
             if params['order_type'] == 'market' and params['side'] == 'buy':
                 # Market Buy: amount = montant en USDT (quote currency)
                 order_params['amount'] = params['total_value']
-                logger.info(f"🔧 Market Buy LINK: amount={params['total_value']} USDT")
+                logger.info(f"🔧 Market Buy: amount={params['total_value']} USDT ({params['symbol']})")
             else:
-                # Market Sell, Limit: amount = quantité en LINK (base currency)  
+                # Market Sell, Limit: amount = quantité en base currency
                 order_params['amount'] = params['quantity']
-                logger.info(f"🔧 {params['order_type']} {params['side']}: amount={params['quantity']} LINK")
+                logger.info(f"🔧 {params['order_type']} {params['side']}: amount={params['quantity']} {params['symbol']}")
             
             # Ajouter paramètres avancés
             for key in ['stop_loss_price', 'take_profit_price', 'client_order_id']:
@@ -1283,7 +1235,6 @@ class NativeExchangeManager:
                 except Exception as e:
                     logger.error(f"❌ Erreur enrichissement Trade: {e}")
                     import traceback
-                    traceback.print_exc()
                     # Trade exécuté mais enrichissement partiellement échoué
                     trade.status = 'executed'
                     trade.error_message = f'Ordre exécuté, enrichissement partiel: {str(e)}'
@@ -1339,7 +1290,6 @@ class NativeExchangeManager:
         except Exception as e:
             logger.error(f"❌ Terminal 5: Erreur critique create_and_execute_trade: {e}")
             import traceback
-            traceback.print_exc()
             
             # 🔍 DEBUG: Log exception détaillée
             logger.error(f"🔍 DEBUG Exception create_and_execute_trade: type={type(e).__name__}, message={str(e)}")

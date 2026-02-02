@@ -31,13 +31,12 @@ Compatible 100% avec:
 import asyncio
 import signal
 import sys
-import logging
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from loguru import logger
+from apps.core.services.loguru_config import setup_loguru
 
 from apps.core.services.native_exchange_manager import get_native_exchange_manager
-
-logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -70,11 +69,14 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         """Point d'entrée principal"""
-        
-        # Configuration logging
+        setup_loguru("terminal5")
+
+        # Configuration verbose
         if options['verbose']:
-            logging.getLogger('apps.core.services').setLevel(logging.DEBUG)
-        
+            import os
+            os.environ["ARISTOBOT_LOG_LEVEL"] = "DEBUG"
+            setup_loguru("terminal5")
+
         # Affichage bannière
         self._print_banner()
         

@@ -1,0 +1,4 @@
+# Memoire des sessions de debug — Lynx
+# Format : liste YAML. Chaque entree est une session complete.
+# Les echecs sont aussi importants que les solutions.
+[]
