@@ -1,5 +1,17 @@
 # Aristobot3_1.md - GUIDE DU DEVELOPPEUR (ARCHITECTURE NATIVE EXCHANGE GATEWAY)
 background-color:: yellow
+
+> **📚 RÈGLES DE DÉVELOPPEMENT STRICTES**
+>
+> Ce document décrit l'architecture fonctionnelle et les workflows d'Aristobot3.
+>
+> **Pour les règles techniques NON NÉGOCIABLES (Stack, Design, APIs natives, WebSockets):**
+> 👉 **Voir [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md)**
+>
+> Les règles de développement DOIVENT être consultées avant toute implémentation.
+
+---
+
 - ## 1. Philosophie et Cadre du Projet
   background-color:: red
   
@@ -17,22 +29,16 @@ background-color:: yellow
   * **Environnement de Développement** : Conda avec Python 3.11, en utilisant VS Code et des assistants IA.
 - **Stack Technique** :
   background-color:: pink
-- L'architecture est **non négociable**.
-- **Backend** : Django 4.2.15 + Django Channels
-    * **Frontend** : Vue.js 3 (Composition API uniquement)
-    * **ServeurASGI:** Daphne
-    * **Base de Données** : **PostgreSQL est la source de vérité unique** pour toutes les données. MongoDB est formellement exclu.
-    * **Communication Temps Réel** : Redis (pour Django Channels)
-  * **Librairies Python** :
-    * Analyse Technique: **Pandas TA Classic - A Technical Analysis Library in Python 3** (https://github.com/xgboosted/pandas-ta-classic)
-    * Accès aux marchés (Broker) **APIs Natives des Exchanges - Bitget (45%), Binance (35%), KuCoin (10%), Kraken (10%)**
-  * **Parallélisme** : Les calculs concurrents (notamment pour les stratégies) seront gérés exclusivement par **`asyncio`**. L'utilisation de Celery est exclue pour rester simple.
-  * **Gestion des Instances Exchange** : Une approche **service centralisé** est utilisée. L'Exchange Gateway centralisé (Terminal 5) maintient une seule instance de connexion par `user_id` et `broker_id` et communique avec les autres services via Redis pour respecter les recommandations des exchanges et gérer efficacement les **rate limits**.
-  * **API Exchange asynchrone** : Tous les appels aux APIs des exchanges devront être effectués via des clients natifs asynchrones et `await` pour rester non bloquants et préserver les performances de la boucle `asyncio`.
-  * **Validation des Données** : La validation se fera à la fois côté client (pour une meilleure expérience utilisateur) et côté serveur via les **serializers Django Rest Framework** (pour la sécurité et l'intégrité).
-  * **Format des Erreurs** : Les messages d'erreur retournés par l'API seront **techniques et en français** (ex: "Erreur de connexion à Binance : Invalid API Key"), pour faciliter le débogage.
-  * **Les clés API doivent être chiffrées**, en utilisant la `SECRET_KEY` de Django comme clé de chiffrement pour plus de simplicité.
-  * **Implémentation des API externes**, TOUJOURS implémenter l'API dans son entier. Ne passe contenter de la partie utile au moment du développement, implémenter TOUTES les fonctionnalités de l'API afin qu'elle soit utile dans pour d'autre applications Aristobot3.
+
+  **⚠️ RÈGLES TECHNIQUES STRICTES:** Voir [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) pour toutes les règles architecturales NON NÉGOCIABLES (RÈGLE #2 - Stack Technique, RÈGLE #3 - Design System, RÈGLE #4 - APIs Natives Complètes).
+
+  **Résumé Architecture:**
+  * **Backend:** Django 4.2.15 + Django Channels + Daphne
+  * **Frontend:** Vue.js 3 (Composition API)
+  * **Base de Données:** PostgreSQL (source de vérité unique)
+  * **Communication:** Redis + WebSockets
+  * **Parallélisme:** asyncio exclusivement
+  * **Exchange Gateway:** Service centralisé (Terminal 5) avec APIs natives
 - ### Structure des Fichiers
   
   ```
@@ -157,14 +163,13 @@ background-color:: yellow
     
   * **DB** : Lit et enregistre les comptes utilisateur et l'état du bouton "Mode développement"
 - ### Design System
-  
-  * **Style Général** : Thème sombre "crypto" inspiré de Binance/TradingView. Utilisation de **cards avec fond sombre et une subtile bordure luminescente**.
-  * **Couleurs Néon** :
-  
-  * `#00D4FF` (Bleu Électrique - Primaire)
-  * `#00FF88` (Vert Néon - Succès)
-  * `#FF0055` (Rouge Trading - Danger)
-  * **Responsive** : "Desktop first", l'UI est optimisée pour des grands écrans.
+
+  **⚠️ RÈGLES DESIGN STRICTES:** Voir [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) RÈGLE #3 pour toutes les contraintes design NON NÉGOCIABLES (couleurs néon, thème sombre, desktop first).
+
+  **Résumé:**
+  * **Style:** Thème sombre crypto (Binance/TradingView)
+  * **Couleurs:** Néon obligatoires (#00D4FF, #00FF88, #FF0055)
+  * **Responsive:** Desktop first
 - ## 3. Démarrage et Architecture des Services
   
   L'application est conçue pour fonctionner comme un écosystème de services interdépendants qui démarrent indépendamment et communiquent entre eux.
@@ -172,66 +177,73 @@ background-color:: yellow
   
   Pour que l'application soit pleinement opérationnelle, **cinq terminaux distincts** doivent être lancés.
   Ces services forment l'épine dorsale de l'application et fonctionnent en arrière-plan, indépendamment de la présence d'un utilisateur connecté à l'interface web.
-- ##### **Terminal 1 : Serveur Web + WebSocket (Daphne)**
+  
+- ##### **Terminal 1 : Serveur Web (Daphne)**
   * **Commande** : `daphne aristobot.asgi:application`
 - **Port** : 8000
   * **Rôle** : C'est le serveur principal. Il gère toutes les requêtes HTTP (pour l'API REST et le service des pages web) et maintient les connexions WebSocket ouvertes avec les clients (navigateurs). C'est la porte d'entrée de toute l'application. Exécuter le code des apps Django (accounts, brokers, strategies, etc.)
-- NE PAS recevoir directement les webhooks externes
-- ##### **Terminal 2 : Service Heartbeat (Tâche de gestion Django)
-  * ****Commande** : `python manage.py run_heartbeat`
+
+
+- ##### **Terminal 2** : Service Heartbeat (Tâche de gestion Django)
+  * ****Commande**** : `python manage.py run_heartbeat`
   * xxx
   * **Rôle** : Le "cœur" du système. Ce service se connecte directement au flux WebSocket de Binance pour écouter les données du marché en temps réel. Il est totalement indépendant et fonctionne en continu. Son rôle principal est de fournir le rythme aux applications Django, par exemple pour déclencher le calcul d'une stratégie, ou du rafraîchissement du prix affiché.
   * Connexion permanente au WebSocket Binance
   * Agrégation des trades en bougies multi-timeframe
   * Publication des signaux temporels sur Redis
   * Sauvegarde des bougies en PostgreSQL
+
 - ##### **Terminal 3 : Moteur de Trading - Trading Engine (Tâche de gestion Django)**
    * **Commande** : `python manage.py run_trading_engine`
    * **Port** : Aucun (écoute Redis)
    * **Rôle** : Le "cerveau" du système. Ce service écoute les signaux émis par le _Heartbeat_ ET _webhooks_. Il prend les décisions de trading en exécutant la logique des stratégies actives.
    * **Responsabilités** :
-	- Écouter DEUX sources : signaux Heartbeat ET webhooks
-	- Charger et exécuter les stratégies Python
-	- Traiter les webhooks avec logique métier
-	- Gérer l'état des positions
-	- Décider des ordres à passer
-	- Communiquer avec Terminal 5 pour exécution
+	* Écouter DEUX sources : signaux Heartbeat ET webhooks
+	* Charger et exécuter les stratégies Python
+	* Traiter les webhooks avec logique métier
+	* Gérer l'état des positions
+	* Décider des ordres à passer
+	* Communiquer avec Terminal 5 pour exécution
+
 - ##### **Terminal 4 : Frontend (Vite)**
    * **Commande** : `npm run dev`
-	- **Port** : 5173 (dev) ou 80/443 (production)
+	* **Port** : 5173 (dev) ou 80/443 (production)
 	  * **Rôle** : Sert l'interface utilisateur développée en Vue.js. C'est ce que l'utilisateur voit et avec quoi il interagit dans son navigateur. Elle se connecte au serveur Daphne (Terminal 1) via WebSocket pour recevoir les données en temps réel.
 	  * **Responsabilités** :
 	    * Communication avec Terminal 1 (API + WebSocket)
 	    * Affichage temps réel des données
 	    * Gestion locale de l'état UI (Pinia)
+
 - ##### **Terminal 5 : Native Exchange Gateway**
    * **Commande** : `python manage.py run_native_exchange_service`
    * **Fichier de démarrage** : `Start2 - Terminal 5 _ Native Exchange Service.bat`
    * **Port** : Aucun (écoute Redis)
    * **Rôle** : Le "hub" centralisé pour toutes les connexions aux exchanges avec APIs natives. Maintient des connexions lazy loading et communique avec les autres services via Redis. Enregistre toutes les demandes des applications (Trading Manuel, Wenhook, Trading Bot, Terminal 7) AVEC les réponses des exchanges dans la DB
    * **Responsabilités** :
-	- Exécuter les **ordres** de trading
-	- Récupérer les **balances** et **positions**
-	- Tester les connexions pour User Account
-	- Charger les marchés à la demande pour User Account
-	- Proposer des **données unifiée** aux autres services, Terminaux et applications Django de Aristobot.
+	* Exécuter les **ordres** de trading
+	* Récupérer les **balances** et **positions**
+	* Tester les connexions pour User Account
+	* Charger les marchés à la demande pour User Account
+	* Proposer des **données unifiée** aux autres services, Terminaux et applications Django de Aristobot.
 		- Communication native avec les Exchanges
 		- Communication unifiée avec le reste des applications (conversion multi Exchanges).
-	- **Enregistrer dans la DB**, table `trade`, toutes les demandes d'exécution d'ordre (achat, vente, modification, suppression, insertion), **avec** la réponse de l'Exchange. Toutes les données reçues de l'Exchange doivent être enregistrées **avec** la demande initiale complète, incluant l'identifiant du demandeur ("Trading Manuel", "Webhooks", "Trading Bot", "Terminal 7") ainsi qu’un TimeStamp. Les données unifiées sont utilisées.
-	  .
-	  * **DIRECTIVE à l'agent IA:**
-	  * Les API natives des exchanges doivent **obligatoirement** être développées dans leur entièreté avec TOUTES les caractéristiques et paramètres qui les définissent.
+	* **Enregistrer dans la DB**, table `trade`, toutes les demandes d'exécution d'ordre (achat, vente, modification, suppression, insertion), **avec** la réponse de l'Exchange. Toutes les données reçues de l'Exchange doivent être enregistrées **avec** la demande initiale complète, incluant l'identifiant du demandeur ("Trading Manuel", "Webhooks", "Trading Bot", "Terminal 7") ainsi qu'un TimeStamp. Les données unifiées sont utilisées.
+
+	  **⚠️ DIRECTIVE API NATIVES:** Voir [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) RÈGLE #4 pour implémentation COMPLÈTE obligatoire des APIs natives (TOUS paramètres, TOUTES fonctionnalités).
+  * ##### **Développement de Terminal 5**
+      * @_bmad-output/planning-artifacts/Terminal5_Exchange_Gateway.md  # Architecture complète Terminal 5 (Party Mode 2026-01-21)
+
 - ##### **Terminal 6 : Service Webhook Receiver (NOUVEAU)**
-- **Commande** : `python manage.py run_webhook_receiver`
-- **Port** : 8888 (configurable)
-- **Rôle** :
-	- Recevoir les webhooks HTTP POST, Serveur HTTP léger (FastAPI/aiohttp)
-	- Valider le token d'authentification
-	- Publier immédiatement sur Redis
-	- Répondre rapidement (200 OK)
-	- réception 24/7 des webhooks
-	- AUCUNE logique métier
-	- AUCUN accès à la base de données
+    - **Commande** : `python manage.py run_webhook_receiver`
+    - **Port** : 8888 (configurable)
+    - **Rôle** :
+    	- Recevoir les webhooks HTTP POST, Serveur HTTP léger (FastAPI/aiohttp)
+    	- Valider le token d'authentification
+    	- Publier immédiatement sur Redis
+    	- Répondre rapidement (200 OK)
+    	- réception 24/7 des webhooks
+    	- AUCUNE logique métier
+    	- SAUVEGARDE le webhook dans la base de données Postgresql
 	  
 	  **Fonctionnement avec TERMINAL 6**   
 	  ```ascii
@@ -239,13 +251,13 @@ background-color:: yellow
 	                            ↓   (HTTP POST port 80/443)
 	                     [Firewall NAT 80→8888]
 	           				   ↓
-	      ┌────────────────────────────────────────────────────────────┐
-	      │   Terminal 6: Webhook Receiver Service                     │
-	      │   • Serveur HTTP minimaliste (aiohttp port 8888)           │
-	      │   • AUCUNE logique métier                                  │
-	      │   • Juste recevoir → valider token → publier Redis         │
-	      │   • 50 lignes de code max                                  │
-	      └────────────────────┬───────────────────────────────────────┘
+	      ┌──────────────────────────────────────────────────────────────────────────┐
+	      │   Terminal 6: Webhook Receiver Service                                          │
+	      │   • Serveur HTTP minimaliste (aiohttp port 8888)                                │
+	      │   • AUCUNE logique métier                                                       │
+	      │   • Juste recevoir → valider token → publier Redis → Sauvegarde dans Postgresql │
+	      │   •                                                                             │
+	      └────────────────────┬─────────────────────────────────────────────────────┘
 	                             │ Redis: 'webhook_raw'
 	                             ↓
 	      ┌───────────────────────────────────────────────────────────┐
@@ -422,8 +434,8 @@ background-color:: yellow
   
   * **Fonctionnement détaillé** :
 	- 1.**Connexion Directe à Binance** : Au démarrage, le script `run_heartbeat.py` établit une connexion WebSocket **native** avec Binance. Ce choix est stratégique : il garantit la plus faible latence possible et une indépendance totale vis-à-vis de toute librairie tierce pour cette tâche vitale.
-	- 2. **Signaux Multi-Timeframe** : Le service ingère le flux continu de transactions et les agrège en temps réel pour construire des bougies OHLCV sur les unités de temps suivantes : **1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h**.
-	  3. **Double Diffusion via Django Channels** :
+	- 1. **Signaux Multi-Timeframe** : Le service ingère le flux continu de transactions et les agrège en temps réel pour construire des bougies OHLCV sur les unités de temps suivantes : **1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h**.
+	  2. **Double Diffusion via Django Channels** :
 	  
 	  * **Canal `StreamBrut`** : Chaque message brut reçu de Binance est immédiatement publié sur ce canal. Son seul but est de permettre à l'interface `Heartbeat` d'afficher le Stream brut en temps réel à l'utilisateur pour un simple but de contrôle de fonctionnement.
 	  * **Canal `Heartbeat`** : C'est le canal le plus important. Dès qu'une bougie (pour n'importe quelle timeframe) est clôturée, un message structuré (un "signal") est envoyé sur ce canal. C'est ce signal qui déclenchera les actions du Moteur de Trading. Ce signal est simplement "1m, 3m, 5m, 10m, 15m, 1h, 2h, 4h".
@@ -477,12 +489,15 @@ background-color:: yellow
   * **Modèles** : `HeartbeatStatus` dans `apps/core/models.py`
   * **Consumer** : WebSocket dans `apps/core/consumers.py`
 - ### **3.3 Architecture Exchange Gateway (Terminal 5) - Service Centralisé via Redis**
+
+	  ⚠️ **ARCHITECTURE DÉTAILLÉE** : Voir [Terminal5_Exchange_Gateway.md](_bmad-output/planning-artifacts/Terminal5_Exchange_Gateway.md) pour documentation complète avec décisions Party Mode (2026-01-21)
+
 	- **L'Exchange Gateway Centralisé** (Terminal 5) est le hub unique pour toutes les interactions avec les exchanges. Il garantit une utilisation optimale des connexions et le respect strict des rate limits.
-	  
+
 	  **Principe de fonctionnement :**
 	  
 	  * **Service dédié** : Processus indépendant qui maintient toutes les connexions aux exchanges
-	  * **Une instance par broker** : Dictionnaire `{(user_id, broker_id): exchange_instance}` centralisé
+	  * **Option B : 1 instance par type d'exchange** : Dictionnaire `{'bitget': BitgetClient, 'binance': BinanceClient}` avec injection dynamique credentials
 	  * **Communication Redis** : Interface standardisée via channels Redis
 	- `exchange_requests` : User Account/Trading Manual → Terminal 5
 	- `exchange_responses` : Terminal 5 → services clients
@@ -494,21 +509,21 @@ background-color:: yellow
 		- Fonction : Boucle principale d'écoute des requêtes Redis
 		- Handlers : 11 types de requêtes (balance, ordres, tickers, etc.)
 		  
-		  2. Gestionnaire Exchange Gateway
+		  1. Gestionnaire Exchange Gateway
 	- backend/apps/core/services/exchange_manager.py
 		- Rôle : Singleton pour gérer les instances d'exchanges
 		- Fonction : Création/réutilisation des connexions exchanges
 		- Optimisation : Préchargement des brokers actifs
 		  
-		  3. Client Exchange Gateway
+		  1. Client Exchange Gateway
 	- backend/apps/core/services/exchange_client.py
 		- Rôle : Interface de communication pour les autres modules
 		- Fonction : Envoi de requêtes au service via Redis
 		- Pattern : Request/Response asynchrone avec UUID
 		  
-		  4. A compléter
+		  1. A compléter
 		  
-		  5. A compléter
+		  2. A compléter
 - #### **Channels Redis :**
   Communication inter-processus
   
@@ -682,8 +697,8 @@ background-color:: yellow
           * Bouton "Modifier" sur chaque lignes d'ordres ouverts
               * Exécution Exchange Gateway en thread séparé avec mise à jour DB automatique
                   * Mode Historique : (30 derniers jours, fix dans le code)
-	- Tri automatique par date (plus récent en premier)
-	- Chargement intelligent selon le mode sélectionné
+	* Tri automatique par date (plus récent en premier)
+	* Chargement intelligent selon le mode sélectionné
 	  * Gestion d'état réactive : Variables orderViewMode, closedOrders, ordersLoading
 	  * Propriété calculée currentOrdersList : Fusion dynamique des listes d'ordres
 	  * Mise à jour automatique : Rechargement des bonnes données après exécution/annulation

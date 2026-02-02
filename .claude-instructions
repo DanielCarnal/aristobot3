@@ -4,66 +4,26 @@
 Bot de trading crypto personnel en Django/Vue.js pour 5 users max.
 Approche pragmatique : shipping > perfection.
 
+## 📚 RÈGLES TECHNIQUES STRICTES
+**⚠️ OBLIGATOIRE:** Consulter @DEVELOPMENT_RULES.md avant tout développement
+- RÈGLE #1: WebSockets obligatoires pour données live
+- RÈGLE #2: Stack technique non négociable
+- RÈGLE #3: Design system obligatoire
+- RÈGLE #4: APIs natives complètes
+- RÈGLE #5: Contraintes techniques opérationnelles
+- RÈGLE #6: Maintenance documentation
+
 ## Structure stricte
 - Backend Django dans `/backend/apps/`
 - Frontend Vue.js dans `/frontend/src/`
 - Services auto-démarrés dans `apps/*/management/commands/`
 - WebSocket via Django Channels
 
-## Conventions de code
-- Python : PEP 8, type hints quand utile
-- Vue 3 Composition API uniquement
-- Pas de commentaires inutiles
-- Noms de variables en anglais
-
-## Base de données
-- PostgreSQL uniquement
-- Django ORM (pas de SQL brut)
-- Migrations Django
-
-## À ne PAS faire
-- Pas de microservices
-- Pas de Celery (utiliser asyncio)
-- Pas de MongoDB
-- Pas d'over-engineering
-
-## CONTRAINTES TECHNIQUES CRITIQUES (ajout basé sur debugging)
-### Encodage Windows
-- # -*- coding: utf-8 -*- obligatoire première ligne Python
-- Caractères ASCII : é→e, è→e, à→a (pas d'émojis/accents)
-
-### Frontend Vite/Vue
-- index.html à la racine frontend/ (pas dans public/)
-- vite.config.js : vue runtime complet + feature flags
-- CORS withCredentials + backend CORS_ALLOW_CREDENTIALS
-
-### Django Auth/Migrations  
-- Migrations : accounts app TOUJOURS en premier
-- Backend auth : spécifier backend= dans login() calls
-- Reset migrations si conflicts : DROP DB + delete migrations/
-
-### Multi-tenant
-- TOUJOURS filtrer par user_id dans ViewSets
-- API keys chiffrées Fernet + SECRET_KEY
-- CCXT enableRateLimit: true
-
-### Variables d'environnement
-- .env à la racine projet (DEBUG='True' développement)
-- SECRET_KEY unique, REDIS_HOST pour Channels
-
-### API REST & Permissions  
-- DRF SessionAuthentication par défaut
-- Filtrage request.user OBLIGATOIRE dans ViewSets
-- @permission_classes([AllowAny]) seulement endpoints auth
-
-### Commandes de base
-- python manage.py init_aristobot (user dev)
-- Ports : Django 8000, Vue.js 5173
-- Test après chaque migration/reset DB
+## Directives opérationnelles Claude Code
 
 ### NE PAS démarrer les services et serveurs
 - L'utilisateur démarre les services. Il peut ainsi voir les logs.
-- Quand c'est Claude Code qui démarrer les services il arrive des erreurs 500. Ne le fait aps - Indique à l'utilisateur quels sont les services à démarrer en fonction des modifications que tu as effectuées. Daphne ne supporte pas les restarts automatiques, il faut que l'utilisateur le fasse manuellemen.
+- Quand c'est Claude Code qui démarre les services il arrive des erreurs 500. Ne le fait pas - Indique à l'utilisateur quels sont les services à démarrer en fonction des modifications que tu as effectuées. Daphne ne supporte pas les restarts automatiques, il faut que l'utilisateur le fasse manuellement.
 
 ### Scripts de tests
-- Tu peux exécuter les scripts de tests et d'initialisations nécessaire. Demande juste confirmation à l'utilisateur.
+- Tu peux exécuter les scripts de tests et d'initialisations nécessaires. Demande juste confirmation à l'utilisateur.

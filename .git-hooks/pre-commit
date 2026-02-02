@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# Hook Pre-Commit Aristobot3
+# Rappelle de régénérer CODEBASE_MAP.md si architecture modifiée
+#
+# Installation:
+#   chmod +x .git-hooks/pre-commit
+#   cp .git-hooks/pre-commit .git/hooks/pre-commit
+#
+
+echo ""
+echo "🔍 Vérification pre-commit Aristobot3..."
+
+# Vérifier si des fichiers architecture ont changé
+if git diff --cached --name-only | grep -qE "backend/apps/|frontend/src/views/|frontend/src/components/"; then
+    echo ""
+    echo "⚠️  ════════════════════════════════════════════════════════════════"
+    echo "⚠️  RAPPEL: Fichiers architecture modifiés détectés !"
+    echo "⚠️  ════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "   Fichiers modifiés dans:"
+    git diff --cached --name-only | grep -E "backend/apps/|frontend/src/views/|frontend/src/components/" | sed 's/^/     - /'
+    echo ""
+    echo "   📚 Avez-vous régénéré CODEBASE_MAP.md avec /cartographer ?"
+    echo "   📋 Voir DEVELOPMENT_RULES.md RÈGLE #6 pour détails"
+    echo ""
+    echo "   Continuer le commit ? (y/n)"
+    read -r response
+
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "❌ Commit annulé - Régénérez CODEBASE_MAP.md puis re-commitez"
+        echo ""
+        exit 1
+    fi
+
+    echo ""
+    echo "✅ Commit autorisé - Assurez-vous que CODEBASE_MAP.md est à jour !"
+    echo ""
+fi
+
+# Vérifier si DEVELOPMENT_RULES.md est dans le commit (indication nouvelle règle)
+if git diff --cached --name-only | grep -q "DEVELOPMENT_RULES.md"; then
+    echo ""
+    echo "📝 DEVELOPMENT_RULES.md modifié - Nouvelle règle ajoutée ?"
+    echo "   N'oubliez pas d'informer l'équipe des nouvelles contraintes !"
+    echo ""
+fi
+
+echo "✅ Pre-commit check terminé"
+echo ""
+
+exit 0
