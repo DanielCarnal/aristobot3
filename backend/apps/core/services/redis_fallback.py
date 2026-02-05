@@ -5,15 +5,24 @@ Fallback Redis pour compatibilité avec versions anciennes
 import asyncio
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
+# Centralise la lecture des variables d'environnement Redis
+_REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+_REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+
 class RedisFallback:
     """Client Redis avec fallback sync→async"""
-    
-    def __init__(self, host='localhost', port=6379, decode_responses=True):
+
+    def __init__(self, host=None, port=None, decode_responses=True):
         import redis
-        self.redis_sync = redis.Redis(host=host, port=port, decode_responses=decode_responses)
+        self.redis_sync = redis.Redis(
+            host=host or _REDIS_HOST,
+            port=port or _REDIS_PORT,
+            decode_responses=decode_responses
+        )
         
     async def ping(self):
         """Test connexion async"""
@@ -53,7 +62,7 @@ async def get_redis_client():
     try:
         # Essayer redis.asyncio d'abord
         import redis.asyncio as redis
-        client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        client = redis.Redis(host=_REDIS_HOST, port=_REDIS_PORT, decode_responses=True)
         await client.ping()
         logger.info("✅ Utilisation redis.asyncio")
         return client

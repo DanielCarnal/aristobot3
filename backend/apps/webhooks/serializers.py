@@ -11,7 +11,6 @@ class WebhookSerializer(serializers.ModelSerializer):
     """Serializer pour l'historique des webhooks"""
     user_username = serializers.CharField(source='user.username', read_only=True)
     broker_name = serializers.CharField(source='broker.name', read_only=True)
-    exchange_name = serializers.CharField(source='broker.exchange', read_only=True)
 
     class Meta:
         model = Webhook

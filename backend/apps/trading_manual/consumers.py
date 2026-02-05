@@ -89,7 +89,7 @@ class TradingManualConsumer(AsyncWebsocketConsumer):
             
             # Récupérer le nouveau prix via Exchange Client
             from apps.core.services.exchange_client import ExchangeClient
-            exchange_client = ExchangeClient()
+            exchange_client = ExchangeClient(user_id=self.user.id)
 
             ticker = await exchange_client.get_ticker(broker_id, symbol)
             

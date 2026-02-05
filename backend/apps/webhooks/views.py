@@ -165,15 +165,10 @@ class WebhookStateViewSet(viewsets.ReadOnlyModelViewSet):
         # Positions ouvertes uniquement
         open_positions = self.get_queryset().filter(status='open')
 
-        # Calcul P&L total
-        total_pnl = Decimal('0')
-        for position in open_positions:
-            if position.current_price and position.entry_price:
-                if position.side == 'buy':
-                    pnl = (position.current_price - position.entry_price) * position.quantity
-                else:
-                    pnl = (position.entry_price - position.current_price) * position.quantity
-                total_pnl += pnl
+        # Calcul P&L total depuis le champ maintenu par Terminal 3
+        total_pnl = sum(
+            (pos.unrealized_pnl or Decimal('0')) for pos in open_positions
+        )
 
         # Symboles actifs
         active_symbols = list(

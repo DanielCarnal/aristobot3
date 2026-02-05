@@ -165,7 +165,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import axios from 'axios'
 
@@ -191,7 +191,9 @@ export default {
     // Webhooks
     const recentWebhooks = ref([])
     const webhooksLoading = ref(false)
-    const lastWebhookId = ref(null) // Pour polling incremental
+
+    // WebSocket
+    const ws = ref(null)
 
     // Positions
     const openPositions = ref([])
@@ -248,60 +250,10 @@ export default {
 
         const response = await api.get('/api/webhooks/recent/', { params })
         recentWebhooks.value = response.data
-
-        // Stocker le dernier ID pour polling incremental
-        if (response.data.length > 0) {
-          lastWebhookId.value = response.data[0].id
-        }
       } catch (err) {
         error.value = 'Erreur chargement webhooks: ' + (err.response?.data?.detail || err.message)
       } finally {
         webhooksLoading.value = false
-      }
-    }
-
-    const loadNewWebhooks = async () => {
-      // Polling incremental - charge seulement les nouveaux webhooks
-      try {
-        const params = {}
-        if (selectedBrokerId.value) {
-          params.broker = selectedBrokerId.value
-        }
-
-        const response = await api.get('/api/webhooks/recent/', { params })
-        const newWebhooks = response.data
-
-        if (newWebhooks.length === 0) return
-
-        // Filtrer seulement les webhooks plus recents que le dernier connu
-        const newerWebhooks = lastWebhookId.value
-          ? newWebhooks.filter(w => w.id > lastWebhookId.value)
-          : newWebhooks
-
-        if (newerWebhooks.length > 0) {
-          // Ajouter au debut (comme Heartbeat)
-          newerWebhooks.reverse().forEach(webhook => {
-            // Marquer comme nouveau pour animation
-            webhook._isNew = true
-            recentWebhooks.value.unshift(webhook)
-
-            // Retirer le marqueur apres 3 secondes
-            setTimeout(() => {
-              webhook._isNew = false
-            }, 3000)
-          })
-
-          // Mettre a jour le dernier ID
-          lastWebhookId.value = newerWebhooks[newerWebhooks.length - 1].id
-
-          // Limiter a 100 webhooks max
-          if (recentWebhooks.value.length > 100) {
-            recentWebhooks.value = recentWebhooks.value.slice(0, 100)
-          }
-        }
-      } catch (err) {
-        // Erreur silencieuse pour polling - ne pas polluer l'UI
-        console.error('Erreur polling webhooks:', err)
       }
     }
 
@@ -335,13 +287,49 @@ export default {
       ])
     }
 
-    const refreshData = async () => {
-      // Refresh incremental - seulement les nouveaux webhooks et stats/positions
-      await Promise.all([
-        loadStats(),
-        loadNewWebhooks(),  // Incremental - pas de flash!
+    const connectWebSocket = () => {
+      const hostname = window.location.hostname || 'localhost'
+      ws.value = new WebSocket(`ws://${hostname}:8000/ws/webhooks/`)
+
+      ws.value.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+
+        // Filtrer par broker si un broker est selecte
+        if (selectedBrokerId.value && data.broker_id != selectedBrokerId.value) return
+
+        // Marquer comme nouveau pour animation
+        data._isNew = true
+        recentWebhooks.value.unshift(data)
+
+        // Retirer le marqueur apres 3 secondes
+        setTimeout(() => { data._isNew = false }, 3000)
+
+        // Limiter a 100 webhooks max
+        if (recentWebhooks.value.length > 100) {
+          recentWebhooks.value = recentWebhooks.value.slice(0, 100)
+        }
+
+        // Rafraichir stats et positions (donnees agregees)
+        loadStats()
         loadPositions()
-      ])
+      }
+
+      ws.value.onclose = () => {
+        console.log('WebSocket webhooks ferme - Reconnexion dans 5s')
+        ws.value = null
+        setTimeout(connectWebSocket, 5000)
+      }
+
+      ws.value.onerror = (err) => {
+        console.error('WebSocket webhooks erreur:', err)
+      }
+    }
+
+    const closeWebSocket = () => {
+      if (ws.value) {
+        ws.value.close()
+        ws.value = null
+      }
     }
 
     const formatDateTime = (dateString) => {
@@ -389,8 +377,6 @@ export default {
 
     // Watchers
     watch([selectedBrokerId, selectedPeriod], () => {
-      // Reset le lastWebhookId car on change de filtre
-      lastWebhookId.value = null
       loadAllData()
     })
 
@@ -404,8 +390,12 @@ export default {
       await loadBrokers()
       await loadAllData()
 
-      // Auto-refresh incremental toutes les 5 secondes (sans flash!)
-      setInterval(refreshData, 5000)
+      // WebSocket pour les updates temps reel
+      connectWebSocket()
+    })
+
+    onUnmounted(() => {
+      closeWebSocket()
     })
 
     return {

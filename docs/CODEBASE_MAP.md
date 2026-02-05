@@ -1,4 +1,4 @@
----
+MAP.md---
 last_mapped: 2026-02-05T10:00:00Z
 total_files: 1066
 total_tokens: 1998123

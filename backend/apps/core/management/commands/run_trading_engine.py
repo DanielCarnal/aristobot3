@@ -214,26 +214,43 @@ class Command(BaseCommand):
 
         webhook = None
         try:
-            # 1. SAUVEGARDER WEBHOOK EN DB
-            webhook = await sync_to_async(Webhook.objects.create)(
-                user_id=user_id,
-                broker_id=broker_id,
-                symbol=symbol,
-                interval=interval,
-                action=action,
-                prix=Decimal(str(prix)) if prix else None,
-                prix_sl=Decimal(str(prix_sl)) if prix_sl else None,
-                prix_tp=Decimal(str(prix_tp)) if prix_tp else None,
-                pour_cent=pour_cent,
-                raw_payload=payload,
-                status='processing',
-                received_at=datetime.fromisoformat(received_at) if received_at else timezone.now()
-            )
+            # 1. CHERCHER le webhook déjà sauvegardé par Terminal 6
+            webhook = await sync_to_async(
+                Webhook.objects.filter(
+                    user_id=user_id,
+                    broker_id=broker_id,
+                    raw_payload=payload,
+                    status='received'
+                ).first
+            )()
 
-            logger.bind(trace_id=trace_id).info(
-                "Webhook sauvegarde en DB",
-                webhook_id=webhook.id,
-            )
+            if webhook:
+                # Mettre à jour le record de T6 vers 'processing'
+                webhook.status = 'processing'
+                await sync_to_async(webhook.save)()
+                logger.bind(trace_id=trace_id).info(
+                    "Webhook existant (T6) mis a jour vers processing",
+                    webhook_id=webhook.id,
+                )
+            else:
+                # Fallback: T6 n'a pas sauvegardé (erreur DB côté T6)
+                webhook = await sync_to_async(Webhook.objects.create)(
+                    user_id=user_id,
+                    broker_id=broker_id,
+                    symbol=symbol,
+                    interval=interval,
+                    action=action,
+                    prix=Decimal(str(prix)) if prix else None,
+                    prix_sl=Decimal(str(prix_sl)) if prix_sl else None,
+                    prix_tp=Decimal(str(prix_tp)) if prix_tp else None,
+                    pour_cent=pour_cent,
+                    raw_payload=payload,
+                    status='processing',
+                )
+                logger.bind(trace_id=trace_id).info(
+                    "Webhook cree par T3 (fallback - T6 non sauvegarde)",
+                    webhook_id=webhook.id,
+                )
 
             # 2. ACTION PING - Ne rien faire
             if action == 'PING':
@@ -653,6 +670,31 @@ class Command(BaseCommand):
             webhook.execution_result = execution_result
         webhook.processed_at = timezone.now()
         webhook.save()
+
+        # Publication vers le frontend via Django Channels
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)('webhooks', {
+                'type': 'webhook_update',
+                'message': {
+                    'id': webhook.id,
+                    'broker_id': webhook.broker_id,
+                    'symbol': webhook.symbol,
+                    'exchange_name': webhook.exchange_name,
+                    'action': webhook.action,
+                    'prix': str(webhook.prix) if webhook.prix else None,
+                    'pour_cent': str(webhook.pour_cent),
+                    'status': webhook.status,
+                    'order_id': webhook.order_id or '',
+                    'error_message': webhook.error_message or '',
+                    'received_at': webhook.received_at.isoformat() if webhook.received_at else None,
+                    'processed_at': webhook.processed_at.isoformat() if webhook.processed_at else None,
+                }
+            })
+        except Exception as e:
+            logger.warning(f"Publication WebSocket webhook echouee: {e}")
 
     async def stats_display_loop(self):
         """Affiche statistiques toutes les 60s"""

@@ -1,81 +1,45 @@
 /**
- * Frontend Logger — Queue async avec fallback console.warn
+ * Frontend Logger — console uniquement
  *
- * - Envoie les logs vers POST /api/frontend-log (backend)
- * - Queue locale: 3 tentatives avec 1s de delay entre chaque
- * - Fallback console.warn si backend injoignable apres les 3 tentatives
- * - Timestamps ISO8601 directement correlables avec le backend
- * - Zero impact performance UI (fire & forget)
+ * Interface uniforme info/warn/error/debug utilisée par main.js
+ * (intercepteur console.error + handler window.error).
+ * Logs structurés vers la console du navigateur avec timestamp ISO8601.
+ *
+ * NOTE: POST vers /api/frontend-log supprimé — endpoint n'existe pas.
+ * Ajouter l'endpoint backend (ou un WebSocket) avant de réactiver.
  */
-import api from '../api/index.js'
 
-const QUEUE_MAX_RETRIES = 3
-const QUEUE_RETRY_DELAY = 1000
+const LEVEL_MAP = {
+  debug: 'log',
+  info: 'info',
+  warn: 'warn',
+  error: 'error'
+}
 
 class FrontendLogger {
-  constructor () {
-    this.queue = []
-    this.processing = false
-  }
-
-  _enqueue (level, message, component, data = {}) {
-    this.queue.push({
-      level,
-      message,
-      component,
-      timestamp: new Date().toISOString(),
-      data
-    })
-
-    if (!this.processing) {
-      this._processQueue()
-    }
-  }
-
-  async _processQueue () {
-    this.processing = true
-
-    while (this.queue.length > 0) {
-      const entry = this.queue.shift()
-      let sent = false
-
-      for (let attempt = 0; attempt < QUEUE_MAX_RETRIES; attempt++) {
-        try {
-          await api.post('/api/frontend-log', entry)
-          sent = true
-          break
-        } catch (e) {
-          if (attempt < QUEUE_MAX_RETRIES - 1) {
-            await new Promise(r => setTimeout(r, QUEUE_RETRY_DELAY))
-          }
-        }
-      }
-
-      if (!sent) {
-        console.warn(
-          `[FrontendLogger] Fallback - [${entry.level.toUpperCase()}] [${entry.component}] ${entry.message}`,
-          entry.data
-        )
-      }
-    }
-
-    this.processing = false
+  _log (level, message, component, data) {
+    const method = LEVEL_MAP[level] || 'log'
+    const prefix = `[${level.toUpperCase()}] [${component}]`
+    const hasData = data && Object.keys(data).length > 0
+    hasData
+      ? console[method](prefix, message, data)
+      : console[method](prefix, message)
   }
 
   info (message, component = 'app', data = {}) {
-    this._enqueue('info', message, component, data)
+    this._log('info', message, component, data)
   }
 
   warn (message, component = 'app', data = {}) {
-    this._enqueue('warn', message, component, data)
+    this._log('warn', message, component, data)
   }
 
   error (message, component = 'app', data = {}) {
-    this._enqueue('error', message, component, data)
+    this._log('error', message, component, data)
   }
 
   debug (message, component = 'app', data = {}) {
-    this._enqueue('debug', message, component, data)
+    this._log('debug', message, component, data)
   }
 }
 
