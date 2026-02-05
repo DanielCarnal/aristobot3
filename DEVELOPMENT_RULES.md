@@ -245,6 +245,26 @@ ws.onerror = (error) => {
 - **Redis** pour Django Channels (Pub/Sub inter-processus)
 - **WebSockets** pour données live (voir RÈGLE #1)
 
+##### ⚠️ Deux Systèmes Pub/Sub — Règle de Décision (OBLIGATOIRE)
+
+Aristobot3 utilise **deux systèmes de communication** entre les terminaux backend. Ils sont **INCOMPATIBLES** : un message publié dans l'un n'arrive jamais dans l'autre. Erreur silencieuse — aucun log, aucune exception.
+
+| Système | Utilisé par | Vers quoi | Comment identifier |
+|---------|-------------|-----------|-------------------|
+| **Django Channels** (`channel_layer.group_send`) | Terminal 1, Terminal 2 | Le **frontend** via WebSocket consumers | Le destinataire est un `Consumer` dans `consumers.py` |
+| **Redis natif** (`redis.asyncio publish/subscribe`) | Terminal 3, Terminal 6 | Un autre **processus backend** | Le destinataire fait un `subscribe()` dans un management command ou un serveur standalone |
+
+**Règle de décision :**
+- Le message doit atteindre le **navigateur** → Django Channels
+- Le message part d'un processus **hors Django** (ex: Terminal 6 aiohttp) → Redis natif
+- Le message va **backend Django → backend Django**, sans besoin du frontend → préférez Redis natif pour éviter le couplage avec Daphne
+
+**Piège classique à éviter :**
+Publier via `redis.asyncio` et attendre la réception dans un Django Channels consumer, ou vice versa. Le message disparaît en silence.
+
+**Pourquoi deux systèmes ?**
+Terminal 6 (Webhook Receiver) est un serveur `aiohttp` standalone — il ne tourne pas dans Django, il ne peut pas accéder à `channel_layer`. Cette contrainte est volontaire : Terminal 6 doit recevoir les webhooks TradingView depuis Internet avec une latence minimale. Le deuxième système existe pour permettre à ce processus léger de communiquer avec le reste du système.
+
 #### Librairies Python
 - **Analyse Technique:** Pandas TA Classic uniquement
   - Repository: https://github.com/xgboosted/pandas-ta-classic

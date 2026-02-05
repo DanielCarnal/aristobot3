@@ -173,6 +173,44 @@ background-color:: yellow
 - ## 3. Démarrage et Architecture des Services
   
   L'application est conçue pour fonctionner comme un écosystème de services interdépendants qui démarrent indépendamment et communiquent entre eux.
+
+- ### Comment les services parlent entre eux
+    - Disussion [@PARTY_MODE_GOTCHA3_2026-02-05.md] suite Carthographer
+
+  Les terminaux ne communiquent pas tous de la même façon. Il existe **deux "langages" de communication** dans le système, chacun avec un rôle très précis. Cette distinction est une décision architecturale validée — voir la note technique dans [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md), section Règle #2, "Deux Systèmes Pub/Sub".
+
+  **Langage 1 : La ligne directe vers l'utilisateur (Django Channels)**
+
+  C'est le canal utilisé chaque fois qu'une donnée doit apparaître sur l'écran de l'utilisateur en temps réel. Le Heartbeat envoie les prix, les webhooks apparaissent dans la liste, les ordres se mettent à jour — tout ça passe par ce canal. Seul le serveur web principal (Terminal 1, Daphne) peut "parler" à l'utilisateur via ce canal. Les consumers WebSocket dans le code sont les "interlocuteurs" de ce langage côté serveur.
+
+  *Utilisé par :* Terminal 1 (Daphne), Terminal 2 (Heartbeat)
+  *Vers :* Le navigateur de l'utilisateur
+
+  **Langage 2 : Le canal entre les machines (Redis natif)**
+
+  C'est le canal utilisé pour que les services backend parlent entre eux, sans que l'utilisateur soit directement impliqué. Le exemple le plus clair : Terminal 6 (qui reçoit les webhooks de TradingView depuis Internet) est un petit serveur séparé, très léger, qui ne comprend pas le langage Django. Il publie donc sur ce canal, et Terminal 3 (le cerveau du système) l'écoute.
+
+  *Utilisé par :* Terminal 3 (Trading Engine), Terminal 6 (Webhook Receiver)
+  *Vers :* Un autre processus backend
+
+  **Pourquoi deux langages et pas un seul ?**
+
+  Terminal 6 est volontairement séparé de Django parce qu'il doit recevoir les webhooks depuis Internet très rapidement — en moins de 50 millisecondes. Lui donner le poids de Django ralentirait exactement ce qu'on lui demande de faire. Le deuxième langage existe donc pour permettre à ce petit serveur rapide de communiquer avec le reste du système sans en faire partie.
+
+  **Ce que ça veut dire en pratique :**
+
+  - L'utilisateur ne voit aucune différence. Tout lui apparaît normalement sur son écran.
+  - Les développeurs doivent savoir dans quel "langage" publier chaque nouveau signal. La règle décisionnelle précise est dans [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md).
+  - Terminal 3 écoute les deux langages simultanément — c'est son rôle de "traducteur" entre ces deux mondes.
+
+  | Terminal | Langage utilisé | Pourquoi |
+  |----------|----------------|----------|
+  | Terminal 1 (Daphne) | Django Channels | Seul point de sortie vers le navigateur |
+  | Terminal 2 (Heartbeat) | Django Channels | Management command Django, parle naturellement à Daphne |
+  | Terminal 3 (Trading Engine) | Les deux | Doit écouter Terminal 2 ET Terminal 6 |
+  | Terminal 5 (Exchange Gateway) | Redis (requête/réponse) | Pattern différent : file d'attente, pas Pub/Sub |
+  | Terminal 6 (Webhook Receiver) | Redis natif | Serveur aiohttp standalone, pas de Django |
+
 - ### Processus de Lancement : La "Checklist de Décollage"
   
   Pour que l'application soit pleinement opérationnelle, **cinq terminaux distincts** doivent être lancés.
@@ -256,7 +294,6 @@ background-color:: yellow
 	      │   • Serveur HTTP minimaliste (aiohttp port 8888)                                │
 	      │   • AUCUNE logique métier                                                       │
 	      │   • Juste recevoir → valider token → publier Redis → Sauvegarde dans Postgresql │
-	      │   •                                                                             │
 	      └────────────────────┬─────────────────────────────────────────────────────┘
 	                             │ Redis: 'webhook_raw'
 	                             ↓
