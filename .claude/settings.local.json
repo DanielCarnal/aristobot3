@@ -47,7 +47,13 @@
       "Bash(if not exist \"_Archives\" mkdir \"_Archives\")",
       "Bash(move \"MODULE2-Refacto-CCXT_MicroServ.md\" \"_Archives\"\" && move \"MIGRATION_STATUS.md\" \"_Archives\"\")",
       "Skill(cartographer)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Skill(bmad:core:workflows:party-mode)",
+      "Bash(pip install:*)",
+      "Bash(git rm:*)",
+      "Bash(git status:*)",
+      "Bash(Règle de Décision\". Tableau qui/vers quoi, règle en 3 lignes, piège\n  classique documenté, explication du pourquoi.\n- Aristobot3_1.md: nouvelle section \"Comment les services parlent entre)",
+      "Bash(eux\" \\(chapitre 3\\). Explication sans jargon accessible au PO, tableau\n  par terminal, rôle de chaque langage de communication.\n- PARTY_MODE_GOTCHA3_2026-02-05.md: compte-rendu de la réunion Party\n  Mode \\(Winston, Dr. Quinn, Barry, John\\). Analyse, options étudiées,\n  décisions prises, risque résiduel documenté.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ],
     "deny": []
   }
