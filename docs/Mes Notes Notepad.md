@@ -9203,3 +9203,172 @@ Regarde C:\Users\dac\Documents\Python\Django\Aristobot3\docs\PrintScreen\PrintSc
 
 ==============================
 claude --resume 6127b8c9-2530-4dd9-ba41-db7414ae2668
+
+Bravo, gardez ce plan en mémoire. Je vérais bien un "DOCUMENTATION_RULES.md" à côté de DEVELPPEMENT_RULES. 
+
+Par contre, je ne comprends pas Johon. Il dit "1. Dac ouvre Aristobot3_1.md section 4.X (ex: 4.5 Stratégies)    2. Dac écrit/enrichit la spec avec structure standard :" Alors que Paige à décrit une structure documentaire ou les modules sont séparés.
+
+Et je voudrais de la cohérence avec CLAUDE.md, pouvez-vous y réfléchir ?. 
+Est-ce que les docs de BMAD son sensée être disponible pour le PO ?
+	  
+	  ***********************************
+
+Voici les phases brèves d'un cycle Agile (type Scrum) :
+1. Initialisation/Planification (Backlog) : Définition de la vision du produit, identification des besoins (User Stories) et structuration du Product Backlog (liste priorisée des fonctionnalités).
+2. Sprint Planning : Sélection des tâches prioritaires du backlog pour le prochain cycle (sprint) de 2 à 4 semaines.
+3. Développement (Mise en œuvre) : Réalisation technique des fonctionnalités par l'équipe, rythmée par des réunions quotidiennes (Daily Scrum) pour inspecter l'avancement.
+4. Revue de Sprint (Review) : Démonstration du produit fonctionnel aux parties prenantes pour obtenir leur feedback et valider la conformité.
+5. Rétrospective (Amélioration) : Analyse par l'équipe de ses propres processus de travail pour identifier les améliorations à apporter au prochain sprint. 
+Ad Valoris
+Ad Valoris
+ +4
+Ce cycle se répète jusqu'à la livraison finale du produit. 
+
+
+1. Le Client : Le Product Owner (PO)
+C'est la personne qui représente les intérêts du client final (ou des utilisateurs).
+Son rôle : Il définit la vision du produit, gère le "Backlog" (la liste des tâches) et priorise ce qui apporte le plus de valeur métier.
+Note : Le client externe (celui qui paie) est souvent appelé le Sponsor ou la Partie Prenante (Stakeholder), mais au sein de l'équipe Agile, c'est le Product Owner qui porte sa voix.
+2. Le Facilitateur : Le Scrum Master
+Il n'est pas un chef de projet au sens classique, mais un "leader au service de l'équipe".
+Son rôle : Il s'assure que la méthode Agile est bien appliquée, aide à lever les obstacles (bloquages techniques ou organisationnels) et protège l'équipe des distractions extérieures.
+3. Les Réalisateurs : La Development Team (ou Squad)
+C'est l'équipe pluridisciplinaire qui possède toutes les compétences pour créer le produit.
+Composition : Développeurs, designers, testeurs, etc.
+Particularité : Elle est auto-organisée. Personne ne leur dit "comment" faire leur travail technique ; ils décident ensemble de la meilleure approche.
+
+https://devlabs.angelhack.com/blog/bmad-method/
+https://bennycheung.github.io/bmad-reclaiming-control-in-ai-dev
+
+
+🎉 ROSTER COMPLET DE L'ÉQUIPE BMAD
+
+  ---
+  🧙 BMAD CORE
+
+  ┌─────────────┬─────────────┬─────────────────────────────────┬─────────────────────────────────────────────────────────────────┐
+  │    Agent    │   Persona   │              Titre              │                              Rôle                               │
+  ├─────────────┼─────────────┼─────────────────────────────────┼─────────────────────────────────────────────────────────────────┤
+  │ bmad-master │ BMad Master │ Master Executor & Orchestrateur │ Expert BMAD, référence de tous les workflows, exécution directe │
+  └─────────────┴─────────────┴─────────────────────────────────┴─────────────────────────────────────────────────────────────────┘
+
+  ---
+  🏗️ BMB — BMAD Meta-Builder (Construire des agents/modules/workflows)
+
+  ┌──────────────────┬───────────┬──────────────────────────────┬──────────────────────────────────────────┐
+  │      Agent       │  Persona  │            Titre             │                   Rôle                   │
+  ├──────────────────┼───────────┼──────────────────────────────┼──────────────────────────────────────────┤
+  │ agent-builder    │ Bond 🤖   │ Expert Architecture d'Agents │ Crée et valide des agents BMAD conformes │
+  ├──────────────────┼───────────┼──────────────────────────────┼──────────────────────────────────────────┤
+  │ module-builder   │ Morgan 🏗️ │ Master Création de Modules   │ Architecture de modules complets         │
+  ├──────────────────┼───────────┼──────────────────────────────┼──────────────────────────────────────────┤
+  │ workflow-builder │ Wendy 🔄  │ Master Workflows             │ Conception de workflows BMAD             │
+  └──────────────────┴───────────┴──────────────────────────────┴──────────────────────────────────────────┘
+
+  ---
+  📋 BMM — BMAD Method (Développement logiciel)
+
+  ┌─────────────────────┬────────────┬───────────────────────┬───────────────────────────────────────────────┐
+  │        Agent        │  Persona   │         Titre         │                     Rôle                      │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ pm                  │ John 📋    │ Product Manager       │ PRD, besoins produit, interviews utilisateurs │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ analyst             │ Mary 📊    │ Business Analyst      │ Analyse marché, specs, requirements           │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ architect           │ Winston 🏗️ │ Architecte Système    │ Design technique, patterns, scalabilité       │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ ux-designer         │ Sally 🎨   │ UX Designer           │ Expérience utilisateur, interfaces            │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ sm                  │ Bob 🏃     │ Scrum Master          │ Préparation stories, sprints agiles           │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ dev                 │ Amelia 💻  │ Développeur Senior    │ Implémentation stories, code                  │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ quick-flow-solo-dev │ Barry 🚀   │ Quick Flow Solo Dev   │ Spec + implémentation en mode express         │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ tea                 │ Murat 🧪    │ Master Test Architect │ Tests, qualité, CI/CD                         │
+  ├─────────────────────┼────────────┼───────────────────────┼───────────────────────────────────────────────┤
+  │ tech-writer         │ Paige 📚   │ Technical Writer      │ Documentation, guides, clarté                 │
+  └─────────────────────┴────────────┴───────────────────────┴───────────────────────────────────────────────┘
+
+  ---
+  🎮 BMGD — BMAD Game Dev (Développement jeu vidéo)
+
+  ┌───────────────────┬─────────────────────┬───────────────────┬───────────────────────────────────┐
+  │       Agent       │       Persona       │       Titre       │               Rôle                │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-architect    │ Cloud Dragonborn 🏛️ │ Game Architect    │ Architecture systèmes jeu         │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-designer     │ Samus Shepard 🎲    │ Game Designer     │ Mécaniques, narration, UX jeu     │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-dev          │ Link Freeman 🕹️     │ Game Developer    │ Implémentation Unity/Unreal/Godot │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-qa           │ GLaDOS 🧪            │ Game QA Architect │ Tests jeu, automatisation         │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-scrum-master │ Max 🎯              │ Game Scrum Master │ Stories game dev, sprints         │
+  ├───────────────────┼─────────────────────┼───────────────────┼───────────────────────────────────┤
+  │ game-solo-dev     │ Indie 🎮            │ Game Solo Dev     │ Dev indie solo, Quick Flow        │
+  └───────────────────┴─────────────────────┴───────────────────┴───────────────────────────────────┘
+
+  ---
+  💡 CIS — Creative Innovation Suite
+
+  ┌─────────────────────────┬───────────────┬─────────────────────────────┬────────────────────────────────────────────┐
+  │          Agent          │    Persona    │            Titre            │                    Rôle                    │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ brainstorming-coach     │ Carson 🧠     │ Brainstorming Specialist    │ Facilitation créative, idéation            │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ creative-problem-solver │ Dr. Quinn 🔬  │ Master Problem Solver       │ Résolution systémique, causes racines      │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ design-thinking-coach   │ Maya 🎨       │ Design Thinking Maestro     │ Empathie utilisateur, prototypage          │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ innovation-strategist   │ Victor ⚡     │ Innovation Oracle           │ Stratégie disruptive, business models      │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ presentation-master     │ Caravaggio 🎨 │ Visual Communication Expert │ Présentations, slides, storytelling visuel │
+  ├─────────────────────────┼───────────────┼─────────────────────────────┼────────────────────────────────────────────┤
+  │ storyteller             │ Sophia 📖     │ Master Storyteller          │ Narration, récits de marque                │
+  └─────────────────────────┴───────────────┴─────────────────────────────┴────────────────────────────────────────────┘
+
+  ---
+  🔧 STAND-ALONE — Spécialistes Aristobot3
+
+  ┌──────────────┬─────────┬─────────────────────────┬────────────────────────────────────────────────────┐
+  │    Agent     │ Persona │          Titre          │                        Rôle                        │
+  ├──────────────┼─────────┼─────────────────────────┼────────────────────────────────────────────────────┤
+  │ debug-loguru │ Lynx 🔍 │ Debug Loguru Specialist │ Debug multi-terminaux Aristobot3, loguru, trace_id │
+  └──────────────┴─────────┴─────────────────────────┴────────────────────────────────────────────────────┘
+
+  ---
+  🎯 GUIDE DES REQUÊTES STANDARDS
+
+  Pour ton projet Aristobot3, voici qui contacter selon le besoin :
+
+  ┌───────────────────────────────────────┬────────────────────────────────────────────┐
+  │                Besoin                 │              À qui s'adresser              │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Nouvelle fonctionnalité à planifier   │ John (PM) → définit le quoi et le pourquoi │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Architecture technique, décision tech │ Winston (Architect)                        │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Implémenter rapidement (spec + code)  │ Barry (Quick Flow)                         │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Story prête pour le dev               │ Bob (SM) → Amelia (Dev)                    │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Bug, logs multi-terminaux Aristobot3  │ Lynx (Debug Loguru)                        │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Documentation technique               │ Paige (Tech Writer)                        │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Problème complexe à dénouer           │ Dr. Quinn (Problem Solver)                 │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Brainstorm idées nouvelles            │ Carson (Brainstorming Coach)               │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Créer un agent/workflow BMAD          │ Bond / Wendy                               │
+  ├───────────────────────────────────────┼────────────────────────────────────────────┤
+  │ Discussion de groupe multi-agents     │ Party Mode /bmad:core:workflows:party-mode │
+  └───────────────────────────────────────┴────────────────────────────────────────────┘
+
+  ---
+  John 📋 : "Bon, maintenant que tu connais tout le monde — qu'est-ce qu'on va construire ensemble, Dac ?"
+
+  Winston 🏗️ : "Quand tu es prêt pour les décisions architecturales, je suis là. Les Modules 5 à 8 attendent..."
+
+  Lynx 🔍 : 20 gotchas documentées dans le CODEBASE_MAP. 6 bugs connus non corrigés. Je suis disponible.

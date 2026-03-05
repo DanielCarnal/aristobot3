@@ -27,11 +27,27 @@ class User(AbstractUser):
     )
     ai_enabled = models.BooleanField(default=False)
     ai_api_key = models.TextField(blank=True, null=True)  # Sera chiffre
+    ai_model = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Modele IA a utiliser (ex: gpt-4o-mini, llama3:8b)"
+    )
     ai_endpoint_url = models.URLField(
         default='http://localhost:11434',
         blank=True
     )
-    
+    ai_generate_prompt = models.TextField(
+        blank=True,
+        default='',
+        help_text="Pre-prompt personnalise pour le mode Generer (admin uniquement)"
+    )
+    ai_continue_prompt = models.TextField(
+        blank=True,
+        default='',
+        help_text="Pre-prompt personnalise pour le mode Continuer (admin uniquement)"
+    )
+
     # Preferences d'affichage
     theme = models.CharField(
         max_length=10,

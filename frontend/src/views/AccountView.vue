@@ -51,23 +51,111 @@
       
       <div v-if="preferences.ai_provider === 'openrouter'" class="form-group">
         <label>Cle API OpenRouter :</label>
-        <input 
-          type="password" 
+        <input
+          type="password"
           v-model="preferences.ai_api_key"
           placeholder="sk-or-..."
         >
       </div>
-      
+
       <div v-if="preferences.ai_provider === 'ollama'" class="form-group">
         <label>URL Ollama :</label>
-        <input 
-          type="url" 
+        <input
+          type="url"
           v-model="preferences.ai_endpoint_url"
           placeholder="http://localhost:11434"
         >
       </div>
+
+      <!-- Champ Modèle (OpenRouter et Ollama) -->
+      <div v-if="preferences.ai_provider && preferences.ai_provider !== 'none'" class="form-group">
+        <label>Modele IA :</label>
+        <input
+          type="text"
+          v-model="preferences.ai_model"
+          :placeholder="preferences.ai_provider === 'ollama' ? 'Ex: qwen2.5-coder:14b, llama3:8b' : 'Ex: openai/gpt-4o-mini, mistralai/mistral-7b'"
+        >
+        <small class="field-hint">
+          <span v-if="preferences.ai_provider === 'ollama'">
+            Nom exact du modele tel qu'affiche dans <code>ollama list</code>
+          </span>
+          <span v-else>
+            Identifiant du modele OpenRouter (ex: <code>qwen/qwen-2.5-coder-32b-instruct</code>)
+          </span>
+        </small>
+      </div>
+
+      <!-- Bouton test connexion IA -->
+      <div v-if="preferences.ai_provider && preferences.ai_provider !== 'none'" class="form-group ia-test-group">
+        <button
+          class="btn btn-test"
+          :disabled="iaTestLoading"
+          @click="testIAConnection"
+        >
+          {{ iaTestLoading ? '⏳ Test en cours...' : '🔌 Tester la connexion IA' }}
+        </button>
+        <div v-if="iaTestResult" class="ia-test-result" :class="iaTestResult.success ? 'success' : 'error'">
+          <span>{{ iaTestResult.success ? '✓' : '✗' }} {{ iaTestResult.message }}</span>
+          <ul v-if="iaTestResult.models && iaTestResult.models.length" class="ia-models-list">
+            <li v-for="m in iaTestResult.models" :key="m" class="ia-model-item">
+              <button class="ia-model-pick" @click="preferences.ai_model = m">{{ m }}</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Pre-prompt personnalise (user dev uniquement) -->
+      <div v-if="authStore.user?.username === 'dev'" class="admin-section">
+        <h3>Pre-prompt Generer (admin)</h3>
+        <p class="admin-desc">
+          Remplace le prompt systeme par defaut pour le mode "Generer" de l'assistant IA.
+          Laisser vide pour utiliser le prompt par defaut.
+        </p>
+        <textarea
+          v-model="aiGeneratePrompt"
+          class="prompt-textarea"
+          rows="8"
+          placeholder="Laisser vide pour utiliser le prompt par defaut..."
+        ></textarea>
+        <div class="prompt-actions">
+          <button class="btn btn-secondary" @click="resetGeneratePrompt">
+            Reinitialiser (vide)
+          </button>
+          <button class="btn btn-primary" @click="saveGeneratePrompt">
+            Sauvegarder le pre-prompt
+          </button>
+        </div>
+        <details class="prompt-default">
+          <summary>Voir le prompt par defaut</summary>
+          <pre>{{ defaultGeneratePrompt }}</pre>
+        </details>
+
+        <h3 style="margin-top: 1.25rem;">Pre-prompt Continuer (admin)</h3>
+        <p class="admin-desc">
+          Remplace le prompt systeme par defaut pour le mode "Continuer" (tours suivants du chat).
+          Laisser vide pour utiliser le prompt par defaut.
+        </p>
+        <textarea
+          v-model="aiContinuePrompt"
+          class="prompt-textarea"
+          rows="8"
+          placeholder="Laisser vide pour utiliser le prompt par defaut..."
+        ></textarea>
+        <div class="prompt-actions">
+          <button class="btn btn-secondary" @click="resetContinuePrompt">
+            Reinitialiser (vide)
+          </button>
+          <button class="btn btn-primary" @click="saveContinuePrompt">
+            Sauvegarder le pre-prompt
+          </button>
+        </div>
+        <details class="prompt-default">
+          <summary>Voir le prompt par defaut</summary>
+          <pre>{{ defaultContinuePrompt }}</pre>
+        </details>
+      </div>
     </div>
-    
+
     <!-- Preferences d'affichage -->
     <div class="section">
       <h2>Affichage</h2>
@@ -439,10 +527,22 @@ const preferences = ref({
   ai_provider: 'none',
   ai_enabled: false,
   ai_api_key: '',
+  ai_model: '',
   ai_endpoint_url: 'http://localhost:11434',
   theme: 'dark',
   display_timezone: 'local'
 })
+
+// Pre-prompt admin (user dev)
+const aiGeneratePrompt = ref('')
+const defaultGeneratePrompt = `Tu es un expert en trading algorithmique Python. L'utilisateur va te decrire en langage naturel une strategie de trading. Tu dois generer le code Python COMPLET d'une classe qui herite de Strategy. OBLIGATOIRE : inclure STRATEGY_PARAMS avec TOUTES les valeurs numeriques utilisees. Format STRATEGY_PARAMS : {'nom': {'default': val, 'min': mn, 'max': mx, 'step': st, 'type': 'int'|'float', 'label': '...'}}. La classe Strategy de base a ces 5 methodes abstraites : should_long() -> bool, should_short() -> bool, calculate_position_size() -> float, calculate_stop_loss() -> float, calculate_take_profit() -> float. Importe pandas_ta as ta si tu utilises des indicateurs techniques. self.candles est un DataFrame Pandas avec colonnes : open, high, low, close, volume. Utilise self.params['nom'] pour toutes les valeurs numeriques. Reponds UNIQUEMENT avec le code Python, sans explication ni markdown.`
+
+const aiContinuePrompt = ref('')
+const defaultContinuePrompt = `Tu es un expert en trading algorithmique Python. Voici une classe Strategy existante. L'utilisateur souhaite la modifier. REGLES STRICTES : 1) Applique UNIQUEMENT la modification demandee. 2) Ne change rien a ce qui n'est pas mentionne. 3) Conserve STRATEGY_PARAMS intact sauf si la modification concerne les params. 4) Conserve les 5 methodes obligatoires. Reponds UNIQUEMENT avec le code Python COMPLET modifie, sans explication ni markdown.`
+
+// Test connexion IA
+const iaTestLoading = ref(false)
+const iaTestResult = ref(null)
 
 // Detecter le fuseau horaire local
 const localTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -499,11 +599,16 @@ onMounted(async () => {
       ai_provider: user.value.ai_provider || 'none',
       ai_enabled: user.value.ai_enabled || false,
       ai_api_key: '',
+      ai_model: user.value.ai_model || '',
       ai_endpoint_url: user.value.ai_endpoint_url || 'http://localhost:11434',
       theme: user.value.theme || 'dark',
       display_timezone: user.value.display_timezone || 'local'
     }
-    
+
+    // Charger les pre-prompts admin si user dev
+    aiGeneratePrompt.value = user.value.ai_generate_prompt || ''
+    aiContinuePrompt.value = user.value.ai_continue_prompt || ''
+
     // Appliquer le theme
     document.documentElement.setAttribute('data-theme', preferences.value.theme)
   }
@@ -545,6 +650,51 @@ async function savePreferences() {
     alert('Preferences sauvegardees')
   } catch (error) {
     alert('Erreur lors de la sauvegarde')
+  }
+}
+
+async function saveGeneratePrompt() {
+  try {
+    await api.put('/api/accounts/update-preferences/', { ai_generate_prompt: aiGeneratePrompt.value })
+    alert('Pre-prompt sauvegarde')
+  } catch (error) {
+    alert('Erreur lors de la sauvegarde du pre-prompt')
+  }
+}
+
+function resetGeneratePrompt() {
+  aiGeneratePrompt.value = ''
+}
+
+async function saveContinuePrompt() {
+  try {
+    await api.put('/api/accounts/update-preferences/', { ai_continue_prompt: aiContinuePrompt.value })
+    alert('Pre-prompt continuer sauvegarde')
+  } catch (error) {
+    alert('Erreur lors de la sauvegarde du pre-prompt continuer')
+  }
+}
+
+function resetContinuePrompt() {
+  aiContinuePrompt.value = ''
+}
+
+async function testIAConnection() {
+  iaTestResult.value = null
+  iaTestLoading.value = true
+  // Sauvegarder d'abord les preferences courantes (URL, modele) avant de tester
+  try {
+    await authStore.updatePreferences(preferences.value)
+  } catch {
+    // Continuer le test meme si la sauvegarde echoue
+  }
+  try {
+    const resp = await api.post('/api/accounts/test-ia/')
+    iaTestResult.value = resp.data
+  } catch (e) {
+    iaTestResult.value = e.response?.data || { success: false, message: 'Erreur de communication avec le serveur.' }
+  } finally {
+    iaTestLoading.value = false
   }
 }
 
@@ -1430,5 +1580,165 @@ input:checked + .slider:before {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Champ modele IA et test connexion */
+.field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: rgba(192, 192, 208, 0.5);
+}
+
+.field-hint code {
+  background: rgba(0, 212, 255, 0.08);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-family: monospace;
+  color: #00D4FF;
+  font-size: 0.78rem;
+}
+
+.ia-test-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-test {
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  color: #00D4FF;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.btn-test:hover:not(:disabled) {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.btn-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ia-test-result {
+  padding: 0.75rem 1rem;
+  border-radius: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.ia-test-result.success {
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  color: #00FF88;
+}
+
+.ia-test-result.error {
+  background: rgba(255, 0, 85, 0.08);
+  border: 1px solid rgba(255, 0, 85, 0.4);
+  color: #FF0055;
+}
+
+/* Section admin pre-prompt */
+.admin-section {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 170, 0, 0.04);
+}
+
+.admin-section h3 {
+  margin: 0 0 0.4rem 0;
+  color: #ffaa00;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-desc {
+  font-size: 0.82rem;
+  color: #888;
+  margin: 0 0 0.75rem 0;
+}
+
+.prompt-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: monospace;
+  font-size: 0.82rem;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: rgba(0, 212, 255, 0.5);
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.prompt-default {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.prompt-default summary {
+  cursor: pointer;
+  color: #888;
+}
+
+.prompt-default pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 0.6rem;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #aaa;
+}
+
+.ia-models-list {
+  list-style: none;
+  margin: 0.5rem 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ia-model-item {
+  display: inline;
+}
+
+.ia-model-pick {
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  color: #00D4FF;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.ia-model-pick:hover {
+  background: rgba(0, 212, 255, 0.22);
 }
 </style>

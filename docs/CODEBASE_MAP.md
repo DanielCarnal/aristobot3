@@ -476,11 +476,11 @@ Shared tables (no user FK):
 
 ## Gotchas
 
-### 1. Webhook Double-Save (Known Bug)
-Terminal 6 saves every webhook to DB on receipt (`status='received'`). Terminal 3 creates a **second** `Webhook` record (`status='processing'`). Two rows exist for the same signal. Fix: T3 should fetch the existing record (by trace_id or timestamp match) and update it instead of inserting.
+### 1. ~~Webhook Double-Save~~ — CORRIGE (verifie 2026-03-02)
+T3 cherche d'abord l'enregistrement existant via `Webhook.objects.filter(user_id, broker_id, raw_payload, status='received').first()` et le met a jour vers `processing`. Cree un second record uniquement en fallback si T6 avait echoue. Note residuelle : filtre par `raw_payload` (JSONField) potentiellement fragile si l'ordre des cles JSON varie entre T6 et T3.
 
-### 2. WebhooksView Uses Polling, Not WebSocket
-`WebhooksView.vue` polls `/api/webhooks/recent/` every 5s. Per Rule #1 (DEVELOPMENT_RULES), live webhook data must use WebSocket. No `WebhookConsumer` exists in `routing.py` yet. Migration path: add consumer to `core/consumers.py` + route, broadcast on webhook save.
+### 2. ~~WebhooksView Uses Polling~~ — CORRIGE (verifie 2026-03-02)
+`WebhooksView.vue` utilise desormais un WebSocket (`ws://hostname:8000/ws/webhooks/`) avec `unshift()` incremental et reconnexion auto. `WebhookConsumer` enregistre dans `routing.py`. Aucun `setInterval` ni polling axios present.
 
 ### 3. Two Independent Pub/Sub Systems
 Django Channels consumers (HeartbeatView, TradingManualView) use `channel_layer.group_send()`. Terminal 3 and 6 use raw `redis.asyncio` Pub/Sub (`subscribe`/`publish`). These are **not** interchangeable — Django Channels groups are invisible to raw Redis SUBSCRIBE and vice versa.
@@ -518,23 +518,23 @@ The Loguru interceptor in `settings.py` checks `'daphne' in sys.argv[0]` before 
 ### 14. `services/__init__.py` Eager Imports
 `apps/core/services/__init__.py` eagerly imports all native clients and models at package load time. In contexts where Django apps aren't fully initialised yet (e.g. early `settings.py` execution), importing from `apps.core.services` raises `AppRegistryNotReady`. This is why `settings.py` loads `loguru_config` via `importlib` file-path rather than a package import. Any new code that runs before `django.setup()` must follow the same pattern.
 
-### 15. `redis_fallback.py` Ignores `REDIS_HOST`
-`get_redis_client()` hardcodes `host='localhost', port=6379`. The rest of the codebase reads `REDIS_HOST` / `REDIS_PORT` from `.env` / Django settings. If Redis is on a remote host (the DB is on `10.9.0.99` — Redis may be too), this factory connects to the wrong server. Fix: read from `django.conf.settings` or environment before constructing the client.
+### 15. ~~`redis_fallback.py` Ignores `REDIS_HOST`~~ — CORRIGE (verifie 2026-03-02)
+`redis_fallback.py` lit desormais `os.getenv('REDIS_HOST', 'localhost')` et `os.getenv('REDIS_PORT', '6379')` au chargement du module. Variables `_REDIS_HOST` et `_REDIS_PORT` utilisees par toute la factory.
 
-### 16. Duplicate `symbol_updater` Files
-Three copies exist: `symbol_updater.py` (canonical, imported by `__init__.py`), `symbol_updater_fixed.py` (has `safe_decimal_value()` guard, not imported anywhere), `symbol_updater_backup.py` (original without the guard, crashes on large exchange values). Only `symbol_updater.py` is in the import chain. The other two should be deleted or moved to `_archives/`.
+### 16. ~~Duplicate `symbol_updater` Files~~ — CORRIGE (verifie 2026-03-02)
+`symbol_updater_fixed.py` et `symbol_updater_backup.py` supprimes du repertoire `apps/core/services/`. Seul `symbol_updater.py` (canonique) subsiste.
 
-### 17. `frontend/src/services/logger.js` — Dead Endpoint
-`logger.js` ships log entries to `POST /api/frontend-log`, but no such endpoint is registered in any `urls.py`. Every log call silently falls back to `console.warn` after 3 retries. Either wire up the backend endpoint or remove the service until it is needed.
+### 17. ~~`frontend/src/services/logger.js` — Dead Endpoint~~ — CORRIGE (verifie 2026-03-02)
+Les deux cotes corriges : `logger.js` n'envoie plus rien sur le reseau (console uniquement). Backend : endpoint `POST /api/frontend-log` cree dans `apps/core/views.py` et enregistre dans `apps/core/urls.py`. Situation coherente, pas de bug actif.
 
-### 18. `WebhookState` Missing `current_price` Field
-`WebhookStateViewSet.summary` action iterates open positions and references `position.current_price` to compute total unrealized P&L. `WebhookState` has no `current_price` column — this endpoint will raise `AttributeError` at runtime. Needs either a model field added or the price fetched live from T5 before the calculation.
+### 18. ~~`WebhookState` Missing `current_price` Field~~ — FAUX POSITIF (verifie 2026-03-02)
+L'audit Cartographer signalait que `summary` referencerait `position.current_price`. Verifie en production : le code utilise `pos.unrealized_pnl` (champ existant avec `default=0`). Endpoint `GET /api/webhook-states/summary/` retourne HTTP 200 OK correctement. Ce gotcha est invalide.
 
-### 19. `WebhookSerializer.exchange_name` Shadows Model Field
-The serializer declares `exchange_name = CharField(source='broker.exchange')` which always returns the broker's exchange type (e.g. `"bitget"`). The `Webhook` model has its own `exchange_name` column populated from the TradingView payload (e.g. `"Binance"`). The API response silently returns the wrong value. Remove the explicit serializer field to let the ModelSerializer use the model column, or rename one of them.
+### 19. ~~`WebhookSerializer.exchange_name` Shadows Model Field~~ — PARTIELLEMENT CORRIGE (verifie 2026-03-02)
+`WebhookSerializer` : shadowing corrige, plus de declaration explicite `exchange_name`, le champ du modele est utilise directement via ModelSerializer. `WebhookStateSerializer` conserve `exchange_name = CharField(source='broker.exchange')` — intentionnel car `WebhookState` n'a pas de champ `exchange_name` propre.
 
-### 20. `TradingManualConsumer` Creates `ExchangeClient` Without `user_id`
-In `trading_manual/consumers.py`, `TradingManualConsumer.heartbeat_message()` instantiates `ExchangeClient()` with no `user_id`. The multi-tenant security check in `ExchangeClient._send_request()` is bypassed. Pass `user_id=self.scope['user'].id` at construction time.
+### 20. ~~`TradingManualConsumer` Creates `ExchangeClient` Without `user_id`~~ — CORRIGE (verifie 2026-03-02)
+`ExchangeClient` instancie avec `user_id=self.user.id` explicitement. Verification `verify_broker_ownership()` presente avant chaque acces broker.
 
 ---
 
@@ -600,19 +600,25 @@ In `trading_manual/consumers.py`, `TradingManualConsumer.heartbeat_message()` in
 | 6 | Webhook Receiver | Active (NEW) |
 | 7 | Order Monitor | Spec only |
 
-**Technical debt:**
-- Webhook double-save (T6 + T3 both insert) — Gotcha #1
-- WebhooksView polling vs WebSocket — Gotcha #2
-- `redis_fallback.py` hardcodes localhost — Gotcha #15
-- `symbol_updater_fixed.py` + `symbol_updater_backup.py` dead duplicates — Gotcha #16
-- `services/logger.js` ships to unregistered endpoint — Gotcha #17
-- `WebhookState.current_price` missing; `summary` endpoint crashes — Gotcha #18
-- `WebhookSerializer.exchange_name` returns wrong value — Gotcha #19
-- `TradingManualConsumer` bypasses multi-tenant check — Gotcha #20
-- `backend/` root littered with ~30 debug/test scripts (`test_*.py`, `debug_*.py`, `check_*.py`) — candidates for cleanup or move to `tests/`
-- No automated tests
-- No CI/CD
-- Some views use `alert()` instead of toast notifications
+**Technical debt (mis a jour 2026-03-02 — audit de verification complet):**
+
+Gotchas resolus (verifie en production) :
+- ~~Webhook double-save~~ — CORRIGE (#1)
+- ~~WebhooksView polling~~ — CORRIGE, WebSocket + WebhookConsumer actifs (#2)
+- ~~`redis_fallback.py` hardcodes localhost~~ — CORRIGE, lit REDIS_HOST/PORT (#15)
+- ~~`symbol_updater_fixed/backup.py` dead duplicates~~ — CORRIGE, fichiers supprimes (#16)
+- ~~`services/logger.js` dead endpoint~~ — CORRIGE, frontend console-only + endpoint backend cree (#17)
+- ~~`WebhookState.current_price` missing~~ — FAUX POSITIF, endpoint HTTP 200 OK (#18)
+- ~~`TradingManualConsumer` bypass multi-tenant~~ — CORRIGE, user_id passe (#20)
+
+Gotcha residuel :
+- `WebhookStateSerializer.exchange_name` declare `source='broker.exchange'` — probablement intentionnel (WebhookState n'a pas de champ exchange_name propre), a confirmer (#19)
+
+Autres dettes :
+- `backend/` root contient ~30 scripts debug/test (`test_*.py`, `debug_*.py`, `check_*.py`) — a archiver ou supprimer
+- Pas de tests automatises
+- Pas de CI/CD
+- Certaines vues utilisent `alert()` au lieu de notifications toast
 
 ---
 

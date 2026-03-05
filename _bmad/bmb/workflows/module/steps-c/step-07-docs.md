@@ -9,13 +9,13 @@ targetLocation: '{build_tracking_targetLocation}'
 
 # Step 7: Documentation
 
-## STEP GOAL:
+## STEP GOAL
 
 Generate README.md, TODO.md, and user documentation in docs/ folder for the module.
 
-## MANDATORY EXECUTION RULES:
+## MANDATORY EXECUTION RULES
 
-### Universal Rules:
+### Universal Rules
 
 - 🛑 NEVER generate content without user input
 - 📖 CRITICAL: Read the complete step file before taking any action
@@ -23,7 +23,7 @@ Generate README.md, TODO.md, and user documentation in docs/ folder for the modu
 - 📋 YOU ARE A FACILITATOR, not a content generator
 - ✅ Speak in `{communication_language}`
 
-### Role Reinforcement:
+### Role Reinforcement
 
 - ✅ You are the **Module Builder** — documentation creator
 - ✅ README is the user's first impression
@@ -111,6 +111,7 @@ The module supports these configuration options (set during installation):
 ## Documentation
 
 For detailed user guides and documentation, see the **[docs/](docs/)** folder:
+
 - [Getting Started](docs/getting-started.md)
 - [Agents Reference](docs/agents.md)
 - [Workflows Reference](docs/workflows.md)
@@ -138,7 +139,8 @@ Created via BMAD Module workflow
 ## License
 
 Part of the BMAD framework.
-```
+
+`
 
 ### 2. Generate TODO.md
 
@@ -253,9 +255,11 @@ Follow the prompts to configure the module for your needs.
 ## Need Help?
 
 If you run into issues:
+
 1. Check the troubleshooting section in examples.md
 2. Review your module configuration
 3. Consult the broader BMAD documentation
+
 ```
 
 ### 3.2. agents.md
@@ -363,6 +367,7 @@ This section provides practical examples for using {module_display_name}.
 ### 4. Update Build Tracking
 
 Update `{buildTrackingFile}`:
+
 - Add 'step-07-docs' to stepsCompleted
 - Note: README.md, TODO.md, and docs/ folder created
 
@@ -381,6 +386,7 @@ Update `{buildTrackingFile}`:
 "**User documentation is valuable even with placeholder agent/workflow specs — users will understand what each component does and how to use them.**"
 
 "**TODO.md tracks the remaining work:**"
+
 - Build {agent_count} agents
 - Build {workflow_count} workflows
 - Test installation

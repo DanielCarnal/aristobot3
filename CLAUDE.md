@@ -1,15 +1,11 @@
 # Aristobot3 - Configuration Claude Code
 
-> ⚠️ **RÈGLES OBLIGATOIRES AVANT TOUT DÉVELOPPEMENT**
->
-> Consulter [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) - **6 RÈGLES CRITIQUES NON NÉGOCIABLES**
-
----
-
 ## 📚 Documentation Principale
 
 ### Règles et Contraintes
-@DEVELOPMENT_RULES.md → **OBLIGATOIRE** - Règles architecturales strictes (WebSockets, Stack, Design, APIs, Contraintes, Documentation)
+- **OBLIGATOIRE** - Règles architecturales strictes
+- Consulter [@DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) - **6 RÈGLES CRITIQUES NON NÉGOCIABLES** (WebSockets, Stack, Design, APIs, Contraintes, Documentation)
+- Les règles de développement DOIVENT être consultées avant toute implémentation, tout développement.
 
 ### Architecture et Planification
 @Aristobot3_1.md → Description complète projet et architecture fonctionnelle
@@ -17,9 +13,6 @@
 @docs/CODEBASE_MAP.md → **Carte auto-générée** du codebase (regénérer avec `/cartographer` avant commits majeurs)
 
 ### Architecture Détaillée
-@_bmad-output/planning-artifacts/Terminal5_Exchange_Gateway.md → Documentation complète Terminal 5 (Exchange Gateway natif)
-
----
 
 ## 🔧 Imports Techniques
 

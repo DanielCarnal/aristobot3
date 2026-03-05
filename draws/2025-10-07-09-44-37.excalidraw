@@ -1,0 +1,172 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "file://",
+  "elements": [
+    {
+      "type": "diamond",
+      "version": 95,
+      "versionNonce": 1121619445,
+      "isDeleted": false,
+      "id": "ra37j-NTAvhqV11ruBDzu",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "angle": 0,
+      "x": 427.5,
+      "y": 106.79998779296875,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "width": 131,
+      "height": 120,
+      "seed": 59671078,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "ki7HVlXoVRiLujSKz6TE1"
+        },
+        {
+          "id": "NVNdupv0bg5zGFPxXfOxE",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1759847326105,
+      "link": null,
+      "locked": false
+    },
+    {
+      "type": "text",
+      "version": 101,
+      "versionNonce": 1822361429,
+      "isDeleted": false,
+      "id": "ki7HVlXoVRiLujSKz6TE1",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "angle": 0,
+      "x": 471.0500259399414,
+      "y": 154.29998779296875,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "width": 44.39994812011719,
+      "height": 25,
+      "seed": 692291814,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "boundElements": [],
+      "updated": 1759847326105,
+      "link": null,
+      "locked": false,
+      "fontSize": 20,
+      "fontFamily": 1,
+      "text": "test",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "ra37j-NTAvhqV11ruBDzu",
+      "originalText": "test",
+      "lineHeight": 1.25,
+      "baseline": 18
+    },
+    {
+      "type": "rectangle",
+      "version": 54,
+      "versionNonce": 325281018,
+      "isDeleted": false,
+      "id": "dw-WgeiuFEyRcbcSqvKJz",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "angle": 0,
+      "x": 402.5,
+      "y": 260,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "width": 145,
+      "height": 59,
+      "seed": 1292195878,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "boundElements": [
+        {
+          "id": "NVNdupv0bg5zGFPxXfOxE",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1759823159691,
+      "link": null,
+      "locked": false
+    },
+    {
+      "type": "arrow",
+      "version": 271,
+      "versionNonce": 1938486805,
+      "isDeleted": false,
+      "id": "NVNdupv0bg5zGFPxXfOxE",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "angle": 0,
+      "x": 469.87940916503624,
+      "y": 207.9948664174294,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "width": 17.133442772377748,
+      "height": 45.00513358257061,
+      "seed": 104680486,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "boundElements": [],
+      "updated": 1759847326106,
+      "link": null,
+      "locked": false,
+      "startBinding": {
+        "elementId": "ra37j-NTAvhqV11ruBDzu",
+        "focus": 0.5872598052118979,
+        "gap": 1.7505922900158453
+      },
+      "endBinding": {
+        "elementId": "dw-WgeiuFEyRcbcSqvKJz",
+        "focus": 0.3094254600075103,
+        "gap": 7
+      },
+      "lastCommittedPoint": null,
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          17.133442772377748,
+          45.00513358257061
+        ]
+      ]
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#FFF"
+  },
+  "files": {}
+}
