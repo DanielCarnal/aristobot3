@@ -268,6 +268,7 @@ try:
     for _logger_name in [
         'apps.trading_manual', 'apps.webhooks', 'apps.accounts',
         'apps.brokers', 'apps.core', 'apps.trading_engine',
+        'apps.strategies',
     ]:
         _app_logger = _logging.getLogger(_logger_name)
         _app_logger.addHandler(_LoguruInterceptHandler())

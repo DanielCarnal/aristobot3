@@ -59,7 +59,7 @@ SYSTEM_PROMPTS = {
 class AIAssistService:
     """Service d'assistance IA pour la creation et l'analyse de strategies."""
 
-    TIMEOUT = aiohttp.ClientTimeout(total=30)
+    TIMEOUT = aiohttp.ClientTimeout(total=120)
 
     async def call_ai(self, user, mode: str, prompt: str) -> str:
         """

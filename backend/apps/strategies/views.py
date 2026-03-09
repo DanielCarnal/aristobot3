@@ -627,7 +627,7 @@ class StrategyViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Erreur appel IA: {e}")
+            logger.exception("Erreur appel IA")
             return Response(
                 {'error': f"Erreur lors de l'appel IA: {str(e)}"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
