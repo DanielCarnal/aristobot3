@@ -1,4 +1,10 @@
-# Memoire des sessions de debug — Lynx
+# Memoire des sessions de debug - Lynx
 # Format : liste YAML. Chaque entree est une session complete.
 # Les echecs sont aussi importants que les solutions.
-[]
+- date: "2026-03-06"
+  probleme: "Bouton Analyser dans StrategiesView retourne le fallback - Erreur lors de l analyse"
+  terminaux: [T1]
+  cause_racine: "aiohttp.ClientTimeout(total=30) depasse - modele 14B prend >30s pour generer une analyse complete (assist). Describe fonctionne car tache plus courte ~50 tokens vs ~400."
+  solution: "TIMEOUT 30->120s dans apps/strategies/services.py. apps.strategies ajoute a l intercepteur Loguru dans settings.py. logger.exception() pour traceback complet dans views.py."
+  echecs: []
+  duree_resolution_min: 25
