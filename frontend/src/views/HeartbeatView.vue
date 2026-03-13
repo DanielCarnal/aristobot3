@@ -109,7 +109,7 @@ onUnmounted(() => {
 
 // WebSocket connection
 function connectWebSocket() {
-  websocket = new WebSocket('ws://localhost:8000/ws/heartbeat/')
+  websocket = new WebSocket(`ws://${window.location.hostname}:8000/ws/heartbeat/`)
   
   websocket.onmessage = (event) => {
     const data = JSON.parse(event.data)
@@ -154,7 +154,7 @@ function connectWebSocket() {
 
 // Raw Stream WebSocket connection
 function connectRawStream() {
-  streamWebsocket = new WebSocket('ws://localhost:8000/ws/stream/')
+  streamWebsocket = new WebSocket(`ws://${window.location.hostname}:8000/ws/stream/`)
   
   streamWebsocket.onmessage = (event) => {
     const data = JSON.parse(event.data)
@@ -210,7 +210,7 @@ async function loadHistoricalDataForTimeframes() {
     console.log('Chargement des données historiques pour timeframes...')
     
     for (const tf of timeframes) {
-      const response = await fetch(`http://localhost:8000/api/heartbeat-history/?signal_type=${tf}&limit=40`)
+      const response = await fetch(`http://${window.location.hostname}:8000/api/heartbeat-history/?signal_type=${tf}&limit=40`)
       if (response.ok) {
         const data = await response.json()
         const signals = data.results || []

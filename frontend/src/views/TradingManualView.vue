@@ -920,7 +920,7 @@ export default {
         tradingSocket.close()
       }
       
-      tradingSocket = new WebSocket('ws://localhost:8000/ws/heartbeat/')
+      tradingSocket = new WebSocket(`ws://${window.location.hostname}:8000/ws/heartbeat/`)
       
       tradingSocket.onopen = () => {
         console.log('🔌 WebSocket Heartbeat connecté (Trading Manual)')
@@ -974,7 +974,7 @@ export default {
       }
       
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//localhost:8000/ws/trading-notifications/`
+      const wsUrl = `${protocol}//${window.location.hostname}:8000/ws/trading-notifications/`
       
       notificationSocket.value = new WebSocket(wsUrl)
       
@@ -1640,7 +1640,7 @@ export default {
       
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       // Utiliser le port Django (8000) pour les WebSockets, pas le port Vite (5173)
-      const wsUrl = `${protocol}//localhost:8000/ws/open-orders/?broker_id=${selectedBroker.value}`
+      const wsUrl = `${protocol}//${window.location.hostname}:8000/ws/open-orders/?broker_id=${selectedBroker.value}`
       
       openOrdersSocket = new WebSocket(wsUrl)
       
@@ -1657,7 +1657,6 @@ export default {
           console.log('📋 Ordres reçus:', data.orders.length, 'ordres')
           console.log('📄 Détail ordres:', data.orders)
           openOrders.value = data.orders
-          openOrdersLoading.value = false
         } else if (data.type === 'order_cancelled') {
           console.log('✅ Ordre annulé:', data.order_id)
         } else if (data.type === 'order_edited') {

@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // Configuration de base pour les appels API
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: `http://${window.location.hostname}:8000`,
   withCredentials: true, // Important pour les cookies de session
   headers: {
     'Content-Type': 'application/json',

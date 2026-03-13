@@ -1,7 +1,8 @@
 import axios from 'axios'
 
 // Configuration de base axios
-const API_BASE_URL = 'http://localhost:8000'
+// Utilise le même host que la page pour fonctionner en local ET depuis le LAN
+const API_BASE_URL = `http://${window.location.hostname}:8000`
 
 // Fonction pour récupérer le token CSRF depuis les cookies
 function getCsrfToken() {

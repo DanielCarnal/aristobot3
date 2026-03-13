@@ -22,7 +22,9 @@ WEBHOOK_TOKEN = os.getenv('WEBHOOK_TOKEN', 'CHANGE_ME_IN_PRODUCTION')
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+# Lire depuis .env : ALLOWED_HOSTS=* ou ALLOWED_HOSTS=mondomaine.com,10.9.0.101
+# Par défaut '*' pour usage personnel/LAN/NAT sans configuration supplémentaire
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 
 INSTALLED_APPS = [
@@ -84,11 +86,11 @@ ASGI_APPLICATION = 'aristobot.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'aristobot3',
-        'USER': 'postgres',
-        'PASSWORD': 'aristobot',
-        'HOST': '10.9.0.99',
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'aristobot3'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'aristobot'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -175,17 +177,12 @@ REST_FRAMEWORK = {
 }
 
 # CORS - Configuration plus permissive pour le développement
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vue dev server  
-    "http://127.0.0.1:5173",  # Vue dev server alternative
-    "http://localhost:3000",  # Autres ports possibles
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",  # API elle-même (pour les tests)
-    "http://127.0.0.1:8000",  # API elle-même (pour les tests)
-]
-
+# Projet personnel (5 users max) — on accepte toutes les origines pour
+# permettre l'accès depuis n'importe quel LAN, IP publique ou domaine
+# sans avoir à modifier la config à chaque changement d'IP.
+# Mettre False en production avec un domaine fixe et lister les origines explicitement.
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False  # Gardons la sécurité
 
 # Headers CORS pour les cookies
 CORS_ALLOWED_HEADERS = [

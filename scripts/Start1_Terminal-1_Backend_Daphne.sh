@@ -17,7 +17,7 @@ ls
 while true; do
     echo ""
     echo "🚀 Lancement de Daphne..."
-    daphne --verbosity 2 aristobot.asgi:application
+    daphne -b 0.0.0.0 --verbosity 2 aristobot.asgi:application
 
     echo ""
     echo "=================================================================="
