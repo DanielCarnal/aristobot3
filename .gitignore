@@ -176,7 +176,10 @@ jspm_packages/
 .vscode-test
 
 # CLAUDE CODE ET DÉVELOPPEMENT
-.claude/
+# Tracker les agents et commandes projet (partagés entre machines)
+# Ignorer uniquement les settings locaux machine-specifiques
+.claude/settings.local.json
+.claude/settings.local - Copie.json
 claude-instructions.local
 
 # POSTGRES ET BASES DE DONNÉES
